@@ -14,18 +14,20 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.disareturnssubmission.controllers
+package uk.gov.hmrc.disareturnssubmission.config
 
-import play.api.mvc.{Action, AnyContent, ControllerComponents}
-import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
+import base.SpecBase
+import org.apache.pekko.Done
 
-import javax.inject.{Inject, Singleton}
+class NoOpInternalAuthTokenInitialiserSpec extends SpecBase {
 
-@Singleton()
-class MicroserviceHelloWorldController @Inject() (
-    cc: ControllerComponents
-) extends BackendController(cc):
+  "NoOpInternalAuthTokenInitialiser" - {
+    "initialised" - {
+      "must return Done" in {
+        val initialiser = new NoOpInternalAuthTokenInitialiser()
 
-  val hello: Action[AnyContent] =
-    Action:
-      implicit request => Ok("Hello world")
+        initialiser.initialised.futureValue mustBe Done
+      }
+    }
+  }
+}

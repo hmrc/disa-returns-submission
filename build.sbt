@@ -20,3 +20,5 @@ lazy val it = project
   .dependsOn(microservice % "test->test")
   .settings(DefaultBuildSettings.itSettings())
   .settings(libraryDependencies ++= AppDependencies.it)
+
+addCommandAlias("prePrChecks", ";scalafmtCheckAll;scalafmtSbtCheck")
