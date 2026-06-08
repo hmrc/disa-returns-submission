@@ -1,0 +1,200 @@
+package uk.gov.hmrc.disareturnssubmission.repositories
+
+import org.bson.conversions.Bson
+import org.mongodb.scala.model.*
+import uk.gov.hmrc.disareturnssubmission.config.AppConfig
+import uk.gov.hmrc.disareturnssubmission.models.*
+import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository.CreateFileUploadRepositoryResult
+import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository.CreateFileUploadRepositoryResult.*
+import uk.gov.hmrc.mongo.MongoComponent
+import uk.gov.hmrc.mongo.MongoUtils.DuplicateKey
+import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
+
+import java.time.{Clock, Instant}
+import java.util.concurrent.TimeUnit
+import javax.inject.{Inject, Singleton}
+import scala.concurrent.{ExecutionContext, Future}
+
+@Singleton
+class MonthlyReturnRepository @Inject() (
+  mongoComponent: MongoComponent,
+  appConfig: AppConfig,
+  clock: Clock
+)(implicit ec: ExecutionContext)
+    extends PlayMongoRepository[MonthlyReturn](
+      mongoComponent = mongoComponent,
+      collectionName = "monthlyReturns",
+      domainFormat = MonthlyReturn.mongoFormat,
+      indexes = Seq(
+        IndexModel(
+          Indexes.ascending("lastUpdated"),
+          IndexOptions()
+            .name("monthlyReturnsTtl")
+            .expireAfter(appConfig.monthlyReturnTimeToLiveInDays, TimeUnit.DAYS)
+        ),
+        IndexModel(
+          Indexes.ascending("zReference", "taxYear", "month"),
+          IndexOptions()
+            .name("monthlyReturnKeyIdx")
+            .unique(true)
+        )
+      ),
+      replaceIndexes = true,
+      extraCodecs = Codecs.playFormatSumCodecs(FileUploadStatus.format) ++
+        Codecs.playFormatSumCodecs(FileUploadFailureReason.format)
+    ) {
+
+  def get(zReference: String, taxYear: String, month: Int): Future[Option[MonthlyReturn]] =
+    collection
+      .find(byKey(zReference, taxYear, month))
+      .headOption()
+
+  def create(zReference: String, taxYear: String, month: Int, nilReturn: Boolean): Future[Boolean] = {
+    val createdOn = now()
+
+    collection
+      .insertOne(
+        MonthlyReturn(
+          zReference = zReference,
+          taxYear = taxYear,
+          month = month,
+          createdOn = createdOn,
+          nilReturn = nilReturn,
+          fileUploads = Nil,
+          lastUpdated = createdOn
+        )
+      )
+      .toFuture()
+      .map(_.wasAcknowledged())
+      .recover { case DuplicateKey(_) => false }
+  }
+
+  def upsert(monthlyReturn: MonthlyReturn): Future[Boolean] =
+    replace(monthlyReturn.copy(lastUpdated = now()))
+
+  def updateNilReturn(
+    zReference: String,
+    taxYear: String,
+    month: Int,
+    nilReturn: Boolean
+  ): Future[Option[MonthlyReturn]] = {
+    val updatedOn = now()
+
+    get(zReference, taxYear, month).flatMap {
+      case Some(monthlyReturn) =>
+        val updatedMonthlyReturn = monthlyReturn.updateNilReturn(nilReturn, updatedOn)
+
+        if (updatedMonthlyReturn == monthlyReturn) {
+          Future.successful(Some(monthlyReturn))
+        } else {
+          replace(updatedMonthlyReturn).map(_ => Some(updatedMonthlyReturn))
+        }
+
+      case None =>
+        Future.successful(None)
+    }
+  }
+
+  def createFileUpload(
+    zReference: String,
+    taxYear: String,
+    month: Int,
+    reference: String
+  ): Future[CreateFileUploadRepositoryResult] = {
+    val createdOn = now()
+
+    get(zReference, taxYear, month).flatMap {
+      case Some(monthlyReturn) if monthlyReturn.nilReturn =>
+        Future.successful(MonthlyReturnNotFound)
+
+      case Some(monthlyReturn) if monthlyReturn.fileUploads.exists(_.reference == reference) =>
+        Future.successful(FileUploadAlreadyExists)
+
+      case Some(monthlyReturn) =>
+        val updatedMonthlyReturn = monthlyReturn.createFileUpload(
+          reference = reference,
+          createdOn = createdOn
+        )
+
+        replace(updatedMonthlyReturn).map(_ => FileUploadCreated(updatedMonthlyReturn))
+
+      case None =>
+        Future.successful(MonthlyReturnNotFound)
+    }
+  }
+
+  def getFileUpload(
+    zReference: String,
+    taxYear: String,
+    month: Int,
+    reference: String
+  ): Future[Option[FileUpload]] =
+    get(zReference, taxYear, month).map(_.flatMap(_.fileUploads.find(_.reference == reference)))
+
+  def completeUpscan(
+    zReference: String,
+    taxYear: String,
+    month: Int,
+    reference: String,
+    status: FileUploadStatus,
+    fileUploadDetails: Option[FileUploadDetails],
+    failureReason: Option[FileUploadFailureReason] = None,
+    failureMessage: Option[String] = None
+  ): Future[Boolean] = {
+    val upscanCompletedOn = now()
+
+    get(zReference, taxYear, month).flatMap {
+      case Some(monthlyReturn) if monthlyReturn.nilReturn =>
+        Future.successful(false)
+
+      case Some(monthlyReturn) =>
+        val updatedMonthlyReturn = monthlyReturn.completeUpscan(
+          reference = reference,
+          status = status,
+          upscanCompletedOn = upscanCompletedOn,
+          fileUploadDetails = fileUploadDetails,
+          failureReason = failureReason,
+          failureMessage = failureMessage
+        )
+
+        if (updatedMonthlyReturn == monthlyReturn) {
+          Future.successful(false)
+        } else {
+          replace(updatedMonthlyReturn)
+        }
+
+      case None =>
+        Future.successful(false)
+    }
+  }
+
+  private def replace(monthlyReturn: MonthlyReturn): Future[Boolean] =
+    collection
+      .replaceOne(
+        filter = byKey(monthlyReturn.zReference, monthlyReturn.taxYear, monthlyReturn.month),
+        replacement = monthlyReturn,
+        options = ReplaceOptions().upsert(true)
+      )
+      .toFuture()
+      .map(_.wasAcknowledged())
+
+  private def byKey(zReference: String, taxYear: String, month: Int): Bson =
+    Filters.and(
+      Filters.equal("zReference", zReference),
+      Filters.equal("taxYear", taxYear),
+      Filters.equal("month", month)
+    )
+
+  private def now(): Instant = Instant.now(clock)
+}
+
+object MonthlyReturnRepository {
+
+  sealed trait CreateFileUploadRepositoryResult
+
+  object CreateFileUploadRepositoryResult {
+    final case class FileUploadCreated(monthlyReturn: MonthlyReturn) extends CreateFileUploadRepositoryResult
+    case object FileUploadAlreadyExists extends CreateFileUploadRepositoryResult
+    case object MonthlyReturnNotFound extends CreateFileUploadRepositoryResult
+  }
+}
