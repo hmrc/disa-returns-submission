@@ -19,21 +19,41 @@ package uk.gov.hmrc.disareturnssubmission.controllers
 import play.api.Logging
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Action, ControllerComponents, Result}
+import uk.gov.hmrc.disareturnssubmission.models.CreateMonthlyReturnRequest
+import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, MonthlyReturnService}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.play.bootstrap.controller.WithJsonBody
 import uk.gov.hmrc.disareturnssubmission.validators.ValidationHelper
 
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.control.NonFatal
 
 class MonthlyReturnController @Inject() (
-  cc: ControllerComponents
-  // monthlyReturnService: MonthlyReturnService
+  cc: ControllerComponents,
+  monthlyReturnService: MonthlyReturnService
 )(implicit ec: ExecutionContext)
     extends BackendController(cc)
     with WithJsonBody
     with Logging {
-  def create(zReference: String, taxYear: String, month: String): Action[JsValue] = ???
+  def create(zReference: String, taxYear: String, month: String): Action[JsValue] =
+    Action.async(parse.json) { implicit request =>
+      withValidMonthlyReturnParams(zReference, taxYear, month) { (validZReference, validTaxYear, validMonth) =>
+        withJsonBody[CreateMonthlyReturnRequest] { createRequest =>
+          logger.info(
+            s"[MonthlyReturnController][createMonthlyReturn] Create monthly return request for zReference [$validZReference], taxYear [$validTaxYear], month [$validMonth], nilReturn [${createRequest.nilReturn}]"
+          )
+
+          monthlyReturnService
+            .create(validZReference, validTaxYear, validMonth, createRequest.nilReturn)
+            .map {
+              case CreateMonthlyReturnResult.Created       => Created.withHeaders(LOCATION -> request.path)
+              case CreateMonthlyReturnResult.AlreadyExists => Conflict
+            }
+            .recover { case NonFatal(_) => ServiceUnavailable }
+        }
+      }
+    }
 
   def declare(zReference: String, taxYear: String, month: String): Action[Option[JsValue]] = ???
 
