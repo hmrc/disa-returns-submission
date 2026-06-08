@@ -14,7 +14,9 @@ import uk.gov.hmrc.disareturnssubmission.models.common.DuplicateNilReturnField
 
 import scala.concurrent.ExecutionContext
 
-class StrictOptionalJsonBodyParser @Inject() ()(implicit ec: ExecutionContext) extends BodyParser[Option[JsValue]] with Logging {
+class StrictOptionalJsonBodyParser @Inject() ()(implicit ec: ExecutionContext)
+    extends BodyParser[Option[JsValue]]
+    with Logging {
 
   private val mapper: ObjectMapper =
     new ObjectMapper(new JsonFactory().enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION))

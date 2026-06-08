@@ -4,7 +4,7 @@ import play.api.libs.json.*
 import uk.gov.hmrc.disareturnssubmission.models.*
 
 trait ErrorResponse {
-  def code:    String
+  def code: String
   def message: String
 }
 
@@ -18,8 +18,8 @@ case object UnauthorisedErr extends ErrorResponse {
 }
 
 case class InternalServerErr(
-                              message: String = "There has been an issue processing your request"
-                            ) extends ErrorResponse {
+  message: String = "There has been an issue processing your request"
+) extends ErrorResponse {
   val code = "INTERNAL_SERVER_ERROR"
 }
 
@@ -80,7 +80,8 @@ case object InvalidMonth extends ErrorResponse {
 }
 case object EmptyPayload extends ErrorResponse {
   val code    = "EMPTY_PAYLOAD"
-  val message = "NDJSON payload is empty. Please ensure the request body contains a valid NDJSON payload before resubmitting."
+  val message =
+    "NDJSON payload is empty. Please ensure the request body contains a valid NDJSON payload before resubmitting."
 }
 
 case object InvalidPageErr extends ErrorResponse {
@@ -95,10 +96,10 @@ case object DuplicateNilReturnField extends ErrorResponse {
 
 object ErrorResponse {
 
-  implicit val returnNotFoundErrReads:       Reads[ReturnNotFoundErr]       = Json.reads[ReturnNotFoundErr]
-  implicit val reportPageNotFoundErrReads:   Reads[ReportPageNotFoundErr]   = Json.reads[ReportPageNotFoundErr]
+  implicit val returnNotFoundErrReads: Reads[ReturnNotFoundErr]             = Json.reads[ReturnNotFoundErr]
+  implicit val reportPageNotFoundErrReads: Reads[ReportPageNotFoundErr]     = Json.reads[ReportPageNotFoundErr]
   implicit val malformedJsonFailureErrReads: Reads[MalformedJsonFailureErr] = Json.reads[MalformedJsonFailureErr]
-  implicit val badRequestErrReads:           Reads[BadRequestErr]           = Json.reads[BadRequestErr]
+  implicit val badRequestErrReads: Reads[BadRequestErr]                     = Json.reads[BadRequestErr]
 
   implicit val internalServerErrReads: Reads[InternalServerErr] =
     (JsPath \ "message")
@@ -124,30 +125,30 @@ object ErrorResponse {
   implicit val format: Format[ErrorResponse] = new Format[ErrorResponse] {
     override def reads(json: JsValue): JsResult[ErrorResponse] =
       (json \ "code").validate[String].flatMap {
-        case "FORBIDDEN" =>
+        case "FORBIDDEN"                                                                                   =>
           Json.fromJson[MultipleErrorResponse](json)
         case "VALIDATION_FAILURE" if (json \ "errors").validate[Seq[SecondLevelValidationError]].isSuccess =>
           json.validate[SecondLevelValidationResponse]
-        case "BAD_REQUEST" =>
+        case "BAD_REQUEST"                                                                                 =>
           (json \ "errors").toOption match {
             case Some(_) => Json.fromJson[MultipleErrorResponse](json)
             case None    => Json.fromJson[BadRequestErr](json)
           }
-        case "INTERNAL_SERVER_ERROR"           => internalServerErrReads.reads(json)
-        case "RETURN_NOT_FOUND"                => returnNotFoundErrReads.reads(json)
-        case "PAGE_NOT_FOUND"                  => reportPageNotFoundErrReads.reads(json)
-        case "MALFORMED_JSON"                  => malformedJsonFailureErrReads.reads(json)
-        case code if singletons.contains(code) => JsSuccess(singletons(code))
-        case other                             => JsError(s"Unknown error code: $other")
+        case "INTERNAL_SERVER_ERROR"                                                                       => internalServerErrReads.reads(json)
+        case "RETURN_NOT_FOUND"                                                                            => returnNotFoundErrReads.reads(json)
+        case "PAGE_NOT_FOUND"                                                                              => reportPageNotFoundErrReads.reads(json)
+        case "MALFORMED_JSON"                                                                              => malformedJsonFailureErrReads.reads(json)
+        case code if singletons.contains(code)                                                             => JsSuccess(singletons(code))
+        case other                                                                                         => JsError(s"Unknown error code: $other")
       }
 
     override def writes(errorResponse: ErrorResponse): JsValue = errorResponse match {
       case m: MultipleErrorResponse =>
         Json.toJson(m)(MultipleErrorResponse.format)
-      case v: FieldValidationError =>
+      case v: FieldValidationError  =>
         Json.obj("code" -> v.code, "message" -> v.message, "path" -> v.path)
-      case r:     ReportPageNotFoundErr => Json.obj("code" -> r.code, "message" -> r.message)
-      case error: ErrorResponse =>
+      case r: ReportPageNotFoundErr => Json.obj("code" -> r.code, "message" -> r.message)
+      case error: ErrorResponse     =>
         Json.obj("code" -> error.code, "message" -> error.message)
     }
   }
@@ -157,20 +158,20 @@ object ErrorResponse {
 }
 
 case class MultipleErrorResponse(
-                                  code:    String,
-                                  message: String = "Multiple issues found regarding your submission",
-                                  errors:  Seq[ErrorResponse]
-                                ) extends ErrorResponse
+  code: String,
+  message: String = "Multiple issues found regarding your submission",
+  errors: Seq[ErrorResponse]
+) extends ErrorResponse
 
 object MultipleErrorResponse {
   implicit val format: OFormat[MultipleErrorResponse] = Json.format[MultipleErrorResponse]
 }
 
 case class ValidationFailureResponse(
-                                      code:    String = "VALIDATION_FAILURE",
-                                      message: String = "Bad request",
-                                      errors:  Seq[FieldValidationError]
-                                    ) extends ErrorResponse
+  code: String = "VALIDATION_FAILURE",
+  message: String = "Bad request",
+  errors: Seq[FieldValidationError]
+) extends ErrorResponse
 
 object ValidationFailureResponse {
   implicit val format: OFormat[ValidationFailureResponse] = Json.format[ValidationFailureResponse]
@@ -215,31 +216,31 @@ object ValidationFailureResponse {
 }
 
 case class FieldValidationError(
-                                 code:    String,
-                                 message: String,
-                                 path:    String
-                               ) extends ErrorResponse
+  code: String,
+  message: String,
+  path: String
+) extends ErrorResponse
 
 object FieldValidationError {
   implicit val format: OFormat[FieldValidationError] = Json.format[FieldValidationError]
 }
 
 case class SecondLevelValidationResponse(
-                                          code:    String = "VALIDATION_FAILURE",
-                                          message: String = "One or more models failed validation",
-                                          errors:  Seq[SecondLevelValidationError]
-                                        ) extends ErrorResponse
+  code: String = "VALIDATION_FAILURE",
+  message: String = "One or more models failed validation",
+  errors: Seq[SecondLevelValidationError]
+) extends ErrorResponse
 
 object SecondLevelValidationResponse {
   implicit val format: OFormat[SecondLevelValidationResponse] = Json.format[SecondLevelValidationResponse]
 }
 
 case class SecondLevelValidationError(
-                                       nino:          String,
-                                       accountNumber: String,
-                                       code:          String,
-                                       message:       String
-                                     ) extends ErrorResponse
+  nino: String,
+  accountNumber: String,
+  code: String,
+  message: String
+) extends ErrorResponse
 
 object SecondLevelValidationError {
   implicit val format: OFormat[SecondLevelValidationError] = Json.format[SecondLevelValidationError]

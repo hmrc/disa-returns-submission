@@ -11,7 +11,9 @@ import uk.gov.hmrc.disareturnssubmission.models.declaration.ReportingNilReturn
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class NilReturnAction @Inject() (implicit ec: ExecutionContext) extends ActionRefiner[DeclarationRequest, DeclarationRequest] with Logging {
+class NilReturnAction @Inject() (implicit ec: ExecutionContext)
+    extends ActionRefiner[DeclarationRequest, DeclarationRequest]
+    with Logging {
 
   override protected def executionContext: ExecutionContext = ec
 
@@ -23,12 +25,15 @@ class NilReturnAction @Inject() (implicit ec: ExecutionContext) extends ActionRe
           case Some(js: JsValue) =>
             js.validate[ReportingNilReturn]
               .fold(
-                errors => Left(BadRequest(Json.toJson(MalformedJsonFailureErr(message = "Request body contains malformed JSON")))),
+                errors =>
+                  Left(
+                    BadRequest(Json.toJson(MalformedJsonFailureErr(message = "Request body contains malformed JSON")))
+                  ),
                 model => Right(model.nilReturn)
               )
-          case None => Right(false)
+          case None              => Right(false)
         }
-      case _ => Right(false)
+      case _                      => Right(false)
     }
     nilReturnReported.map(nr => request.copy(nilReturnReported = nr))
   }

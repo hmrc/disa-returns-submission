@@ -10,9 +10,11 @@ import uk.gov.hmrc.disareturnssubmission.models.common.{BadRequestErr, Declarati
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class ClientIdAction @Inject() (implicit ec: ExecutionContext) extends ActionRefiner[Request, DeclarationRequest] with Logging {
+class ClientIdAction @Inject() (implicit ec: ExecutionContext)
+    extends ActionRefiner[Request, DeclarationRequest]
+    with Logging {
 
-  private val ClientIdHeader = "X-Client-ID"
+  private val ClientIdHeader                                = "X-Client-ID"
   override protected def executionContext: ExecutionContext = ec
 
   override def refine[A](request: Request[A]): Future[Either[Result, DeclarationRequest[A]]] = {
@@ -20,9 +22,11 @@ class ClientIdAction @Inject() (implicit ec: ExecutionContext) extends ActionRef
     optionClientId match {
       case Some(clientId) =>
         Future.successful(Right(DeclarationRequest(request, clientId)))
-      case None =>
+      case None           =>
         logger.warn("Client ID missing from request header")
-        Future.successful(Left(BadRequest(Json.toJson(BadRequestErr(message = "Missing required header: X-Client-ID"): ErrorResponse))))
+        Future.successful(
+          Left(BadRequest(Json.toJson(BadRequestErr(message = "Missing required header: X-Client-ID"): ErrorResponse)))
+        )
     }
   }
 }

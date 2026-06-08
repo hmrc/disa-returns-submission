@@ -22,8 +22,8 @@ class AuthAction @Inject() (ac: AuthConnector, cc: ControllerComponents)(implici
   def apply(zRef: String): ActionBuilder[Request, AnyContent] =
     new ActionBuilder[Request, AnyContent] with Logging {
 
-      override def parser:                     BodyParser[AnyContent] = cc.parsers.defaultBodyParser
-      override protected def executionContext: ExecutionContext       = cc.executionContext
+      override def parser: BodyParser[AnyContent]               = cc.parsers.defaultBodyParser
+      override protected def executionContext: ExecutionContext = cc.executionContext
 
       override def invokeBlock[A](request: Request[A], block: Request[A] => Future[Result]): Future[Result] = {
         implicit val hc: HeaderCarrier = HeaderCarrierConverter.fromRequest(request)

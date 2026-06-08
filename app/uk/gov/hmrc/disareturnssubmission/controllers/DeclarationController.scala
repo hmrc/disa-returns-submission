@@ -26,27 +26,27 @@ import play.api.mvc.{Action, ControllerComponents, Request}
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.controllers.actionBuilders.{AuthAction, ClientIdAction, NilReturnAction}
 import uk.gov.hmrc.disareturnssubmission.controllers.parsers.StrictOptionalJsonBodyParser
-import uk.gov.hmrc.disareturnssubmission.services.ETMPService
+import uk.gov.hmrc.disareturnssubmission.services.{ETMPService, NotificationContextService}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class DeclarationController @Inject() (
-                                        cc:                           ControllerComponents,
-                                        etmpService:                  ETMPService,
+  cc: ControllerComponents,
+  etmpService: ETMPService,
 //                                        ppnsService:                  PPNSService,
 //                                        npsService:                   NPSService,
-//                                        notificationContextService:   NotificationContextService,
-                                        authAction:                   AuthAction,
-                                        clientIdAction:               ClientIdAction,
-                                        nilReturnAction:              NilReturnAction,
-                                        config:                       AppConfig,
-                                        strictOptionalJsonBodyParser: StrictOptionalJsonBodyParser
-                                      )(implicit ec: ExecutionContext)
-  extends BackendController(cc)
+  notificationContextService: NotificationContextService,
+  authAction: AuthAction,
+  clientIdAction: ClientIdAction,
+  nilReturnAction: NilReturnAction,
+  config: AppConfig,
+  strictOptionalJsonBodyParser: StrictOptionalJsonBodyParser
+)(implicit ec: ExecutionContext)
+    extends BackendController(cc)
     with Logging {
 
   def declare(zReference: String, taxYear: String, month: String): Action[Option[JsValue]] = ???
-  
+
 }
