@@ -30,4 +30,17 @@ class AppConfig @Inject() (
 
   val internalAuthService: String = servicesConfig.baseUrl("internal-auth")
   val internalAuthToken: String   = config.get[String]("internal-auth.token")
+
+  lazy val etmpBaseUrl: String = servicesConfig.baseUrl(serviceName = "etmp")
+  lazy val ppnsBaseUrl: String = servicesConfig.baseUrl(serviceName = "ppns")
+  lazy val npsBaseUrl: String = servicesConfig.baseUrl(serviceName = "nps")
+  lazy val selfHost: String = servicesConfig.baseUrl(serviceName = "self")
+
+  lazy val timeToLive: Int = servicesConfig.getInt("mongodb.timeToLive")
+
+  private lazy val returnResultsRecordsPerPage: Int = servicesConfig.getInt("returnResultsRecordsPerPage")
+
+  def getNoOfPagesForReturnResults(noOfRecords: Int): Option[Int] =
+    if (noOfRecords >= 0) Some(math.ceil(noOfRecords.toDouble / returnResultsRecordsPerPage).toInt)
+    else None
 }

@@ -1,3 +1,3 @@
 # microservice specific routes
 
-GET        /hello-world             uk.gov.hmrc.disareturnssubmission.controllers.MicroserviceHelloWorldController.hello
+POST /monthly/:zReference/:taxYear/:month/declaration      uk.gov.hmrc.disareturnssubmission.controllers.declare(zReference:String, taxYear: String, month: String)
