@@ -33,10 +33,11 @@ class AppConfig @Inject() (
 
   lazy val etmpBaseUrl: String = servicesConfig.baseUrl(serviceName = "etmp")
   lazy val ppnsBaseUrl: String = servicesConfig.baseUrl(serviceName = "ppns")
-  lazy val npsBaseUrl: String = servicesConfig.baseUrl(serviceName = "nps")
-  lazy val selfHost: String = servicesConfig.baseUrl(serviceName = "self")
+  lazy val npsBaseUrl: String  = servicesConfig.baseUrl(serviceName = "nps")
+  lazy val selfHost: String    = servicesConfig.baseUrl(serviceName = "self")
 
-  lazy val timeToLive: Int = servicesConfig.getInt("mongodb.timeToLive")
+  // TODO needs to be double-checked
+  lazy val timeToLive: Long = servicesConfig.getInt("mongodb.timeToLive").toLong
 
   private lazy val returnResultsRecordsPerPage: Int = servicesConfig.getInt("returnResultsRecordsPerPage")
 
