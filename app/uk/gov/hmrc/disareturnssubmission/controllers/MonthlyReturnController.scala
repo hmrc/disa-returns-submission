@@ -18,9 +18,9 @@ package uk.gov.hmrc.disareturnssubmission.controllers
 
 import play.api.Logging
 import play.api.libs.json.{JsValue, Json}
-import play.api.mvc.{Action, ControllerComponents, Result}
-import uk.gov.hmrc.disareturnssubmission.models.CreateMonthlyReturnRequest
-import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, MonthlyReturnService}
+import play.api.mvc.{Action, AnyContent, ControllerComponents, Result}
+import uk.gov.hmrc.disareturnssubmission.models.{CreateMonthlyReturnRequest, CreateMonthlyReturnResponse}
+import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, MonthlyReturnService}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.play.bootstrap.controller.WithJsonBody
 import uk.gov.hmrc.disareturnssubmission.validators.ValidationHelper
@@ -47,15 +47,33 @@ class MonthlyReturnController @Inject() (
           monthlyReturnService
             .create(validZReference, validTaxYear, validMonth, createRequest.nilReturn)
             .map {
-              case CreateMonthlyReturnResult.Created       => Created.withHeaders(LOCATION -> request.path)
-              case CreateMonthlyReturnResult.AlreadyExists => Conflict
+              case CreateMonthlyReturnResult.Created(submissionId) =>
+                Created(Json.toJson(CreateMonthlyReturnResponse(submissionId))).withHeaders(LOCATION -> request.path)
+              case CreateMonthlyReturnResult.AlreadyExists         => Conflict
             }
             .recover { case NonFatal(_) => ServiceUnavailable }
         }
       }
     }
 
-  def declare(zReference: String, taxYear: String, month: String): Action[Option[JsValue]] = ???
+  def declare(zReference: String, taxYear: String, month: String): Action[AnyContent] =
+    Action.async {
+      logger.info(
+        s"[MonthlyReturnController][declareMonthlyReturn] Declare monthly return request for zReference [$zReference], taxYear [$taxYear], month [$month]"
+      )
+
+      withValidMonthlyReturnParams(zReference, taxYear, month) { (validZReference, validTaxYear, validMonth) =>
+        monthlyReturnService
+          .declare(validZReference, validTaxYear, validMonth)
+          .map {
+            case DeclareMonthlyReturnResult.Declared                 => NoContent
+            case DeclareMonthlyReturnResult.AlreadyDeclared          => Conflict
+            case DeclareMonthlyReturnResult.MonthlyReturnNotFound    => NotFound
+            case DeclareMonthlyReturnResult.OutsideDeclarationPeriod => UnprocessableEntity
+          }
+          .recover { case NonFatal(_) => ServiceUnavailable }
+      }
+    }
 
   private def withValidMonthlyReturnParams(
     zReference: String,

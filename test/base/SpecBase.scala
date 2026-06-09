@@ -25,10 +25,11 @@ import org.scalatestplus.mockito.MockitoSugar
 import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import play.api.Application
 import play.api.inject.bind
-import play.api.inject.guice.{GuiceApplicationBuilder, GuiceBuilder, GuiceableModule}
+import play.api.inject.guice.{GuiceApplicationBuilder, GuiceableModule}
 import uk.gov.hmrc.disareturnssubmission.config.{InternalAuthTokenInitialiser, NoOpInternalAuthTokenInitialiser}
 
 import scala.concurrent.ExecutionContext
+import scala.reflect.ClassTag
 
 trait SpecBase
     extends AnyFreeSpec
@@ -38,12 +39,16 @@ trait SpecBase
     with ScalaFutures
     with IntegrationPatience
     with GuiceOneAppPerSuite
+    with TestConstants
     with MockitoSugar {
 
   implicit val ec: ExecutionContext =
     scala.concurrent.ExecutionContext.Implicits.global
 
   override lazy val app: Application = applicationBuilder().build()
+
+  protected def inject[T: ClassTag]: T =
+    app.injector.instanceOf[T]
 
   protected def applicationBuilder(
     additionalOverrides: Seq[GuiceableModule] = Nil
