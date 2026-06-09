@@ -66,6 +66,12 @@ class MonthlyReturnRepository @Inject() (
       .find(byKey(zReference, taxYear, month))
       .headOption()
 
+  def deleteAll(): Future[Long] =
+    collection
+      .deleteMany(Filters.empty())
+      .toFuture()
+      .map(_.getDeletedCount)
+
   def create(
     zReference: String,
     taxYear: String,
@@ -247,4 +253,12 @@ object DeclareMonthlyReturnRepositoryResult {
   case object MonthlyReturnAlreadyDeclared extends DeclareMonthlyReturnRepositoryResult
 
   case object MonthlyReturnNotFound extends DeclareMonthlyReturnRepositoryResult
+}
+
+sealed trait UpdateNilReturnRepositoryResult
+
+object UpdateNilReturnRepositoryResult {
+  final case class NilReturnUpdated(monthlyReturn: MonthlyReturn) extends UpdateNilReturnRepositoryResult
+  case object MonthlyReturnAlreadyDeclared extends UpdateNilReturnRepositoryResult
+  case object MonthlyReturnNotFound extends UpdateNilReturnRepositoryResult
 }
