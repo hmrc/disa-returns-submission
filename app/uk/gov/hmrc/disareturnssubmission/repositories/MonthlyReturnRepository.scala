@@ -111,6 +111,23 @@ class MonthlyReturnRepository @Inject() (
     }
   }
 
+  def declare(zReference: String, taxYear: String, month: Int): Future[DeclareMonthlyReturnRepositoryResult] = {
+    val declaredOn = now()
+
+    get(zReference, taxYear, month).flatMap {
+      case Some(monthlyReturn) if monthlyReturn.hasDeclaration =>
+        Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnAlreadyDeclared)
+
+      case Some(monthlyReturn) =>
+        val updatedMonthlyReturn = monthlyReturn.declare(declaredOn)
+
+        replace(updatedMonthlyReturn).map(_ => DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared)
+
+      case None =>
+        Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnNotFound)
+    }
+  }
+
   def createFileUpload(
     zReference: String,
     taxYear: String,
@@ -213,4 +230,14 @@ object MonthlyReturnRepository {
     case object FileUploadAlreadyExists extends CreateFileUploadRepositoryResult
     case object MonthlyReturnNotFound extends CreateFileUploadRepositoryResult
   }
+}
+
+sealed trait DeclareMonthlyReturnRepositoryResult
+
+object DeclareMonthlyReturnRepositoryResult {
+  case object MonthlyReturnDeclared extends DeclareMonthlyReturnRepositoryResult
+
+  case object MonthlyReturnAlreadyDeclared extends DeclareMonthlyReturnRepositoryResult
+
+  case object MonthlyReturnNotFound extends DeclareMonthlyReturnRepositoryResult
 }

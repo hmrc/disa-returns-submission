@@ -40,8 +40,20 @@ final case class MonthlyReturn(
   createdOn: Instant,
   nilReturn: Boolean = false,
   fileUploads: List[FileUpload],
+  declaredOn: Option[Instant] = None,
   lastUpdated: Instant
 ) {
+  def hasDeclaration: Boolean = declaredOn.isDefined
+
+  def declare(declaredOn: Instant): MonthlyReturn =
+    if (hasDeclaration) {
+      this
+    } else {
+      copy(
+        declaredOn = Some(declaredOn),
+        lastUpdated = declaredOn
+      )
+    }
 
   def createFileUpload(reference: String, createdOn: Instant): MonthlyReturn =
     if (nilReturn || fileUploads.exists(_.reference == reference)) {
