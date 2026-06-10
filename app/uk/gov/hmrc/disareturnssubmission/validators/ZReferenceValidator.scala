@@ -14,18 +14,16 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.disareturnssubmission.controllers
+package uk.gov.hmrc.disareturnssubmission.validators
 
-import play.api.mvc.{Action, AnyContent, ControllerComponents}
-import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
+import scala.util.matching.Regex
 
-import javax.inject.{Inject, Singleton}
+object ZReferenceValidator {
 
-@Singleton()
-class MicroserviceHelloWorldController @Inject() (
-  cc: ControllerComponents
-) extends BackendController(cc):
+  private val ZReferencePattern: Regex = "^[zZ][0-9]{4}$".r
 
-  val hello: Action[AnyContent] =
-    Action:
-      implicit request => Ok("Hello world")
+  def isValid(zReference: String): Boolean =
+    Option(zReference).exists { value =>
+      ZReferencePattern.pattern.matcher(value).matches()
+    }
+}
