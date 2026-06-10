@@ -28,7 +28,7 @@ import play.api.test.FakeRequest
 import play.api.test.Helpers.*
 import uk.gov.hmrc.disareturnssubmission.models.*
 import uk.gov.hmrc.disareturnssubmission.services.CreateMonthlyReturnResult.*
-import uk.gov.hmrc.disareturnssubmission.services.{DeclareMonthlyReturnResult, MonthlyReturnService}
+import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, MonthlyReturnService}
 
 import scala.concurrent.Future
 
@@ -100,6 +100,27 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
         status(result) mustBe CONFLICT
       }
 
+      "must return UNPROCESSABLE_ENTITY when the declaration period is closed" in {
+        when(
+          mockMonthlyReturnService.create(
+            eqTo(testZReference),
+            eqTo(testTaxYear),
+            eqTo(testMonth),
+            eqTo(false),
+            eqTo(testSubmissionId)
+          )
+        )
+          .thenReturn(Future.successful(CreateMonthlyReturnResult.OutsideDeclarationPeriod))
+
+        val result = controller.create(testZReference, testTaxYear, testRouteMonth)(
+          FakeRequest("POST", path).withBody(
+            Json.toJson(CreateMonthlyReturnRequest(nilReturn = false, submissionId = testSubmissionId))
+          )
+        )
+
+        status(result) mustBe UNPROCESSABLE_ENTITY
+      }
+
       "must return SERVICE_UNAVAILABLE when the service fails" in {
         when(
           mockMonthlyReturnService.create(
@@ -146,7 +167,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
         verify(mockMonthlyReturnService).declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth))
       }
 
-      "must return CONFLICT when the MonthlyReturn has already been declared" in {
+      "must return UNPROCESSABLE_ENTITY when the MonthlyReturn has already been declared" in {
         when(mockMonthlyReturnService.declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth)))
           .thenReturn(Future.successful(DeclareMonthlyReturnResult.AlreadyDeclared))
 
@@ -154,7 +175,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           FakeRequest("POST", declarationsPath)
         )
 
-        status(result) mustBe CONFLICT
+        status(result) mustBe UNPROCESSABLE_ENTITY
       }
 
       "must return NOT_FOUND when the MonthlyReturn does not exist" in {
