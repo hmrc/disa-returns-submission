@@ -34,9 +34,9 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
   private val appConfig                   = inject[AppConfig]
   private val service                     = buildService(testCreatedOn)
 
-  private val zReference      = testZReference
-  private val taxYear         = testTaxYear
-  private val month           = testMonth
+  private val zReference = testZReference
+  private val taxYear    = testTaxYear
+  private val month      = testMonth
 
   private val monthlyReturn = MonthlyReturn(
     zReference = zReference,
@@ -56,16 +56,6 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
 
   "MonthlyReturnService" - {
 
-    "get" - {
-
-      "must return the repository result" in {
-        when(mockMonthlyReturnRepository.get(eqTo(zReference), eqTo(taxYear), eqTo(month)))
-          .thenReturn(Future.successful(Some(monthlyReturn)))
-
-        service.get(zReference, taxYear, month).futureValue mustBe Some(monthlyReturn)
-      }
-    }
-
     "create" - {
 
       "must return Created when the repository creates the MonthlyReturn" in {
@@ -80,7 +70,9 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
         )
           .thenReturn(Future.successful(Some(monthlyReturn)))
 
-        service.create(zReference, taxYear, month, nilReturn = true, submissionId = testSubmissionId).futureValue mustBe Created(testSubmissionId)
+        service
+          .create(zReference, taxYear, month, nilReturn = true, submissionId = testSubmissionId)
+          .futureValue mustBe Created(testSubmissionId)
       }
 
       "must return AlreadyExists when the repository rejects the create" in {
@@ -95,7 +87,9 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
         )
           .thenReturn(Future.successful(None))
 
-        service.create(zReference, taxYear, month, nilReturn = false, submissionId = testSubmissionId).futureValue mustBe AlreadyExists
+        service
+          .create(zReference, taxYear, month, nilReturn = false, submissionId = testSubmissionId)
+          .futureValue mustBe AlreadyExists
       }
     }
 

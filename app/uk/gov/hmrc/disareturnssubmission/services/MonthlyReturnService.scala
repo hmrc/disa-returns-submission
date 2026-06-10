@@ -37,38 +37,13 @@ class MonthlyReturnService @Inject() (
 )(implicit ec: ExecutionContext)
     extends Logging {
 
-  def get(zReference: String, taxYear: String, month: Int): Future[Option[MonthlyReturn]] =
-    monthlyReturnRepository
-      .get(zReference, taxYear, month)
-      .map { maybeMonthlyReturn =>
-        maybeMonthlyReturn match {
-          case Some(_) =>
-            logger.info(
-              s"[MonthlyReturnService][get] Found monthly return for zReference [$zReference], taxYear [$taxYear], month [$month]"
-            )
-          case None    =>
-            logger.warn(
-              s"[MonthlyReturnService][get] No monthly return found for zReference [$zReference], taxYear [$taxYear], month [$month]"
-            )
-        }
-
-        maybeMonthlyReturn
-      }
-      .recoverWith { case NonFatal(exception) =>
-        logger.error(
-          s"[MonthlyReturnService][get] Failed to get monthly return for zReference [$zReference], taxYear [$taxYear], month [$month]",
-          exception
-        )
-        Future.failed(exception)
-      }
-
   def create(
     zReference: String,
     taxYear: String,
     month: Int,
     nilReturn: Boolean,
     submissionId: UUID
-  ): Future[CreateMonthlyReturnResult] = {
+  ): Future[CreateMonthlyReturnResult] =
 
     monthlyReturnRepository
       .create(zReference, taxYear, month, submissionId, nilReturn)
@@ -88,37 +63,6 @@ class MonthlyReturnService @Inject() (
       .recoverWith { case NonFatal(exception) =>
         logger.error(
           s"[MonthlyReturnService][create] Failed to create monthly return for zReference [$zReference], taxYear [$taxYear], month [$month], submissionId [$submissionId], nilReturn [$nilReturn]",
-          exception
-        )
-        Future.failed(exception)
-      }
-  }
-
-  def updateNilReturn(
-    zReference: String,
-    taxYear: String,
-    month: Int,
-    nilReturn: Boolean
-  ): Future[Option[MonthlyReturn]] =
-    monthlyReturnRepository
-      .updateNilReturn(zReference, taxYear, month, nilReturn)
-      .map { maybeMonthlyReturn =>
-        maybeMonthlyReturn match {
-          case Some(_) =>
-            logger.info(
-              s"[MonthlyReturnService][updateNilReturn] Updated nilReturn to [$nilReturn] for zReference [$zReference], taxYear [$taxYear], month [$month]"
-            )
-          case None    =>
-            logger.warn(
-              s"[MonthlyReturnService][updateNilReturn] No monthly return found for zReference [$zReference], taxYear [$taxYear], month [$month]"
-            )
-        }
-
-        maybeMonthlyReturn
-      }
-      .recoverWith { case NonFatal(exception) =>
-        logger.error(
-          s"[MonthlyReturnService][updateNilReturn] Failed to update nilReturn to [$nilReturn] for zReference [$zReference], taxYear [$taxYear], month [$month]",
           exception
         )
         Future.failed(exception)
@@ -183,4 +127,12 @@ object DeclareMonthlyReturnResult {
   case object AlreadyDeclared extends DeclareMonthlyReturnResult
   case object MonthlyReturnNotFound extends DeclareMonthlyReturnResult
   case object OutsideDeclarationPeriod extends DeclareMonthlyReturnResult
+}
+
+sealed trait UpdateNilReturnResult
+
+object UpdateNilReturnResult {
+  final case class NilReturnUpdated(monthlyReturn: MonthlyReturn) extends UpdateNilReturnResult
+  case object MonthlyReturnAlreadyDeclared extends UpdateNilReturnResult
+  case object MonthlyReturnNotFound extends UpdateNilReturnResult
 }

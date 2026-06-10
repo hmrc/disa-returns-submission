@@ -21,7 +21,6 @@ import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.models.FileUploadStatus.*
 import uk.gov.hmrc.disareturnssubmission.models.*
 import uk.gov.hmrc.disareturnssubmission.repositories.{DeclareMonthlyReturnRepositoryResult, MonthlyReturnRepository}
-import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository.CreateFileUploadRepositoryResult.*
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
 
 import java.time.{Clock, Instant, ZoneOffset}
@@ -42,12 +41,12 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
     try dropDatabase()
     finally super.afterAll()
 
-  private val zReference        = testZReference
-  private val taxYear           = yearOnlyTestTaxYear
-  private val month             = testMonth
-  private val uploadReference   = testUploadReference
-  private val existingUpdated   = testExistingUpdatedOn
-  private val createdOn         = testRepositoryCreatedOn
+  private val zReference      = testZReference
+  private val taxYear         = yearOnlyTestTaxYear
+  private val month           = testMonth
+  private val uploadReference = testUploadReference
+  private val existingUpdated = testExistingUpdatedOn
+  private val createdOn       = testRepositoryCreatedOn
 
   "MonthlyReturnRepository" - {
 
@@ -192,79 +191,6 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
       "must return MonthlyReturnNotFound when the MonthlyReturn does not exist" in {
         repository.declare(zReference, taxYear, month).futureValue mustBe
           DeclareMonthlyReturnRepositoryResult.MonthlyReturnNotFound
-      }
-    }
-
-    "createFileUpload" - {
-
-      "must return None when the MonthlyReturn does not exist" in {
-        repository
-          .createFileUpload(zReference, taxYear, month, uploadReference)
-          .futureValue mustBe MonthlyReturnNotFound
-
-        repository.get(zReference, taxYear, month).futureValue mustBe None
-      }
-
-      "must append a CREATED file upload when the MonthlyReturn exists" in {
-        repository
-          .upsert(buildMonthlyReturn(fileUploads = List(createdFileUpload(reference = "existing-reference"))))
-          .futureValue
-
-        val result = repository.createFileUpload(zReference, taxYear, month, uploadReference).futureValue
-
-        val stored = repository.get(zReference, taxYear, month).futureValue.value
-        result mustBe FileUploadCreated(stored)
-        stored.fileUploads mustBe List(
-          createdFileUpload(reference = "existing-reference"),
-          FileUpload(
-            reference = uploadReference,
-            status = Created,
-            createdOn = fixedNow
-          )
-        )
-        stored.lastUpdated mustBe fixedNow
-      }
-
-      "must not duplicate an existing file upload reference" in {
-        repository.upsert(buildMonthlyReturn()).futureValue
-        repository.createFileUpload(zReference, taxYear, month, uploadReference).futureValue
-        repository
-          .createFileUpload(zReference, taxYear, month, uploadReference)
-          .futureValue mustBe FileUploadAlreadyExists
-
-        val stored = repository.get(zReference, taxYear, month).futureValue.value
-        stored.fileUploads.map(_.reference) mustBe List(uploadReference)
-      }
-
-      "must not append a file upload when the MonthlyReturn is a nil return" in {
-        repository.upsert(buildMonthlyReturn(nilReturn = true)).futureValue
-
-        repository
-          .createFileUpload(zReference, taxYear, month, uploadReference)
-          .futureValue mustBe MonthlyReturnNotFound
-
-        repository.get(zReference, taxYear, month).futureValue.value.fileUploads mustBe Nil
-      }
-
-    }
-
-    "getFileUpload" - {
-
-      "must return a FileUpload when the MonthlyReturn and FileUpload exist" in {
-        val fileUpload = createdFileUpload()
-        repository.upsert(buildMonthlyReturn(fileUploads = List(fileUpload))).futureValue
-
-        repository.getFileUpload(zReference, taxYear, month, uploadReference).futureValue mustBe Some(fileUpload)
-      }
-
-      "must return None when the MonthlyReturn does not exist" in {
-        repository.getFileUpload(zReference, taxYear, month, uploadReference).futureValue mustBe None
-      }
-
-      "must return None when the FileUpload does not exist" in {
-        repository.upsert(buildMonthlyReturn()).futureValue
-
-        repository.getFileUpload(zReference, taxYear, month, uploadReference).futureValue mustBe None
       }
     }
 

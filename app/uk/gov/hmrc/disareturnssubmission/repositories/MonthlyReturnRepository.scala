@@ -20,7 +20,6 @@ import org.bson.conversions.Bson
 import org.mongodb.scala.model.*
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.models.*
-import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository.CreateFileUploadRepositoryResult
 import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository.CreateFileUploadRepositoryResult.*
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.MongoUtils.DuplicateKey
@@ -101,29 +100,6 @@ class MonthlyReturnRepository @Inject() (
   def upsert(monthlyReturn: MonthlyReturn): Future[Boolean] =
     replace(monthlyReturn.copy(lastUpdated = now()))
 
-  def updateNilReturn(
-    zReference: String,
-    taxYear: String,
-    month: Int,
-    nilReturn: Boolean
-  ): Future[Option[MonthlyReturn]] = {
-    val updatedOn = now()
-
-    get(zReference, taxYear, month).flatMap {
-      case Some(monthlyReturn) =>
-        val updatedMonthlyReturn = monthlyReturn.updateNilReturn(nilReturn, updatedOn)
-
-        if (updatedMonthlyReturn == monthlyReturn) {
-          Future.successful(Some(monthlyReturn))
-        } else {
-          replace(updatedMonthlyReturn).map(_ => Some(updatedMonthlyReturn))
-        }
-
-      case None =>
-        Future.successful(None)
-    }
-  }
-
   def declare(zReference: String, taxYear: String, month: Int): Future[DeclareMonthlyReturnRepositoryResult] = {
     val declaredOn = now()
 
@@ -141,34 +117,6 @@ class MonthlyReturnRepository @Inject() (
     }
   }
 
-  def createFileUpload(
-    zReference: String,
-    taxYear: String,
-    month: Int,
-    reference: String
-  ): Future[CreateFileUploadRepositoryResult] = {
-    val createdOn = now()
-
-    get(zReference, taxYear, month).flatMap {
-      case Some(monthlyReturn) if monthlyReturn.nilReturn =>
-        Future.successful(MonthlyReturnNotFound)
-
-      case Some(monthlyReturn) if monthlyReturn.fileUploads.exists(_.reference == reference) =>
-        Future.successful(FileUploadAlreadyExists)
-
-      case Some(monthlyReturn) =>
-        val updatedMonthlyReturn = monthlyReturn.createFileUpload(
-          reference = reference,
-          createdOn = createdOn
-        )
-
-        replace(updatedMonthlyReturn).map(_ => FileUploadCreated(updatedMonthlyReturn))
-
-      case None =>
-        Future.successful(MonthlyReturnNotFound)
-    }
-  }
-
   def getFileUpload(
     zReference: String,
     taxYear: String,
@@ -176,43 +124,6 @@ class MonthlyReturnRepository @Inject() (
     reference: String
   ): Future[Option[FileUpload]] =
     get(zReference, taxYear, month).map(_.flatMap(_.fileUploads.find(_.reference == reference)))
-
-  def completeUpscan(
-    zReference: String,
-    taxYear: String,
-    month: Int,
-    reference: String,
-    status: FileUploadStatus,
-    fileUploadDetails: Option[FileUploadDetails],
-    failureReason: Option[FileUploadFailureReason] = None,
-    failureMessage: Option[String] = None
-  ): Future[Boolean] = {
-    val upscanCompletedOn = now()
-
-    get(zReference, taxYear, month).flatMap {
-      case Some(monthlyReturn) if monthlyReturn.nilReturn =>
-        Future.successful(false)
-
-      case Some(monthlyReturn) =>
-        val updatedMonthlyReturn = monthlyReturn.completeUpscan(
-          reference = reference,
-          status = status,
-          upscanCompletedOn = upscanCompletedOn,
-          fileUploadDetails = fileUploadDetails,
-          failureReason = failureReason,
-          failureMessage = failureMessage
-        )
-
-        if (updatedMonthlyReturn == monthlyReturn) {
-          Future.successful(false)
-        } else {
-          replace(updatedMonthlyReturn)
-        }
-
-      case None =>
-        Future.successful(false)
-    }
-  }
 
   private def replace(monthlyReturn: MonthlyReturn): Future[Boolean] =
     collection
