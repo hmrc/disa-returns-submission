@@ -47,9 +47,14 @@ class MonthlyReturnController @Inject() (
           monthlyReturnService
             .create(validZReference, validTaxYear, validMonth, createRequest.nilReturn, createRequest.submissionId)
             .map {
-              case CreateMonthlyReturnResult.Created(submissionId) =>
+              case CreateMonthlyReturnResult.Created(submissionId)    =>
                 Created(Json.toJson(CreateMonthlyReturnResponse(submissionId))).withHeaders(LOCATION -> request.path)
-              case CreateMonthlyReturnResult.AlreadyExists         => Conflict
+              case CreateMonthlyReturnResult.AlreadyExists            =>
+                Conflict(Json.obj("ERROR" -> "This Monthly return already exists."))
+              case CreateMonthlyReturnResult.OutsideDeclarationPeriod =>
+                UnprocessableEntity(
+                  Json.obj("ERROR" -> "It is not possible to submit a monthly return outside its declaration period")
+                )
             }
             .recover { case NonFatal(_) => ServiceUnavailable }
         }
@@ -67,11 +72,14 @@ class MonthlyReturnController @Inject() (
           .declare(validZReference, validTaxYear, validMonth)
           .map {
             case DeclareMonthlyReturnResult.Declared                 => NoContent
-            case DeclareMonthlyReturnResult.AlreadyDeclared          => Conflict
-            case DeclareMonthlyReturnResult.MonthlyReturnNotFound    => NotFound
-            case DeclareMonthlyReturnResult.OutsideDeclarationPeriod => UnprocessableEntity
+            case DeclareMonthlyReturnResult.AlreadyDeclared          =>
+              UnprocessableEntity(Json.obj("ERROR" -> "This monthly return was already declared"))
+            case DeclareMonthlyReturnResult.MonthlyReturnNotFound    =>
+              NotFound(Json.obj("ERROR" -> "Monthly return not found"))
+            case DeclareMonthlyReturnResult.OutsideDeclarationPeriod =>
+              UnprocessableEntity(Json.obj("ERROR" -> "It is no longer possible to declare this monthly return"))
           }
-          .recover { case NonFatal(_) => ServiceUnavailable }
+          .recover { case NonFatal(_) => ServiceUnavailable(Json.obj("ERROR" -> "Service is unavailable")) }
       }
     }
 

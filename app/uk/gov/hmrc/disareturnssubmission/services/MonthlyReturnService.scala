@@ -44,29 +44,36 @@ class MonthlyReturnService @Inject() (
     nilReturn: Boolean,
     submissionId: UUID
   ): Future[CreateMonthlyReturnResult] =
+    if (!isWithinDeclarationPeriod) {
+      logger.warn(
+        s"[MonthlyReturnService][declare] Monthly return is outside Declaration period or zReference [$zReference], taxYear [$taxYear], month [$month]"
+      )
+      Future.successful(CreateMonthlyReturnResult.OutsideDeclarationPeriod)
+    } else {
 
-    monthlyReturnRepository
-      .create(zReference, taxYear, month, submissionId, nilReturn)
-      .map {
-        case Some(monthlyReturn) =>
-          logger.info(
-            s"[MonthlyReturnService][create] Created monthly return for zReference [$zReference], taxYear [$taxYear], month [$month], submissionId [$submissionId], nilReturn [$nilReturn]"
-          )
-          Created(monthlyReturn.submissionId)
+      monthlyReturnRepository
+        .create(zReference, taxYear, month, submissionId, nilReturn)
+        .map {
+          case Some(monthlyReturn) =>
+            logger.info(
+              s"[MonthlyReturnService][create] Created monthly return for zReference [$zReference], taxYear [$taxYear], month [$month], submissionId [$submissionId], nilReturn [$nilReturn]"
+            )
+            Created(monthlyReturn.submissionId)
 
-        case None =>
-          logger.warn(
-            s"[MonthlyReturnService][create] Monthly return already exists for zReference [$zReference], taxYear [$taxYear], month [$month]"
+          case None =>
+            logger.warn(
+              s"[MonthlyReturnService][create] Monthly return already exists for zReference [$zReference], taxYear [$taxYear], month [$month]"
+            )
+            AlreadyExists
+        }
+        .recoverWith { case NonFatal(exception) =>
+          logger.error(
+            s"[MonthlyReturnService][create] Failed to create monthly return for zReference [$zReference], taxYear [$taxYear], month [$month], submissionId [$submissionId], nilReturn [$nilReturn]",
+            exception
           )
-          AlreadyExists
-      }
-      .recoverWith { case NonFatal(exception) =>
-        logger.error(
-          s"[MonthlyReturnService][create] Failed to create monthly return for zReference [$zReference], taxYear [$taxYear], month [$month], submissionId [$submissionId], nilReturn [$nilReturn]",
-          exception
-        )
-        Future.failed(exception)
-      }
+          Future.failed(exception)
+        }
+    }
 
   def declare(zReference: String, taxYear: String, month: Int): Future[DeclareMonthlyReturnResult] =
     if (!isWithinDeclarationPeriod) {
@@ -118,6 +125,7 @@ sealed trait CreateMonthlyReturnResult
 object CreateMonthlyReturnResult {
   final case class Created(submissionId: UUID) extends CreateMonthlyReturnResult
   case object AlreadyExists extends CreateMonthlyReturnResult
+  case object OutsideDeclarationPeriod extends CreateMonthlyReturnResult
 }
 
 sealed trait DeclareMonthlyReturnResult
