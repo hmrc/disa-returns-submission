@@ -174,8 +174,6 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
       }
     }
 
-
-
     "declare" - {
 
       "must declare a MonthlyReturn when it exists" in {
@@ -281,11 +279,11 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
   }
 
   private def buildMonthlyReturn(
-                                  nilReturn: Boolean = false,
-                                  fileUploads: List[FileUpload] = Nil,
-                                  declaredOn: Option[Instant] = None,
-                                  lastUpdated: Instant = existingUpdated
-                                ): MonthlyReturn =
+    nilReturn: Boolean = false,
+    fileUploads: List[FileUpload] = Nil,
+    declaredOn: Option[Instant] = None,
+    lastUpdated: Instant = existingUpdated
+  ): MonthlyReturn =
     MonthlyReturn(
       zReference = zReference,
       submissionId = testSubmissionId,
@@ -299,8 +297,8 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
     )
 
   private def createdFileUpload(
-                                 reference: String = uploadReference
-                               ): FileUpload =
+    reference: String = uploadReference
+  ): FileUpload =
     FileUpload(
       reference = reference,
       status = Created,
