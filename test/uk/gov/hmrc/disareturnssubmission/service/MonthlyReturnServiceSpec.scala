@@ -24,7 +24,7 @@ import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.models.*
 import uk.gov.hmrc.disareturnssubmission.repositories.{DeclareMonthlyReturnRepositoryResult, MonthlyReturnRepository}
 import uk.gov.hmrc.disareturnssubmission.services.CreateMonthlyReturnResult.{AlreadyExists, Created}
-import uk.gov.hmrc.disareturnssubmission.services.{DeclareMonthlyReturnResult, MonthlyReturnService, UuidGenerator}
+import uk.gov.hmrc.disareturnssubmission.services.{DeclareMonthlyReturnResult, MonthlyReturnService}
 
 import java.time.{Clock, Instant, ZoneOffset}
 import scala.concurrent.Future
@@ -32,13 +32,11 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
 
   private val mockMonthlyReturnRepository = mock[MonthlyReturnRepository]
   private val appConfig                   = inject[AppConfig]
-  private val mockUuidGenerator           = mock[UuidGenerator]
   private val service                     = buildService(testCreatedOn)
 
   private val zReference      = testZReference
   private val taxYear         = testTaxYear
   private val month           = testMonth
-  private val uploadReference = testUploadReference
 
   private val monthlyReturn = MonthlyReturn(
     zReference = zReference,
@@ -54,7 +52,6 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
   override protected def beforeEach(): Unit = {
     super.beforeEach()
     reset(mockMonthlyReturnRepository)
-    reset(mockUuidGenerator)
   }
 
   "MonthlyReturnService" - {
@@ -72,7 +69,6 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
     "create" - {
 
       "must return Created when the repository creates the MonthlyReturn" in {
-        when(mockUuidGenerator.randomUuid()).thenReturn(testSubmissionId)
         when(
           mockMonthlyReturnRepository.create(
             eqTo(zReference),
@@ -84,11 +80,10 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
         )
           .thenReturn(Future.successful(Some(monthlyReturn)))
 
-        service.create(zReference, taxYear, month, nilReturn = true).futureValue mustBe Created(testSubmissionId)
+        service.create(zReference, taxYear, month, nilReturn = true, submissionId = testSubmissionId).futureValue mustBe Created(testSubmissionId)
       }
 
       "must return AlreadyExists when the repository rejects the create" in {
-        when(mockUuidGenerator.randomUuid()).thenReturn(testSubmissionId)
         when(
           mockMonthlyReturnRepository.create(
             eqTo(zReference),
@@ -100,7 +95,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
         )
           .thenReturn(Future.successful(None))
 
-        service.create(zReference, taxYear, month, nilReturn = false).futureValue mustBe AlreadyExists
+        service.create(zReference, taxYear, month, nilReturn = false, submissionId = testSubmissionId).futureValue mustBe AlreadyExists
       }
     }
 
@@ -180,7 +175,6 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
     new MonthlyReturnService(
       monthlyReturnRepository = mockMonthlyReturnRepository,
       appConfig = appConfig,
-      clock = Clock.fixed(now, ZoneOffset.UTC),
-      uuidGenerator = mockUuidGenerator
+      clock = Clock.fixed(now, ZoneOffset.UTC)
     )
 }

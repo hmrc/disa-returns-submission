@@ -20,7 +20,7 @@ import base.SpecBase
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.models.FileUploadStatus.*
 import uk.gov.hmrc.disareturnssubmission.models.*
-import uk.gov.hmrc.disareturnssubmission.repositories.{DeclareMonthlyReturnRepositoryResult, MonthlyReturnRepository, UpdateNilReturnRepositoryResult}
+import uk.gov.hmrc.disareturnssubmission.repositories.{DeclareMonthlyReturnRepositoryResult, MonthlyReturnRepository}
 import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository.CreateFileUploadRepositoryResult.*
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
 
@@ -48,14 +48,6 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
   private val uploadReference   = testUploadReference
   private val existingUpdated   = testExistingUpdatedOn
   private val createdOn         = testRepositoryCreatedOn
-  private val fileUploadDetails = FileUploadDetails(
-    fileName = testFileName,
-    fileMimeType = testFileMimeType,
-    uploadTimestamp = testCreatedOn,
-    checksum = testChecksum,
-    size = testFileSize,
-    upscanDownloadUrl = testDownloadUrl
-  )
 
   "MonthlyReturnRepository" - {
 

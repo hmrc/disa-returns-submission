@@ -62,14 +62,15 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
             eqTo(testZReference),
             eqTo(testTaxYear),
             eqTo(testMonth),
-            eqTo(true)
+            eqTo(true),
+            eqTo(testSubmissionId)
           )
         )
           .thenReturn(Future.successful(Created(testSubmissionId)))
 
         val result = controller.create(testZReference, testTaxYear, testRouteMonth)(
           FakeRequest("POST", path).withBody(
-            Json.toJson(CreateMonthlyReturnRequest(nilReturn = true))
+            Json.toJson(CreateMonthlyReturnRequest(nilReturn = true, submissionId = testSubmissionId))
           )
         )
 
@@ -84,14 +85,15 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
             eqTo(testZReference),
             eqTo(testTaxYear),
             eqTo(testMonth),
-            eqTo(false)
+            eqTo(false),
+            eqTo(testSubmissionId)
           )
         )
           .thenReturn(Future.successful(AlreadyExists))
 
         val result = controller.create(testZReference, testTaxYear, testRouteMonth)(
           FakeRequest("POST", path).withBody(
-            Json.toJson(CreateMonthlyReturnRequest(nilReturn = false))
+            Json.toJson(CreateMonthlyReturnRequest(nilReturn = false, submissionId = testSubmissionId))
           )
         )
 
@@ -104,14 +106,15 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
             eqTo(testZReference),
             eqTo(testTaxYear),
             eqTo(testMonth),
-            eqTo(false)
+            eqTo(false),
+            eqTo(testSubmissionId)
           )
         )
           .thenReturn(Future.failed(new RuntimeException(testMongoDownMessage)))
 
         val result = controller.create(testZReference, testTaxYear, testRouteMonth)(
           FakeRequest("POST", path).withBody(
-            Json.toJson(CreateMonthlyReturnRequest(nilReturn = false))
+            Json.toJson(CreateMonthlyReturnRequest(nilReturn = false, submissionId = testSubmissionId))
           )
         )
 

@@ -33,8 +33,7 @@ import scala.util.control.NonFatal
 class MonthlyReturnService @Inject() (
   monthlyReturnRepository: MonthlyReturnRepository,
   appConfig: AppConfig,
-  clock: Clock,
-  uuidGenerator: UuidGenerator
+  clock: Clock
 )(implicit ec: ExecutionContext)
     extends Logging {
 
@@ -67,9 +66,9 @@ class MonthlyReturnService @Inject() (
     zReference: String,
     taxYear: String,
     month: Int,
-    nilReturn: Boolean
+    nilReturn: Boolean,
+    submissionId: UUID
   ): Future[CreateMonthlyReturnResult] = {
-    val submissionId = uuidGenerator.randomUuid()
 
     monthlyReturnRepository
       .create(zReference, taxYear, month, submissionId, nilReturn)

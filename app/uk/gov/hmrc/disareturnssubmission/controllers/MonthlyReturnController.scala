@@ -45,7 +45,7 @@ class MonthlyReturnController @Inject() (
           )
 
           monthlyReturnService
-            .create(validZReference, validTaxYear, validMonth, createRequest.nilReturn)
+            .create(validZReference, validTaxYear, validMonth, createRequest.nilReturn, createRequest.submissionId)
             .map {
               case CreateMonthlyReturnResult.Created(submissionId) =>
                 Created(Json.toJson(CreateMonthlyReturnResponse(submissionId))).withHeaders(LOCATION -> request.path)

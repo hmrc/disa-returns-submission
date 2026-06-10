@@ -23,14 +23,6 @@ import uk.gov.hmrc.disareturnssubmission.models.FileUploadStatus.*
 
 class MonthlyReturnSpec extends SpecBase {
 
-  private val fileUploadDetails  = FileUploadDetails(
-    fileName = testFileName,
-    fileMimeType = testFileMimeType,
-    uploadTimestamp = testCreatedOn,
-    checksum = testChecksum,
-    size = testFileSize,
-    upscanDownloadUrl = testDownloadUrl
-  )
   private val emptyMonthlyReturn = MonthlyReturn(
     zReference = testZReference,
     submissionId = testSubmissionId,
