@@ -53,7 +53,7 @@ class MonthlyReturnController @Inject() (
                 Conflict(Json.obj("ERROR" -> "This Monthly return already exists."))
               case CreateMonthlyReturnResult.OutsideDeclarationPeriod =>
                 UnprocessableEntity(
-                  Json.obj("ERROR" -> "It is not possible to submit a monthly return outside its declaration period")
+                  Json.obj("ERROR" -> "It is not possible to create a monthly return outside its declaration period")
                 )
             }
             .recover { case NonFatal(_) => ServiceUnavailable }
@@ -71,15 +71,15 @@ class MonthlyReturnController @Inject() (
         monthlyReturnService
           .declare(validZReference, validTaxYear, validMonth)
           .map {
-            case DeclareMonthlyReturnResult.Declared                 => NoContent
+            case DeclareMonthlyReturnResult.Declared                 => Ok
             case DeclareMonthlyReturnResult.AlreadyDeclared          =>
               UnprocessableEntity(Json.obj("ERROR" -> "This monthly return was already declared"))
             case DeclareMonthlyReturnResult.MonthlyReturnNotFound    =>
               NotFound(Json.obj("ERROR" -> "Monthly return not found"))
             case DeclareMonthlyReturnResult.OutsideDeclarationPeriod =>
-              UnprocessableEntity(Json.obj("ERROR" -> "It is no longer possible to declare this monthly return"))
+              UnprocessableEntity(Json.obj("ERROR" -> "Monthly declaration period is closed."))
           }
-          .recover { case NonFatal(_) => ServiceUnavailable(Json.obj("ERROR" -> "Service is unavailable")) }
+          .recover { case NonFatal(_) => ServiceUnavailable }
       }
     }
 

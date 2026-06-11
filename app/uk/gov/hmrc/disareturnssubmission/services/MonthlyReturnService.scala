@@ -112,11 +112,10 @@ class MonthlyReturnService @Inject() (
         }
     }
 
-  def isWithinDeclarationPeriod: Boolean = {
+  private def isWithinDeclarationPeriod: Boolean = {
     val dayOfMonth = LocalDate.now(clock).getDayOfMonth
 
-    if (dayOfMonth >= appConfig.declarationPeriodStart && dayOfMonth <= appConfig.declarationPeriodEnd) { true }
-    else { false }
+    dayOfMonth >= appConfig.declarationPeriodStart && dayOfMonth <= appConfig.declarationPeriodEnd
   }
 }
 

@@ -155,7 +155,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
 
     "MonthlyReturnController.declareMonthlyReturn" - {
 
-      "must return NO_CONTENT when the MonthlyReturn is declared" in {
+      "must return OK when the MonthlyReturn is declared" in {
         when(mockMonthlyReturnService.declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth)))
           .thenReturn(Future.successful(DeclareMonthlyReturnResult.Declared))
 
@@ -163,7 +163,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           FakeRequest("POST", declarationsPath)
         )
 
-        status(result) mustBe NO_CONTENT
+        status(result) mustBe OK
         verify(mockMonthlyReturnService).declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth))
       }
 
