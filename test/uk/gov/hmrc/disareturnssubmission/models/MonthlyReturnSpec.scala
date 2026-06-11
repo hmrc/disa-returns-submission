@@ -17,9 +17,7 @@
 package uk.gov.hmrc.disareturnssubmission.models
 
 import base.SpecBase
-import play.api.libs.json.{JsError, JsObject, JsString, Json}
-import uk.gov.hmrc.disareturnssubmission.models.FileUploadFailureReason.*
-import uk.gov.hmrc.disareturnssubmission.models.FileUploadStatus.*
+import play.api.libs.json.{JsObject, JsString, Json}
 
 class MonthlyReturnSpec extends SpecBase {
 
@@ -104,7 +102,6 @@ class MonthlyReturnSpec extends SpecBase {
       result.fileUploads mustBe List(
         FileUpload(
           reference = testUploadReference,
-          status = Created,
           createdOn = testCreatedOn
         )
       )
@@ -151,56 +148,6 @@ class MonthlyReturnSpec extends SpecBase {
 
     "must leave a non-nil return unchanged when setting nilReturn to false" in {
       emptyMonthlyReturn.updateNilReturn(nilReturn = false, updatedOn = testUpscanCompletedOn) mustBe emptyMonthlyReturn
-    }
-  }
-
-  "FileUploadStatus format" - {
-
-    Seq(
-      Created                        -> createdStatusString,
-      FileUploadStatus.UpscanSuccess -> upscanSuccessStatusString,
-      UpscanQuarantine               -> upscanQuarantineStatusString,
-      UpscanRejected                 -> upscanRejectedStatusString,
-      UpscanUnknown                  -> upscanUnknownStatusString
-    ).foreach { case (modelValue, jsonValue) =>
-      s"must serialise and deserialise $jsonValue" in {
-        Json.toJson[FileUploadStatus](modelValue) mustBe JsString(jsonValue)
-        JsString(jsonValue).as[FileUploadStatus] mustBe modelValue
-      }
-    }
-
-    "must fail to deserialise an unknown status" in {
-      JsString(unknownFileUploadStatusString).validate[FileUploadStatus] mustBe
-        JsError(s"Invalid file upload status: $unknownFileUploadStatusString")
-    }
-
-    "must fail to deserialise a non-string value" in {
-      Json.obj(statusFieldName -> createdStatusString).validate[FileUploadStatus] mustBe
-        JsError("File upload status must be a string")
-    }
-  }
-
-  "FileUploadFailureReason format" - {
-
-    Seq(
-      Quarantine -> quarantineReasonString,
-      Rejected   -> rejectedReasonString,
-      Unknown    -> unknownReasonString
-    ).foreach { case (modelValue, jsonValue) =>
-      s"must serialise and deserialise $jsonValue" in {
-        Json.toJson[FileUploadFailureReason](modelValue) mustBe JsString(jsonValue)
-        JsString(jsonValue).as[FileUploadFailureReason] mustBe modelValue
-      }
-    }
-
-    "must fail to deserialise an unknown failure reason" in {
-      JsString(invalidFailureReasonString).validate[FileUploadFailureReason] mustBe
-        JsError(s"Invalid file upload failure reason: $invalidFailureReasonString")
-    }
-
-    "must fail to deserialise a non-string value" in {
-      Json.obj(failureReasonFieldName -> rejectedReasonString).validate[FileUploadFailureReason] mustBe
-        JsError("File upload failure reason must be a string")
     }
   }
 }

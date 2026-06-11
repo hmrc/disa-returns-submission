@@ -23,7 +23,7 @@ import uk.gov.hmrc.disareturnssubmission.models.*
 import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository.CreateFileUploadRepositoryResult.*
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.MongoUtils.DuplicateKey
-import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
+import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 
 import java.time.{Clock, Instant}
 import java.util.UUID
@@ -55,9 +55,7 @@ class MonthlyReturnRepository @Inject() (
             .unique(true)
         )
       ),
-      replaceIndexes = true,
-      extraCodecs = Codecs.playFormatSumCodecs(FileUploadStatus.format) ++
-        Codecs.playFormatSumCodecs(FileUploadFailureReason.format)
+      replaceIndexes = true
     ) {
 
   def get(zReference: String, taxYear: String, month: Int): Future[Option[MonthlyReturn]] =

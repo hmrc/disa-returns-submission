@@ -18,7 +18,6 @@ package uk.gov.hmrc.disareturnssubmission.repository
 
 import base.SpecBase
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
-import uk.gov.hmrc.disareturnssubmission.models.FileUploadStatus.*
 import uk.gov.hmrc.disareturnssubmission.models.*
 import uk.gov.hmrc.disareturnssubmission.repositories.{DeclareMonthlyReturnRepositoryResult, MonthlyReturnRepository}
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
@@ -219,7 +218,6 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
   ): FileUpload =
     FileUpload(
       reference = reference,
-      status = Created,
       createdOn = createdOn
     )
 }
