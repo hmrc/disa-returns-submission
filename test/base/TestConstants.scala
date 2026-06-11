@@ -38,10 +38,7 @@ trait TestConstants {
 
   protected val testSubmissionId: UUID = UUID.fromString("1d3df389-98d4-4fd1-b05d-88473fcba6ba")
 
-  protected val testUploadReference    = "2b4d6f3a-8c1e-4e4b-9c7a-123456789abc"
-  protected val missingUploadReference = "missing-reference"
-  protected val testDownloadUrl        =
-    "https://fus-outbound-bucket.s3.eu-west-2.amazonaws.com/object-key?X-Amz-Signature=abc"
+  protected val testUploadReference = "2b4d6f3a-8c1e-4e4b-9c7a-123456789abc"
 
   protected val testExistingUpdatedOn: Instant   = Instant.parse("2026-05-17T11:00:00Z")
   protected val testRepositoryCreatedOn: Instant = Instant.parse("2026-05-17T11:30:00Z")
@@ -50,66 +47,19 @@ trait TestConstants {
 
   protected val testExistingUpdatedOnString: String      = testExistingUpdatedOn.toString
   protected val testCreatedOnString: String              = testCreatedOn.toString
-  protected val testUpscanCompletedOnString: String      = testUpscanCompletedOn.toString
   protected val testExistingUpdatedOnEpochMillis: String = testExistingUpdatedOn.toEpochMilli.toString
 
-  protected val testFileName     = "return.csv"
-  protected val testFileMimeType = "text/csv"
-  protected val testChecksum     = "396f101dd52e8b2ace0dcf5ed09b1d1f030e608938510ce46e7a5c7a4e775100"
-  protected val testFileSize     = 1024L
+  protected val zReferenceFieldName      = "zReference"
+  protected val submissionIdFieldName    = "submissionId"
+  protected val taxYearFieldName         = "taxYear"
+  protected val monthFieldName           = "month"
+  protected val nilReturnFieldName       = "nilReturn"
+  protected val fileUploadsFieldName     = "fileUploads"
+  protected val createdOnFieldName       = "createdOn"
+  protected val declaredOnFieldName      = "declaredOn"
+  protected val lastUpdatedFieldName     = "lastUpdated"
+  protected val mongoDateFieldName       = "$date"
+  protected val mongoNumberLongFieldName = "$numberLong"
 
-  protected val zReferenceFieldName        = "zReference"
-  protected val submissionIdFieldName      = "submissionId"
-  protected val taxYearFieldName           = "taxYear"
-  protected val monthFieldName             = "month"
-  protected val nilReturnFieldName         = "nilReturn"
-  protected val fileUploadsFieldName       = "fileUploads"
-  protected val createdOnFieldName         = "createdOn"
-  protected val declaredOnFieldName        = "declaredOn"
-  protected val upscanCompletedOnFieldName = "upscanCompletedOn"
-  protected val lastUpdatedFieldName       = "lastUpdated"
-  protected val referenceFieldName         = "reference"
-  protected val statusFieldName            = "status"
-  protected val valueFieldName             = "value"
-  protected val downloadUrlFieldName       = "downloadUrl"
-  protected val upscanDownloadUrlFieldName = "upscanDownloadUrl"
-  protected val fileUploadDetailsFieldName = "fileUploadDetails"
-  protected val fileStatusFieldName        = "fileStatus"
-  protected val uploadDetailsFieldName     = "uploadDetails"
-  protected val failureDetailsFieldName    = "failureDetails"
-  protected val failureReasonFieldName     = "failureReason"
-  protected val messageFieldName           = "message"
-  protected val fileNameFieldName          = "fileName"
-  protected val fileMimeTypeFieldName      = "fileMimeType"
-  protected val uploadTimestampFieldName   = "uploadTimestamp"
-  protected val checksumFieldName          = "checksum"
-  protected val sizeFieldName              = "size"
-  protected val mongoDateFieldName         = "$date"
-  protected val mongoNumberLongFieldName   = "$numberLong"
-
-  protected val createdStatusString           = "CREATED"
-  protected val upscanSuccessStatusString     = "UPSCAN_SUCCESS"
-  protected val upscanQuarantineStatusString  = "UPSCAN_QUARANTINE"
-  protected val upscanRejectedStatusString    = "UPSCAN_REJECTED"
-  protected val upscanUnknownStatusString     = "UPSCAN_UNKNOWN"
-  protected val unknownFileUploadStatusString = "UNKNOWN_STATUS"
-
-  protected val readyFileStatusString   = "READY"
-  protected val failedFileStatusString  = "FAILED"
-  protected val invalidFileStatusString = "SCANNING"
-
-  protected val quarantineReasonString     = "QUARANTINE"
-  protected val rejectedReasonString       = "REJECTED"
-  protected val unknownReasonString        = "UNKNOWN"
-  protected val invalidFailureReasonString = "DUPLICATE"
-
-  protected val testEicarSignatureMessage         = "Eicar-Test-Signature"
-  protected val testMimeTypeFailureMessage        =
-    "MIME type [application/zip] is not allowed for service: [disa-returns-frontend]"
-  protected val testUnableToParseFailureMessage   = "Unable to parse upscan failure details"
-  protected val testDuplicateFileMessage          = "Duplicate file"
-  protected val testUpscanFailureMessage          = "Upscan failure message"
-  protected val testMongoDownMessage              = "mongodb down"
-  protected val invalidUpscanResultPayloadMessage = "Invalid UpscanResult payload"
-  protected val invalidJsonBody                   = "invalid-json"
+  protected val testMongoDownMessage = "mongodb down"
 }
