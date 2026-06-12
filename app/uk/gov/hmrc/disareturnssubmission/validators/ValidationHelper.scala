@@ -23,7 +23,7 @@ object ValidationHelper {
   def validateParams(
     zReference: String,
     taxYear: String,
-    month: String
+    month: Int
   ): Either[String, (String, String, Int)] = {
     val maybeMonth = MonthValidator.parse(month)
 

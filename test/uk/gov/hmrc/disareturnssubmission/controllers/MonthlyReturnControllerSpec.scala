@@ -44,7 +44,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
 
   private lazy val controller = inject[MonthlyReturnController]
 
-  private val path             = s"/monthly/$testZReference/$testTaxYear/$testRouteMonth"
+  private val path             = s"/monthly/$testZReference/$testTaxYear/$testMonth"
   private val declarationsPath = s"$path/declarations"
 
   override protected def beforeEach(): Unit = {
@@ -68,7 +68,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
         )
           .thenReturn(Future.successful(Created(testSubmissionId)))
 
-        val result = controller.create(testZReference, testTaxYear, testRouteMonth)(
+        val result = controller.create(testZReference, testTaxYear, testMonth)(
           FakeRequest("POST", path).withBody(
             Json.toJson(CreateMonthlyReturnRequest(nilReturn = true, submissionId = testSubmissionId))
           )
@@ -91,7 +91,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
         )
           .thenReturn(Future.successful(AlreadyExists))
 
-        val result = controller.create(testZReference, testTaxYear, testRouteMonth)(
+        val result = controller.create(testZReference, testTaxYear, testMonth)(
           FakeRequest("POST", path).withBody(
             Json.toJson(CreateMonthlyReturnRequest(nilReturn = false, submissionId = testSubmissionId))
           )
@@ -112,7 +112,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
         )
           .thenReturn(Future.successful(CreateMonthlyReturnResult.OutsideDeclarationPeriod))
 
-        val result = controller.create(testZReference, testTaxYear, testRouteMonth)(
+        val result = controller.create(testZReference, testTaxYear, testMonth)(
           FakeRequest("POST", path).withBody(
             Json.toJson(CreateMonthlyReturnRequest(nilReturn = false, submissionId = testSubmissionId))
           )
@@ -133,7 +133,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
         )
           .thenReturn(Future.failed(new RuntimeException(testMongoDownMessage)))
 
-        val result = controller.create(testZReference, testTaxYear, testRouteMonth)(
+        val result = controller.create(testZReference, testTaxYear, testMonth)(
           FakeRequest("POST", path).withBody(
             Json.toJson(CreateMonthlyReturnRequest(nilReturn = false, submissionId = testSubmissionId))
           )
@@ -143,7 +143,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
       }
 
       "must return BAD_REQUEST when nilReturn is not a boolean" in {
-        val result = controller.create(testZReference, testTaxYear, testRouteMonth)(
+        val result = controller.create(testZReference, testTaxYear, testMonth)(
           FakeRequest("POST", path).withBody(
             Json.obj(nilReturnFieldName -> "false")
           )
@@ -159,7 +159,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
         when(mockMonthlyReturnService.declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth)))
           .thenReturn(Future.successful(DeclareMonthlyReturnResult.Declared))
 
-        val result = controller.declare(lowercaseTestZReference, testTaxYear, testRouteMonth)(
+        val result = controller.declare(lowercaseTestZReference, testTaxYear, testMonth)(
           FakeRequest("POST", declarationsPath)
         )
 
@@ -171,7 +171,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
         when(mockMonthlyReturnService.declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth)))
           .thenReturn(Future.successful(DeclareMonthlyReturnResult.AlreadyDeclared))
 
-        val result = controller.declare(testZReference, testTaxYear, testRouteMonth)(
+        val result = controller.declare(testZReference, testTaxYear, testMonth)(
           FakeRequest("POST", declarationsPath)
         )
 
@@ -182,7 +182,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
         when(mockMonthlyReturnService.declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth)))
           .thenReturn(Future.successful(DeclareMonthlyReturnResult.MonthlyReturnNotFound))
 
-        val result = controller.declare(testZReference, testTaxYear, testRouteMonth)(
+        val result = controller.declare(testZReference, testTaxYear, testMonth)(
           FakeRequest("POST", declarationsPath)
         )
 
@@ -193,7 +193,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
         when(mockMonthlyReturnService.declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth)))
           .thenReturn(Future.successful(DeclareMonthlyReturnResult.OutsideDeclarationPeriod))
 
-        val result = controller.declare(testZReference, testTaxYear, testRouteMonth)(
+        val result = controller.declare(testZReference, testTaxYear, testMonth)(
           FakeRequest("POST", declarationsPath)
         )
 
@@ -204,7 +204,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
         when(mockMonthlyReturnService.declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth)))
           .thenReturn(Future.failed(new RuntimeException(testMongoDownMessage)))
 
-        val result = controller.declare(testZReference, testTaxYear, testRouteMonth)(
+        val result = controller.declare(testZReference, testTaxYear, testMonth)(
           FakeRequest("POST", declarationsPath)
         )
 
@@ -212,7 +212,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
       }
 
       "must return BAD_REQUEST when path parameters are invalid" in {
-        val result = controller.declare(invalidTestZReference, testTaxYear, testRouteMonth)(
+        val result = controller.declare(invalidTestZReference, testTaxYear, testMonth)(
           FakeRequest("POST", declarationsPath)
         )
 

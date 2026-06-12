@@ -36,7 +36,7 @@ class MonthlyReturnController @Inject() (
     extends BackendController(cc)
     with WithJsonBody
     with Logging {
-  def create(zReference: String, taxYear: String, month: String): Action[JsValue] =
+  def create(zReference: String, taxYear: String, month: Int): Action[JsValue] =
     Action.async(parse.json) { implicit request =>
       withValidMonthlyReturnParams(zReference, taxYear, month) { (validZReference, validTaxYear, validMonth) =>
         withJsonBody[CreateMonthlyReturnRequest] { createRequest =>
@@ -61,7 +61,7 @@ class MonthlyReturnController @Inject() (
       }
     }
 
-  def declare(zReference: String, taxYear: String, month: String): Action[AnyContent] =
+  def declare(zReference: String, taxYear: String, month: Int): Action[AnyContent] =
     Action.async {
       logger.info(
         s"[MonthlyReturnController][declareMonthlyReturn] Declare monthly return request for zReference [$zReference], taxYear [$taxYear], month [$month]"
@@ -86,7 +86,7 @@ class MonthlyReturnController @Inject() (
   private def withValidMonthlyReturnParams(
     zReference: String,
     taxYear: String,
-    month: String
+    month: Int
   )(block: (String, String, Int) => Future[Result]): Future[Result] =
     ValidationHelper.validateParams(zReference, taxYear, month) match {
       case Right((validZReference, validTaxYear, validMonth)) =>

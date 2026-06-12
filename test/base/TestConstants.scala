@@ -33,7 +33,6 @@ trait TestConstants {
   protected val invalidTestTaxYear: String = yearOnlyTestTaxYear
 
   protected val testMonth        = 5
-  protected val testRouteMonth   = "5"
   protected val invalidTestMonth = 13
 
   protected val testSubmissionId: UUID = UUID.fromString("1d3df389-98d4-4fd1-b05d-88473fcba6ba")

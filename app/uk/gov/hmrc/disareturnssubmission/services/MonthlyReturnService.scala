@@ -44,7 +44,7 @@ class MonthlyReturnService @Inject() (
     nilReturn: Boolean,
     submissionId: UUID
   ): Future[CreateMonthlyReturnResult] =
-    if (!isWithinDeclarationPeriod) {
+    if (!isWithinDeclarationPeriod(taxYear, month)) {
       logger.warn(
         s"[MonthlyReturnService][declare] Monthly return is outside Declaration period or zReference [$zReference], taxYear [$taxYear], month [$month]"
       )
@@ -76,7 +76,7 @@ class MonthlyReturnService @Inject() (
     }
 
   def declare(zReference: String, taxYear: String, month: Int): Future[DeclareMonthlyReturnResult] =
-    if (!isWithinDeclarationPeriod) {
+    if (!isWithinDeclarationPeriod(taxYear, month)) {
       logger.warn(
         s"[MonthlyReturnService][declare] Declaration period is closed for zReference [$zReference], taxYear [$taxYear], month [$month]"
       )
@@ -112,10 +112,21 @@ class MonthlyReturnService @Inject() (
         }
     }
 
-  private def isWithinDeclarationPeriod: Boolean = {
-    val dayOfMonth = LocalDate.now(clock).getDayOfMonth
+  private def isWithinDeclarationPeriod(year: String, month: Int): Boolean = {
+    val nowClock   = LocalDate.now(clock)
+    val dayOfMonth = nowClock.getDayOfMonth
 
-    dayOfMonth >= appConfig.declarationPeriodStart && dayOfMonth <= appConfig.declarationPeriodEnd
+    val startYear    = year.split("-").head.toInt
+    val taxYearStart = LocalDate.of(startYear, 4, 6)
+    val taxYearEnd   = LocalDate.of(startYear + 1, 4, 5)
+
+    val isDayWithinDeclarationPeriod =
+      dayOfMonth >= appConfig.declarationPeriodStart && dayOfMonth <= appConfig.declarationPeriodEnd
+
+    val isCurrentMonth   = nowClock.getMonthValue == month
+    val isCurrentTaxYear = nowClock.isAfter(taxYearStart) && nowClock.isBefore(taxYearEnd)
+
+    isDayWithinDeclarationPeriod && isCurrentMonth && isCurrentTaxYear
   }
 }
 

@@ -20,11 +20,9 @@ object MonthValidator {
 
   private val validMonths: Range = 1 to 12
 
-  def isValid(month: String): Boolean =
+  def isValid(month: Int): Boolean =
     parse(month).isDefined
 
-  def parse(month: String): Option[Int] =
-    Option(month)
-      .flatMap(value => value.toIntOption)
-      .filter(validMonths.contains)
+  def parse(month: Int): Option[Int] =
+    Some(month).filter(validMonths.contains)
 }
