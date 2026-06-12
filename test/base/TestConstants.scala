@@ -16,6 +16,8 @@
 
 package base
 
+import uk.gov.hmrc.disareturnssubmission.models.MonthlyReturn
+
 import java.time.Instant
 import java.util.UUID
 
@@ -61,4 +63,14 @@ trait TestConstants {
   protected val mongoNumberLongFieldName = "$numberLong"
 
   protected val testMongoDownMessage = "mongodb down"
+
+  protected val monthlyReturn = MonthlyReturn(
+    zReference = testZReference,
+    submissionId = testSubmissionId,
+    taxYear = testTaxYear,
+    month = testMonth,
+    createdOn = testExistingUpdatedOn,
+    fileUploads = Nil,
+    lastUpdated = testCreatedOn
+  )
 }
