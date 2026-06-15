@@ -52,7 +52,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
     reset(mockMonthlyReturnService)
   }
 
-  "MonthlyReturnController.getMonthlyReturn" - {
+  "MonthlyReturnController.get" - {
 
     "MonthlyReturnController.create" - {
 
@@ -150,6 +150,47 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
         )
 
         status(result) mustBe BAD_REQUEST
+      }
+    }
+
+    "MonthlyReturnController.get" - {
+
+      "must return OK when the MonthlyReturn exists" in {
+        when(mockMonthlyReturnService.get(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth)))
+          .thenReturn(Future.successful(Some(monthlyReturn)))
+
+        val result =
+          controller.get(lowercaseTestZReference, testTaxYear, testMonth)(FakeRequest("GET", path))
+
+        status(result) mustBe OK
+        contentAsJson(result) mustBe Json.toJson(monthlyReturn)
+        verify(mockMonthlyReturnService).get(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth))
+      }
+
+      "must return NOT_FOUND when the MonthlyReturn does not exist" in {
+        when(mockMonthlyReturnService.get(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth)))
+          .thenReturn(Future.successful(None))
+
+        val result = controller.get(testZReference, testTaxYear, testMonth)(FakeRequest("GET", path))
+
+        status(result) mustBe NOT_FOUND
+      }
+
+      "must return SERVICE_UNAVAILABLE when the service fails" in {
+        when(mockMonthlyReturnService.get(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth)))
+          .thenReturn(Future.failed(new RuntimeException(testMongoDownMessage)))
+
+        val result = controller.get(testZReference, testTaxYear, testMonth)(FakeRequest("GET", path))
+
+        status(result) mustBe SERVICE_UNAVAILABLE
+      }
+
+      "must return BAD_REQUEST when path parameters are invalid" in {
+        val result =
+          controller.get(invalidTestZReference, testTaxYear, testMonth)(FakeRequest("GET", path))
+
+        status(result) mustBe BAD_REQUEST
+        contentAsString(result) must include(zReferenceFieldName)
       }
     }
 

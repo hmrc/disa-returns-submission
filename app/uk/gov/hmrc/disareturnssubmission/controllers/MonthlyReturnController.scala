@@ -36,6 +36,7 @@ class MonthlyReturnController @Inject() (
     extends BackendController(cc)
     with WithJsonBody
     with Logging {
+
   def create(zReference: String, taxYear: String, month: Int): Action[JsValue] =
     Action.async(parse.json) { implicit request =>
       withValidMonthlyReturnParams(zReference, taxYear, month) { (validZReference, validTaxYear, validMonth) =>
@@ -58,6 +59,23 @@ class MonthlyReturnController @Inject() (
             }
             .recover { case NonFatal(_) => ServiceUnavailable }
         }
+      }
+    }
+
+  def get(zReference: String, taxYear: String, month: Int): Action[AnyContent] =
+    Action.async {
+      logger.info(
+        s"[MonthlyReturnController][getMonthlyReturn] Get monthly return request for zReference [$zReference], taxYear [$taxYear], month [$month]"
+      )
+
+      withValidMonthlyReturnParams(zReference, taxYear, month) { (validZReference, validTaxYear, validMonth) =>
+        monthlyReturnService
+          .get(validZReference, validTaxYear, validMonth)
+          .map {
+            case Some(monthlyReturn) => Ok(Json.toJson(monthlyReturn))
+            case None                => NotFound
+          }
+          .recover { case NonFatal(_) => ServiceUnavailable }
       }
     }
 

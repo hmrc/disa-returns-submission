@@ -16,13 +16,12 @@
 
 package base
 
+import uk.gov.hmrc.disareturnssubmission.models.MonthlyReturn
+
 import java.time.Instant
 import java.util.UUID
 
 trait TestConstants {
-
-  protected val testServicePath              = "/disa-returns-backend"
-  protected val monthlyReturnsCollectionName = "monthlyReturns"
 
   protected val testZReference          = "Z1234"
   protected val lowercaseTestZReference = "z1234"
@@ -61,4 +60,15 @@ trait TestConstants {
   protected val mongoNumberLongFieldName = "$numberLong"
 
   protected val testMongoDownMessage = "mongodb down"
+
+  protected val monthlyReturn = MonthlyReturn(
+    zReference = testZReference,
+    submissionId = testSubmissionId,
+    taxYear = testTaxYear,
+    month = testMonth,
+    createdOn = testExistingUpdatedOn,
+    fileUploads = Nil,
+    lastUpdated = testCreatedOn
+  )
+
 }

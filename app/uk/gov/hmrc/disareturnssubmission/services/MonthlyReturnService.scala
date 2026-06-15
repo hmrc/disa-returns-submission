@@ -75,6 +75,32 @@ class MonthlyReturnService @Inject() (
         }
     }
 
+  def get(zReference: String, taxYear: String, month: Int): Future[Option[MonthlyReturn]] =
+
+    monthlyReturnRepository
+      .get(zReference, taxYear, month)
+      .map { maybeMonthlyReturn =>
+        maybeMonthlyReturn match {
+          case Some(_) =>
+            logger.info(
+              s"[MonthlyReturnService][get] Found monthly return for zReference [$zReference], taxYear [$taxYear], month [$month]"
+            )
+          case None    =>
+            logger.warn(
+              s"[MonthlyReturnService][get] No monthly return found for zReference [$zReference], taxYear [$taxYear], month [$month]"
+            )
+        }
+
+        maybeMonthlyReturn
+      }
+      .recoverWith { case NonFatal(exception) =>
+        logger.error(
+          s"[MonthlyReturnService][get] Failed to get monthly return for zReference [$zReference], taxYear [$taxYear], month [$month]",
+          exception
+        )
+        Future.failed(exception)
+      }
+
   def declare(zReference: String, taxYear: String, month: Int): Future[DeclareMonthlyReturnResult] =
     if (!isWithinDeclarationPeriod(taxYear, month)) {
       logger.warn(
