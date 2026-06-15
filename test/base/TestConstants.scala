@@ -23,9 +23,6 @@ import java.util.UUID
 
 trait TestConstants {
 
-  protected val testServicePath              = "/disa-returns-backend"
-  protected val monthlyReturnsCollectionName = "monthlyReturns"
-
   protected val testZReference          = "Z1234"
   protected val lowercaseTestZReference = "z1234"
   protected val invalidTestZReference   = "1234"
