@@ -16,10 +16,12 @@
 
 package uk.gov.hmrc.disareturnssubmission.controllers
 
+import org.apache.pekko.stream.Materializer
 import play.api.Logging
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Action, AnyContent, ControllerComponents, Result}
 import uk.gov.hmrc.disareturnssubmission.models.{CreateMonthlyReturnRequest, CreateMonthlyReturnResponse}
+import uk.gov.hmrc.disareturnssubmission.parser.NdJsonParser
 import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, MonthlyReturnService}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.play.bootstrap.controller.WithJsonBody
@@ -28,13 +30,19 @@ import uk.gov.hmrc.disareturnssubmission.validators.ValidationHelper
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
+import org.apache.pekko.stream.scaladsl.{Source as PekkoSource, *}
+import org.apache.pekko.util.ByteString
+import play.api.libs.Files
+import scala.util.Success
 
 class MonthlyReturnController @Inject() (
   cc: ControllerComponents,
-  monthlyReturnService: MonthlyReturnService
+  monthlyReturnService: MonthlyReturnService,
+  implicit val mat: Materializer
 )(implicit ec: ExecutionContext)
     extends BackendController(cc)
     with WithJsonBody
+    with NdJsonParser
     with Logging {
 
   def create(zReference: String, taxYear: String, month: Int): Action[JsValue] =
@@ -98,6 +106,28 @@ class MonthlyReturnController @Inject() (
               UnprocessableEntity(Json.obj("ERROR" -> "Monthly declaration period is closed."))
           }
           .recover { case NonFatal(_) => ServiceUnavailable }
+      }
+    }
+
+  def submitReturn(zReference: String, taxYear: String, month: Int): Action[Files.TemporaryFile] =
+    Action.async(parse.temporaryFile(maxLength = 1_000_000_000L)) { request =>
+      request.contentType match {
+        case Some("application/x-ndjson") =>
+          val source = FileIO.fromPath(request.body.path)
+          val res    = parseIsaSubscription(source)
+            .runWith(Sink.seq)
+            .map(results => results.collect { case Success(sub) => sub })
+
+          res.map(isaSubs => Ok(Json.toJson(isaSubs)))
+
+        case _ =>
+          Future.successful(
+            UnsupportedMediaType(
+              Json.obj(
+                "ERROR" -> "Content-Type must be application/x-ndjson"
+              )
+            )
+          )
       }
     }
 

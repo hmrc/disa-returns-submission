@@ -138,6 +138,8 @@ class MonthlyReturnService @Inject() (
         }
     }
 
+  def submitReturn(): Unit = {}
+
   private def isWithinDeclarationPeriod(year: String, month: Int): Boolean = {
     val nowClock   = LocalDate.now(clock)
     val dayOfMonth = nowClock.getDayOfMonth
