@@ -19,7 +19,7 @@ package uk.gov.hmrc.disareturnssubmission.controllers
 import play.api.Logging
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Action, AnyContent, ControllerComponents, Result}
-import uk.gov.hmrc.disareturnssubmission.models.{CreateMonthlyReturnRequest, CreateMonthlyReturnResponse}
+import uk.gov.hmrc.disareturnssubmission.models.{CreateMonthlyReturnRequest, CreateMonthlyReturnResponse, DeclarationRequest}
 import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, MonthlyReturnService}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.play.bootstrap.controller.WithJsonBody
@@ -79,25 +79,23 @@ class MonthlyReturnController @Inject() (
       }
     }
 
-  def declare(zReference: String, taxYear: String, month: Int): Action[AnyContent] =
-    Action.async {
-      logger.info(
-        s"[MonthlyReturnController][declareMonthlyReturn] Declare monthly return request for zReference [$zReference], taxYear [$taxYear], month [$month]"
-      )
-
+  def declare(zReference: String, taxYear: String, month: Int): Action[JsValue] =
+    Action.async(parse.json) { implicit request =>
       withValidMonthlyReturnParams(zReference, taxYear, month) { (validZReference, validTaxYear, validMonth) =>
-        monthlyReturnService
-          .declare(validZReference, validTaxYear, validMonth)
-          .map {
-            case DeclareMonthlyReturnResult.Declared                 => Ok
-            case DeclareMonthlyReturnResult.AlreadyDeclared          =>
-              UnprocessableEntity(Json.obj("ERROR" -> "This monthly return was already declared"))
-            case DeclareMonthlyReturnResult.MonthlyReturnNotFound    =>
-              NotFound(Json.obj("ERROR" -> "Monthly return not found"))
-            case DeclareMonthlyReturnResult.OutsideDeclarationPeriod =>
-              UnprocessableEntity(Json.obj("ERROR" -> "Monthly declaration period is closed."))
-          }
-          .recover { case NonFatal(_) => ServiceUnavailable }
+        withJsonBody[DeclarationRequest] { declarationRequest =>
+          monthlyReturnService
+            .declare(validZReference, validTaxYear, validMonth, declarationRequest.nilReturn)
+            .map {
+              case DeclareMonthlyReturnResult.Declared                 => Ok
+              case DeclareMonthlyReturnResult.AlreadyDeclared          =>
+                UnprocessableEntity(Json.obj("ERROR" -> "This monthly return was already declared"))
+              case DeclareMonthlyReturnResult.MonthlyReturnNotFound    =>
+                NotFound(Json.obj("ERROR" -> "Monthly return not found"))
+              case DeclareMonthlyReturnResult.OutsideDeclarationPeriod =>
+                UnprocessableEntity(Json.obj("ERROR" -> "Monthly declaration period is closed."))
+            }
+            .recover { case NonFatal(_) => ServiceUnavailable }
+        }
       }
     }
 

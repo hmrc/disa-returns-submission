@@ -101,42 +101,97 @@ class MonthlyReturnService @Inject() (
         Future.failed(exception)
       }
 
-  def declare(zReference: String, taxYear: String, month: Int): Future[DeclareMonthlyReturnResult] =
+  def declare(zReference: String, taxYear: String, month: Int, nilReturn: Boolean): Future[DeclareMonthlyReturnResult] =
     if (!isWithinDeclarationPeriod(taxYear, month)) {
       logger.warn(
         s"[MonthlyReturnService][declare] Declaration period is closed for zReference [$zReference], taxYear [$taxYear], month [$month]"
       )
       Future.successful(DeclareMonthlyReturnResult.OutsideDeclarationPeriod)
+    } else if (nilReturn) {
+      declareNilReturn(zReference, taxYear, month)
     } else {
-      monthlyReturnRepository
-        .declare(zReference, taxYear, month)
-        .map {
-          case DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared =>
+      declareExistingReturn(zReference, taxYear, month)
+    }
+
+  private def declareNilReturn(zReference: String, taxYear: String, month: Int): Future[DeclareMonthlyReturnResult] =
+    monthlyReturnRepository
+      .get(zReference, taxYear, month)
+      .flatMap {
+        case Some(monthlyReturn) if monthlyReturn.hasDeclaration =>
+          logger.warn(
+            s"[MonthlyReturnService][declareNilReturn] Monthly return already declared for zReference [$zReference], taxYear [$taxYear], month [$month]"
+          )
+          Future.successful(DeclareMonthlyReturnResult.AlreadyDeclared)
+
+        case Some(monthlyReturn) =>
+          val now     = java.time.Instant.now(clock)
+          val updated = monthlyReturn.updateNilReturn(true, now).declare(now)
+          monthlyReturnRepository.upsert(updated).map { _ =>
             logger.info(
-              s"[MonthlyReturnService][declare] Declared monthly return for zReference [$zReference], taxYear [$taxYear], month [$month]"
+              s"[MonthlyReturnService][declareNilReturn] Updated and declared nil return for zReference [$zReference], taxYear [$taxYear], month [$month]"
             )
             DeclareMonthlyReturnResult.Declared
+          }
 
-          case DeclareMonthlyReturnRepositoryResult.MonthlyReturnAlreadyDeclared =>
-            logger.warn(
-              s"[MonthlyReturnService][declare] Monthly return already declared for zReference [$zReference], taxYear [$taxYear], month [$month]"
-            )
-            DeclareMonthlyReturnResult.AlreadyDeclared
+        case None =>
+          monthlyReturnRepository
+            .create(zReference, taxYear, month, java.util.UUID.randomUUID(), nilReturn = true)
+            .flatMap {
+              case Some(_) =>
+                monthlyReturnRepository.declare(zReference, taxYear, month).map { _ =>
+                  logger.info(
+                    s"[MonthlyReturnService][declareNilReturn] Created and declared nil return for zReference [$zReference], taxYear [$taxYear], month [$month]"
+                  )
+                  DeclareMonthlyReturnResult.Declared
+                }
+              case None    =>
+                logger.error(
+                  s"[MonthlyReturnService][declareNilReturn] Failed to create nil return for zReference [$zReference], taxYear [$taxYear], month [$month]"
+                )
+                Future.failed(new RuntimeException("Failed to create nil return monthly return"))
+            }
+      }
+      .recoverWith { case NonFatal(exception) =>
+        logger.error(
+          s"[MonthlyReturnService][declareNilReturn] Failed to declare nil return for zReference [$zReference], taxYear [$taxYear], month [$month]",
+          exception
+        )
+        Future.failed(exception)
+      }
 
-          case DeclareMonthlyReturnRepositoryResult.MonthlyReturnNotFound =>
-            logger.warn(
-              s"[MonthlyReturnService][declare] No monthly return found for zReference [$zReference], taxYear [$taxYear], month [$month]"
-            )
-            DeclareMonthlyReturnResult.MonthlyReturnNotFound
-        }
-        .recoverWith { case NonFatal(exception) =>
-          logger.error(
-            s"[MonthlyReturnService][declare] Failed to declare monthly return for zReference [$zReference], taxYear [$taxYear], month [$month]",
-            exception
+  private def declareExistingReturn(
+    zReference: String,
+    taxYear: String,
+    month: Int
+  ): Future[DeclareMonthlyReturnResult] =
+    monthlyReturnRepository
+      .declare(zReference, taxYear, month)
+      .map {
+        case DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared =>
+          logger.info(
+            s"[MonthlyReturnService][declare] Declared monthly return for zReference [$zReference], taxYear [$taxYear], month [$month]"
           )
-          Future.failed(exception)
-        }
-    }
+          DeclareMonthlyReturnResult.Declared
+
+        case DeclareMonthlyReturnRepositoryResult.MonthlyReturnAlreadyDeclared =>
+          logger.warn(
+            s"[MonthlyReturnService][declare] Monthly return already declared for zReference [$zReference], taxYear [$taxYear], month [$month]"
+          )
+          DeclareMonthlyReturnResult.AlreadyDeclared
+
+        case DeclareMonthlyReturnRepositoryResult.MonthlyReturnNotFound =>
+          logger.warn(
+            s"[MonthlyReturnService][declare] No monthly return found for zReference [$zReference], taxYear [$taxYear], month [$month]"
+          )
+          DeclareMonthlyReturnResult.MonthlyReturnNotFound
+      }
+      .recoverWith { case NonFatal(exception) =>
+        logger.error(
+          s"[MonthlyReturnService][declare] Failed to declare monthly return for zReference [$zReference], taxYear [$taxYear], month [$month]",
+          exception
+        )
+        Future.failed(exception)
+      }
 
   private def isWithinDeclarationPeriod(year: String, month: Int): Boolean = {
     val nowClock   = LocalDate.now(clock)

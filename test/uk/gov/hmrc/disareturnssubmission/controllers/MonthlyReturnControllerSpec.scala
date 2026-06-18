@@ -196,57 +196,69 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
 
     "MonthlyReturnController.declareMonthlyReturn" - {
 
-      "must return OK when the MonthlyReturn is declared" in {
-        when(mockMonthlyReturnService.declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth)))
+      "must return OK when the MonthlyReturn is declared with nilReturn false" in {
+        when(mockMonthlyReturnService.declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth), eqTo(false)))
           .thenReturn(Future.successful(DeclareMonthlyReturnResult.Declared))
 
         val result = controller.declare(lowercaseTestZReference, testTaxYear, testMonth)(
-          FakeRequest("POST", declarationsPath)
+          FakeRequest("POST", declarationsPath).withBody(Json.obj("nilReturn" -> false))
         )
 
         status(result) mustBe OK
-        verify(mockMonthlyReturnService).declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth))
+        verify(mockMonthlyReturnService).declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth), eqTo(false))
+      }
+
+      "must return OK when the MonthlyReturn is declared with nilReturn true" in {
+        when(mockMonthlyReturnService.declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth), eqTo(true)))
+          .thenReturn(Future.successful(DeclareMonthlyReturnResult.Declared))
+
+        val result = controller.declare(testZReference, testTaxYear, testMonth)(
+          FakeRequest("POST", declarationsPath).withBody(Json.obj("nilReturn" -> true))
+        )
+
+        status(result) mustBe OK
+        verify(mockMonthlyReturnService).declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth), eqTo(true))
       }
 
       "must return UNPROCESSABLE_ENTITY when the MonthlyReturn has already been declared" in {
-        when(mockMonthlyReturnService.declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth)))
+        when(mockMonthlyReturnService.declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth), eqTo(false)))
           .thenReturn(Future.successful(DeclareMonthlyReturnResult.AlreadyDeclared))
 
         val result = controller.declare(testZReference, testTaxYear, testMonth)(
-          FakeRequest("POST", declarationsPath)
+          FakeRequest("POST", declarationsPath).withBody(Json.obj("nilReturn" -> false))
         )
 
         status(result) mustBe UNPROCESSABLE_ENTITY
       }
 
       "must return NOT_FOUND when the MonthlyReturn does not exist" in {
-        when(mockMonthlyReturnService.declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth)))
+        when(mockMonthlyReturnService.declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth), eqTo(false)))
           .thenReturn(Future.successful(DeclareMonthlyReturnResult.MonthlyReturnNotFound))
 
         val result = controller.declare(testZReference, testTaxYear, testMonth)(
-          FakeRequest("POST", declarationsPath)
+          FakeRequest("POST", declarationsPath).withBody(Json.obj("nilReturn" -> false))
         )
 
         status(result) mustBe NOT_FOUND
       }
 
       "must return UNPROCESSABLE_ENTITY when the declaration period is closed" in {
-        when(mockMonthlyReturnService.declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth)))
+        when(mockMonthlyReturnService.declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth), eqTo(false)))
           .thenReturn(Future.successful(DeclareMonthlyReturnResult.OutsideDeclarationPeriod))
 
         val result = controller.declare(testZReference, testTaxYear, testMonth)(
-          FakeRequest("POST", declarationsPath)
+          FakeRequest("POST", declarationsPath).withBody(Json.obj("nilReturn" -> false))
         )
 
         status(result) mustBe UNPROCESSABLE_ENTITY
       }
 
       "must return SERVICE_UNAVAILABLE when the service fails" in {
-        when(mockMonthlyReturnService.declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth)))
+        when(mockMonthlyReturnService.declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth), eqTo(false)))
           .thenReturn(Future.failed(new RuntimeException(testMongoDownMessage)))
 
         val result = controller.declare(testZReference, testTaxYear, testMonth)(
-          FakeRequest("POST", declarationsPath)
+          FakeRequest("POST", declarationsPath).withBody(Json.obj("nilReturn" -> false))
         )
 
         status(result) mustBe SERVICE_UNAVAILABLE
@@ -254,7 +266,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
 
       "must return BAD_REQUEST when path parameters are invalid" in {
         val result = controller.declare(invalidTestZReference, testTaxYear, testMonth)(
-          FakeRequest("POST", declarationsPath)
+          FakeRequest("POST", declarationsPath).withBody(Json.obj("nilReturn" -> false))
         )
 
         status(result) mustBe BAD_REQUEST
