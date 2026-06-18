@@ -314,6 +314,30 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
 
         verifyNoInteractions(mockMonthlyReturnRepository)
       }
+
+      "must fail when no monthly return exists and create returns None" in {
+        when(mockMonthlyReturnRepository.get(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+          .thenReturn(Future.successful(None))
+        when(
+          mockMonthlyReturnRepository.create(
+            eqTo(zReference),
+            eqTo(taxYear),
+            eqTo(month),
+            org.mockito.ArgumentMatchers.any[java.util.UUID],
+            eqTo(true)
+          )
+        )
+          .thenReturn(Future.successful(None))
+
+        service.declare(zReference, taxYear, month, nilReturn = true).failed.futureValue mustBe a[RuntimeException]
+      }
+
+      "must fail when repository throws an exception" in {
+        when(mockMonthlyReturnRepository.get(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+          .thenReturn(Future.failed(new RuntimeException("mongodb down")))
+
+        service.declare(zReference, taxYear, month, nilReturn = true).failed.futureValue mustBe a[RuntimeException]
+      }
     }
 
   }
