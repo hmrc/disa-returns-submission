@@ -25,18 +25,23 @@ import uk.gov.hmrc.disareturnssubmission.models.*
 import uk.gov.hmrc.disareturnssubmission.repositories.{DeclareMonthlyReturnRepositoryResult, MonthlyReturnRepository}
 import uk.gov.hmrc.disareturnssubmission.services.CreateMonthlyReturnResult
 import uk.gov.hmrc.disareturnssubmission.services.{DeclareMonthlyReturnResult, MonthlyReturnService}
+import uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator
 
 import java.time.{Clock, Instant, ZoneOffset}
+import java.util.UUID
 import scala.concurrent.Future
 class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
 
   private val mockMonthlyReturnRepository = mock[MonthlyReturnRepository]
   private val appConfig                   = inject[AppConfig]
+  private val mockUuidGenerator           = mock[UuidGenerator]
   private val service                     = buildService(testCreatedOn)
 
   private val zReference = testZReference
   private val taxYear    = testTaxYear
   private val month      = testMonth
+
+  private val generatedSubmissionId = UUID.randomUUID()
 
   private val monthlyReturn = MonthlyReturn(
     zReference = zReference,
@@ -52,6 +57,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
   override protected def beforeEach(): Unit = {
     super.beforeEach()
     reset(mockMonthlyReturnRepository)
+    reset(mockUuidGenerator)
   }
 
   "MonthlyReturnService" - {
@@ -59,6 +65,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
     "create" - {
 
       "must return Created when the repository creates the MonthlyReturn" in {
+        when(mockUuidGenerator.randomUuid()).thenReturn(testSubmissionId)
         when(
           mockMonthlyReturnRepository.create(
             eqTo(zReference),
@@ -71,32 +78,35 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
           .thenReturn(Future.successful(Some(monthlyReturn)))
 
         service
-          .create(zReference, taxYear, month, nilReturn = true, submissionId = testSubmissionId)
+          .create(zReference, taxYear, month, nilReturn = true)
           .futureValue mustBe CreateMonthlyReturnResult.Created(testSubmissionId)
       }
 
-      "must return AlreadyExists when the repository rejects the create" in {
+      "must return AlreadyExists with the existing submissionId when the repository rejects the create" in {
+        when(mockUuidGenerator.randomUuid()).thenReturn(generatedSubmissionId)
         when(
           mockMonthlyReturnRepository.create(
             eqTo(zReference),
             eqTo(taxYear),
             eqTo(month),
-            eqTo(testSubmissionId),
+            eqTo(generatedSubmissionId),
             eqTo(false)
           )
         )
           .thenReturn(Future.successful(None))
+        when(mockMonthlyReturnRepository.get(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+          .thenReturn(Future.successful(Some(monthlyReturn)))
 
         service
-          .create(zReference, taxYear, month, nilReturn = false, submissionId = testSubmissionId)
-          .futureValue mustBe CreateMonthlyReturnResult.AlreadyExists
+          .create(zReference, taxYear, month, nilReturn = false)
+          .futureValue mustBe CreateMonthlyReturnResult.AlreadyExists(testSubmissionId)
       }
 
       "must return OutsideDeclarationPeriod if creating a return on April 2026 for the 2025-26 tax year" in {
         val startDate = buildService(Instant.parse(s"2026-04-0${appConfig.declarationPeriodStart}T00:00:00Z"))
 
         startDate
-          .create(zReference, "2025-26", 4, nilReturn = false, submissionId = testSubmissionId)
+          .create(zReference, "2025-26", 4, nilReturn = false)
           .futureValue mustBe
           CreateMonthlyReturnResult.OutsideDeclarationPeriod
 
@@ -107,7 +117,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
         val startDate = buildService(Instant.parse(s"2026-04-0${appConfig.declarationPeriodStart}T00:00:00Z"))
 
         startDate
-          .create(zReference, "2027-28", 4, nilReturn = false, submissionId = testSubmissionId)
+          .create(zReference, "2027-28", 4, nilReturn = false)
           .futureValue mustBe
           CreateMonthlyReturnResult.OutsideDeclarationPeriod
 
@@ -118,7 +128,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
         val startDate = buildService(Instant.parse(s"2026-07-0${appConfig.declarationPeriodStart}T00:00:00Z"))
 
         startDate
-          .create(zReference, "2026-27", 8, nilReturn = false, submissionId = testSubmissionId)
+          .create(zReference, "2026-27", 8, nilReturn = false)
           .futureValue mustBe
           CreateMonthlyReturnResult.OutsideDeclarationPeriod
 
@@ -129,7 +139,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
         val startDate = buildService(Instant.parse(s"2026-07-0${appConfig.declarationPeriodStart}T00:00:00Z"))
 
         startDate
-          .create(zReference, "2026-27", 6, nilReturn = false, submissionId = testSubmissionId)
+          .create(zReference, "2026-27", 6, nilReturn = false)
           .futureValue mustBe
           CreateMonthlyReturnResult.OutsideDeclarationPeriod
 
@@ -253,6 +263,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
     new MonthlyReturnService(
       monthlyReturnRepository = mockMonthlyReturnRepository,
       appConfig = appConfig,
-      clock = Clock.fixed(now, ZoneOffset.UTC)
+      clock = Clock.fixed(now, ZoneOffset.UTC),
+      uuidGenerator = mockUuidGenerator
     )
 }

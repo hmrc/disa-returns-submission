@@ -46,13 +46,13 @@ class MonthlyReturnController @Inject() (
           )
 
           monthlyReturnService
-            .create(validZReference, validTaxYear, validMonth, createRequest.nilReturn, createRequest.submissionId)
+            .create(validZReference, validTaxYear, validMonth, createRequest.nilReturn)
             .map {
-              case CreateMonthlyReturnResult.Created(submissionId)    =>
+              case CreateMonthlyReturnResult.Created(submissionId)       =>
                 Created(Json.toJson(CreateMonthlyReturnResponse(submissionId))).withHeaders(LOCATION -> request.path)
-              case CreateMonthlyReturnResult.AlreadyExists            =>
-                Conflict(Json.obj("ERROR" -> "This Monthly return already exists."))
-              case CreateMonthlyReturnResult.OutsideDeclarationPeriod =>
+              case CreateMonthlyReturnResult.AlreadyExists(submissionId) =>
+                Conflict(Json.toJson(CreateMonthlyReturnResponse(submissionId)))
+              case CreateMonthlyReturnResult.OutsideDeclarationPeriod    =>
                 UnprocessableEntity(
                   Json.obj("ERROR" -> "It is not possible to create a monthly return outside its declaration period")
                 )
