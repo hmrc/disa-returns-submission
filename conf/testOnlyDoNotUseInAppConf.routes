@@ -15,3 +15,5 @@
 GET        /disa-returns-submission/test-only/clock          uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyClockController.getClock
 PUT        /disa-returns-submission/test-only/clock/:date    uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyClockController.setDate(date: String)
 DELETE     /disa-returns-submission/test-only/clock          uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyClockController.resetClock
+
+DELETE     /disa-returns-submission/test-only/monthly-returns uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyMonthlyReturnController.deleteAll()

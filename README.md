@@ -47,6 +47,7 @@ Test-only clock routes are available only with that router:
 - `GET /disa-returns-submission/test-only/clock`
 - `PUT /disa-returns-submission/test-only/clock/yyyy-MM-dd`
 - `DELETE /disa-returns-submission/test-only/clock`
+- `DELETE /disa-returns-submission/test-only/monthly-returns`
 
 Use `GET` to inspect the app clock:
 
@@ -67,6 +68,12 @@ curl -X DELETE http://localhost:12103/disa-returns-submission/test-only/clock
 ```
 
 For example, set the clock to `2026-05-17` to create and declare May 2026 monthly returns inside the configured declaration period, or `2026-05-20` to test declaration attempts outside the configured declaration period.
+
+Use `DELETE` to clear all monthly returns from the submission service local database:
+
+```bash
+curl -X DELETE http://localhost:12103/disa-returns-submission/test-only/monthly-returns
+```
 
 You can then query the app to ensure it is working with the following command:
 
@@ -103,6 +110,7 @@ Otherwise the routes will not be available.
 | `GET /disa-returns-submission/test-only/clock` | `bruno/TestOnly/Clock` | Inspect the app clock used by declaration-period logic. |
 | `PUT /disa-returns-submission/test-only/clock/:date` | `bruno/TestOnly/Clock` | Set the app date in `yyyy-MM-dd` format for declaration-period testing. |
 | `DELETE /disa-returns-submission/test-only/clock` | `bruno/TestOnly/Clock` | Reset the app clock back to the system UTC clock. |
+| `DELETE /disa-returns-submission/test-only/monthly-returns` | `bruno/TestOnly/MonthlyReturns` | Clear all monthly returns from the submission service local database. |
 
 ### Before you commit
 
