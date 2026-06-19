@@ -113,8 +113,8 @@ class MonthlyReturnController @Inject() (
 
   def submitReturn(zReference: String, taxYear: String, month: Int): Action[Files.TemporaryFile] =
     Action.async(parse.temporaryFile(maxLength = appConfig.maxContentLength)) { request =>
-      request.contentType match {
-        case Some(appConfig.contentType) =>
+      request.contentType.filter(_ == appConfig.contentType)  match {
+        case Some(_) =>
           val fileNameOrReference = uuidGenerator.randomUuid()
           fileUploadService
             .uploadFileToObjectStore(fileNameOrReference.toString, request.body.path, "application/x-ndjson")
