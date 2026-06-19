@@ -35,4 +35,7 @@ class AppConfig @Inject() (
 
   val declarationPeriodStart: Int = config.get[Int]("declarationPeriodStart")
   val declarationPeriodEnd: Int   = config.get[Int]("declarationPeriodEnd")
+
+  val contentType: String    = config.get[String]("acceptedBodyTypeForSubmission")
+  val maxContentLength: Long = config.underlying.getBytes("maximumLengthBodyTypeForSubmission")
 }

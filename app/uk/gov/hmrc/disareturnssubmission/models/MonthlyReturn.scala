@@ -57,14 +57,15 @@ final case class MonthlyReturn(
       )
     }
 
-  def createFileUpload(reference: String, createdOn: Instant): MonthlyReturn =
+  def createFileUpload(reference: String, createdOn: Instant, fileUploadDetails: FileUploadDetails): MonthlyReturn =
     if (nilReturn || fileUploads.exists(_.reference == reference)) {
       this
     } else {
       copy(
         fileUploads = fileUploads :+ FileUpload(
           reference = reference,
-          createdOn = createdOn
+          createdOn = createdOn,
+          fileUploadDetails = Some(fileUploadDetails)
         ),
         lastUpdated = createdOn
       )
@@ -138,7 +139,9 @@ final case class FileUploadDetails(
   fileMimeType: String,
   uploadTimestamp: Instant,
   checksum: String,
-  size: Long
+  size: Long,
+  objectStoreFileLocation: Option[String] = None,
+  objectStoreFileErrorsLocation: Option[String] = None
 )
 
 object FileUploadDetails {

@@ -18,12 +18,14 @@ package uk.gov.hmrc.disareturnssubmission.services
 
 import play.api.Logging
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
-import uk.gov.hmrc.disareturnssubmission.models.MonthlyReturn
+import uk.gov.hmrc.disareturnssubmission.models.{FileUploadDetails, MonthlyReturn}
 import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository
 import uk.gov.hmrc.disareturnssubmission.repositories.DeclareMonthlyReturnRepositoryResult
 import uk.gov.hmrc.disareturnssubmission.services.CreateMonthlyReturnResult.*
+import uk.gov.hmrc.disareturnssubmission.utils.Md5Base64
 
-import java.time.{Clock, LocalDate}
+import java.nio.file.Path
+import java.time.{Clock, Instant, LocalDate}
 import java.util.UUID
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -33,7 +35,8 @@ import scala.util.control.NonFatal
 class MonthlyReturnService @Inject() (
   monthlyReturnRepository: MonthlyReturnRepository,
   appConfig: AppConfig,
-  clock: Clock
+  clock: Clock,
+  md5Base64: Md5Base64
 )(implicit ec: ExecutionContext)
     extends Logging {
 
@@ -138,7 +141,38 @@ class MonthlyReturnService @Inject() (
         }
     }
 
-  def submitReturn(): Unit = {}
+  def submitReturn(
+    zReference: String,
+    taxYear: String,
+    Month: Int,
+    fileNameRef: String,
+    filePath: Path,
+    someLocation: String
+  ): Future[SubmitReturnResult] = {
+    val toUpdate          = monthlyReturnRepository.get(zReference, taxYear, Month)
+    val fileUploadDetails = FileUploadDetails(
+      fileNameRef,
+      appConfig.contentType,
+      Instant.now(),
+      md5Base64.checkMd5Base64(filePath).toString,
+      filePath.toFile.length(),
+      Some(someLocation)
+    )
+    toUpdate.flatMap {
+
+      case Some(monthlyReturn) =>
+
+        val updatedMonthlyReturn = monthlyReturn.createFileUpload(fileNameRef, Instant.now(), fileUploadDetails)
+
+        monthlyReturnRepository.upsert(updatedMonthlyReturn).flatMap {
+          case true  => Future.successful(SubmitReturnResult.UpdateSuccessful)
+          case false => Future.successful(SubmitReturnResult.NotUpdatedInRepository)
+        }
+
+      case _ => Future.successful(SubmitReturnResult.MonthlyReturnNotFound)
+    }
+
+  }
 
   private def isWithinDeclarationPeriod(year: String, month: Int): Boolean = {
     val nowClock   = LocalDate.now(clock)
@@ -181,4 +215,12 @@ object UpdateNilReturnResult {
   final case class NilReturnUpdated(monthlyReturn: MonthlyReturn) extends UpdateNilReturnResult
   case object MonthlyReturnAlreadyDeclared extends UpdateNilReturnResult
   case object MonthlyReturnNotFound extends UpdateNilReturnResult
+}
+
+sealed trait SubmitReturnResult
+
+object SubmitReturnResult {
+  case object UpdateSuccessful extends SubmitReturnResult
+  case object MonthlyReturnNotFound extends SubmitReturnResult
+  case object NotUpdatedInRepository extends SubmitReturnResult
 }

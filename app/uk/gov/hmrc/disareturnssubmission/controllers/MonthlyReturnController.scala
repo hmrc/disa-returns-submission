@@ -21,8 +21,7 @@ import play.api.Logging
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Action, AnyContent, ControllerComponents, Result}
 import uk.gov.hmrc.disareturnssubmission.models.{CreateMonthlyReturnRequest, CreateMonthlyReturnResponse}
-import uk.gov.hmrc.disareturnssubmission.parser.NdJsonParser
-import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, MonthlyReturnService}
+import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, FileUploadService, MonthlyReturnService, SubmitReturnResult}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.play.bootstrap.controller.WithJsonBody
 import uk.gov.hmrc.disareturnssubmission.validators.ValidationHelper
@@ -33,16 +32,19 @@ import scala.util.control.NonFatal
 import org.apache.pekko.stream.scaladsl.{Source as PekkoSource, *}
 import org.apache.pekko.util.ByteString
 import play.api.libs.Files
-import scala.util.Success
+import uk.gov.hmrc.disareturnssubmission.config.AppConfig
+import uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator
 
 class MonthlyReturnController @Inject() (
   cc: ControllerComponents,
   monthlyReturnService: MonthlyReturnService,
+  fileUploadService: FileUploadService,
+  uuidGenerator: UuidGenerator,
+  appConfig: AppConfig,
   implicit val mat: Materializer
 )(implicit ec: ExecutionContext)
     extends BackendController(cc)
     with WithJsonBody
-    with NdJsonParser
     with Logging {
 
   def create(zReference: String, taxYear: String, month: Int): Action[JsValue] =
@@ -110,15 +112,32 @@ class MonthlyReturnController @Inject() (
     }
 
   def submitReturn(zReference: String, taxYear: String, month: Int): Action[Files.TemporaryFile] =
-    Action.async(parse.temporaryFile(maxLength = 1_000_000_000L)) { request =>
+    Action.async(parse.temporaryFile(maxLength = appConfig.maxContentLength)) { request =>
       request.contentType match {
-        case Some("application/x-ndjson") =>
-          val source = FileIO.fromPath(request.body.path)
-          val res    = parseIsaSubscription(source)
-            .runWith(Sink.seq)
-            .map(results => results.collect { case Success(sub) => sub })
-
-          res.map(isaSubs => Ok(Json.toJson(isaSubs)))
+        case Some(appConfig.contentType) =>
+          val fileNameOrReference = uuidGenerator.randomUuid()
+          fileUploadService
+            .uploadFileToObjectStore(fileNameOrReference.toString, request.body.path, "application/x-ndjson")
+            .flatMap {
+              case Some(fileLocation) =>
+                monthlyReturnService
+                  .submitReturn(
+                    zReference,
+                    taxYear,
+                    month,
+                    fileNameOrReference.toString,
+                    request.body.path,
+                    fileLocation
+                  )
+                  .map {
+                    case SubmitReturnResult.UpdateSuccessful       => Ok
+                    case SubmitReturnResult.NotUpdatedInRepository =>
+                      ServiceUnavailable(Json.obj("ERROR" -> "Mongo error"))
+                    case SubmitReturnResult.MonthlyReturnNotFound  =>
+                      NotFound(Json.obj("ERROR" -> "Monthly return not found"))
+                  }
+              case None               => Future.successful(ServiceUnavailable(Json.obj("ERROR" -> "Object-store error")))
+            }
 
         case _ =>
           Future.successful(
