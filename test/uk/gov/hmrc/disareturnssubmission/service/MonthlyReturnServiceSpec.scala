@@ -147,6 +147,30 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
       }
     }
 
+    "get" - {
+
+      "must return Some(monthlyReturn) when the repository finds a monthly return" in {
+        when(mockMonthlyReturnRepository.get(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+          .thenReturn(Future.successful(Some(monthlyReturn)))
+
+        service.get(zReference, taxYear, month).futureValue mustBe Some(monthlyReturn)
+      }
+
+      "must return None when the repository does not find a monthly return" in {
+        when(mockMonthlyReturnRepository.get(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+          .thenReturn(Future.successful(None))
+
+        service.get(zReference, taxYear, month).futureValue mustBe None
+      }
+
+      "must fail when the repository throws an exception" in {
+        when(mockMonthlyReturnRepository.get(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+          .thenReturn(Future.failed(new RuntimeException(testMongoDownMessage)))
+
+        service.get(zReference, taxYear, month).failed.futureValue mustBe a[RuntimeException]
+      }
+    }
+
     "declare with nilReturn false" - {
 
       "must return Declared when the repository declares the MonthlyReturn" in {
