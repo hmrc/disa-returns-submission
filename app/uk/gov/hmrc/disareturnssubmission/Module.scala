@@ -19,6 +19,7 @@ package uk.gov.hmrc.disareturnssubmission
 import config.{InternalAuthTokenInitialiser, InternalAuthTokenInitialiserImpl, NoOpInternalAuthTokenInitialiser}
 import play.api.{Configuration, Environment}
 import play.api.inject.{Binding, Module as AppModule, bind as binding}
+import uk.gov.hmrc.disareturnssubmission.testOnly.MutableClock
 
 import java.time.{Clock, ZoneOffset}
 
@@ -42,8 +43,19 @@ class Module extends AppModule:
         )
       }
 
+    val clockBindings: Seq[Binding[?]] =
+      if (configuration.getOptional[String]("application.router").contains("testOnlyDoNotUseInAppConf.Routes")) {
+        Seq(
+          binding[MutableClock].toSelf,
+          binding[Clock].to[MutableClock]
+        )
+      } else {
+        Seq(
+          binding[Clock].to(Clock.systemDefaultZone.withZone(ZoneOffset.UTC))
+        )
+      }
+
     Seq(
-      binding[Clock].to(Clock.systemDefaultZone.withZone(ZoneOffset.UTC)),
       binding[AppInitialiser].toSelf.eagerly()
-    ) ++ authTokenInitialiserBindings
+    ) ++ clockBindings ++ authTokenInitialiserBindings
   }

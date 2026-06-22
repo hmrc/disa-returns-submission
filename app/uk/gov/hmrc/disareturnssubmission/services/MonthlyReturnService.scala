@@ -35,7 +35,8 @@ import scala.util.control.NonFatal
 class MonthlyReturnService @Inject() (
   monthlyReturnRepository: MonthlyReturnRepository,
   appConfig: AppConfig,
-  clock: Clock
+  clock: Clock,
+  uuidGenerator: UuidGenerator
 )(implicit ec: ExecutionContext)
     extends Logging
     with Md5Base64 {
@@ -44,8 +45,7 @@ class MonthlyReturnService @Inject() (
     zReference: String,
     taxYear: String,
     month: Int,
-    nilReturn: Boolean,
-    submissionId: UUID
+    nilReturn: Boolean
   ): Future[CreateMonthlyReturnResult] =
     if (!isWithinDeclarationPeriod(taxYear, month)) {
       logger.warn(
@@ -53,21 +53,28 @@ class MonthlyReturnService @Inject() (
       )
       Future.successful(CreateMonthlyReturnResult.OutsideDeclarationPeriod)
     } else {
+      val submissionId = uuidGenerator.randomUuid()
 
       monthlyReturnRepository
         .create(zReference, taxYear, month, submissionId, nilReturn)
-        .map {
+        .flatMap {
           case Some(monthlyReturn) =>
             logger.info(
               s"[MonthlyReturnService][create] Created monthly return for zReference [$zReference], taxYear [$taxYear], month [$month], submissionId [$submissionId], nilReturn [$nilReturn]"
             )
-            Created(monthlyReturn.submissionId)
+            Future.successful(Created(monthlyReturn.submissionId))
 
           case None =>
             logger.warn(
               s"[MonthlyReturnService][create] Monthly return already exists for zReference [$zReference], taxYear [$taxYear], month [$month]"
             )
-            AlreadyExists
+            monthlyReturnRepository.get(zReference, taxYear, month).map {
+              case Some(monthlyReturn) => AlreadyExists(monthlyReturn.submissionId)
+              case None                =>
+                throw new IllegalStateException(
+                  s"Monthly return duplicate reported but no record found for zReference [$zReference], taxYear [$taxYear], month [$month]"
+                )
+            }
         }
         .recoverWith { case NonFatal(exception) =>
           logger.error(
@@ -196,7 +203,7 @@ sealed trait CreateMonthlyReturnResult
 
 object CreateMonthlyReturnResult {
   final case class Created(submissionId: UUID) extends CreateMonthlyReturnResult
-  case object AlreadyExists extends CreateMonthlyReturnResult
+  final case class AlreadyExists(submissionId: UUID) extends CreateMonthlyReturnResult
   case object OutsideDeclarationPeriod extends CreateMonthlyReturnResult
 }
 

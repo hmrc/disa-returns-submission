@@ -1,0 +1,69 @@
+meta {
+  name: 01-201-create-nil-return-false
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}{{servicePath}}/monthly/{{zReference}}/{{taxYear}}/{{month}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "nilReturn": false
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.headers.location: eq {{servicePath}}/monthly/{{zReference}}/{{taxYear}}/{{month}}
+}
+
+script:pre-request {
+  const clockResponse = await bru.runRequest("TestOnly/Clock/02-200-set-clock-inside-declaration-period");
+  
+  if (clockResponse.status !== 200) {
+    throw new Error(`Expected clock setup to respond with 200, got ${clockResponse.status}`);
+  }
+  
+  const base = (Date.now() + Math.floor(Math.random() * 1000)) % 10000;
+  
+  function zRef(offset) {
+    const value = (base + offset) % 10000;
+    return `Z${value.toString().padStart(4, "0")}`;
+  }
+  
+  bru.setVar("zReference", zRef(0));
+  bru.setVar("nilZReference", zRef(1));
+  bru.setVar("outsidePeriodZReference", zRef(2));
+}
+
+script:post-response {
+  if (res.status !== 201) {
+    return;
+  }
+  
+  const responseBody = res.body ?? res.getBody();
+  const body = typeof responseBody === "string" ? JSON.parse(responseBody) : responseBody;
+  
+  bru.setVar("monthlySubmissionId", body.submissionId);
+}
+
+tests {
+  test("response contains submissionId", function() {
+    if (res.status !== 201) {
+      return;
+    }
+  
+    const responseBody = res.body ?? res.getBody();
+    const body = typeof responseBody === "string" ? JSON.parse(responseBody) : responseBody;
+  
+    expect(body.submissionId).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+  });
+}
