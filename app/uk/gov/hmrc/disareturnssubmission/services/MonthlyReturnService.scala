@@ -22,7 +22,7 @@ import uk.gov.hmrc.disareturnssubmission.models.{FileUploadDetails, MonthlyRetur
 import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository
 import uk.gov.hmrc.disareturnssubmission.repositories.DeclareMonthlyReturnRepositoryResult
 import uk.gov.hmrc.disareturnssubmission.services.CreateMonthlyReturnResult.*
-import uk.gov.hmrc.disareturnssubmission.utils.Md5Base64
+import uk.gov.hmrc.disareturnssubmission.utils.{Md5Base64, UuidGenerator}
 
 import java.nio.file.Path
 import java.time.{Clock, Instant, LocalDate}
