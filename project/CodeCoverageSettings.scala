@@ -13,13 +13,13 @@ object CodeCoverageSettings {
     "testOnly.*",
     "testOnlyDoNotUseInAppConf.*",
     ".*\\$anon.*",
-    "uk.gov.hmrc.disareturnssubmission.models.CreateMonthlyReturnRequest",
-    "uk.gov.hmrc.disareturnssubmission.models.CreateMonthlyReturnResponse",
-    "uk.gov.hmrc.disareturnssubmission.models.FileUploadDetails",
-    "uk.gov.hmrc.disareturnssubmission.models.FileUpload",
-    "uk.gov.hmrc.disareturnssubmission.testOnly.*",
+    "uk.gov.hmrc.disareturnssubmission.Module",
+    "uk.gov.hmrc.disareturnssubmission.AppInitialiser",
     "uk.gov.hmrc.disareturnssubmission.services.UuidGenerator",
-    "uk.gov.hmrc.disareturnssubmission.models.UuidFormat"
+    "uk.gov.hmrc.disareturnssubmission.utils.*",
+    "uk.gov.hmrc.disareturnssubmission.models.*",
+    "uk.gov.hmrc.disareturnssubmission.testOnly.*",
+    "uk.gov.hmrc.disareturnssubmission.connectors.*"
   )
 
   val settings: Seq[Setting[_]] = Seq(

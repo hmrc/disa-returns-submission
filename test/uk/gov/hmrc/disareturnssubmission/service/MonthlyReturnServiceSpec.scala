@@ -25,7 +25,6 @@ import uk.gov.hmrc.disareturnssubmission.models.*
 import uk.gov.hmrc.disareturnssubmission.repositories.{DeclareMonthlyReturnRepositoryResult, MonthlyReturnRepository}
 import uk.gov.hmrc.disareturnssubmission.services.CreateMonthlyReturnResult
 import uk.gov.hmrc.disareturnssubmission.services.{DeclareMonthlyReturnResult, MonthlyReturnService}
-import uk.gov.hmrc.disareturnssubmission.utils.Md5Base64
 
 import java.time.{Clock, Instant, ZoneOffset}
 import scala.concurrent.Future
@@ -34,7 +33,6 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
   private val mockMonthlyReturnRepository = mock[MonthlyReturnRepository]
   private val appConfig                   = inject[AppConfig]
   private val service                     = buildService(testCreatedOn)
-  private val md5Base64                   = mock[Md5Base64]
 
   private val zReference = testZReference
   private val taxYear    = testTaxYear
