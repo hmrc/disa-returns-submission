@@ -62,15 +62,14 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
             eqTo(testZReference),
             eqTo(testTaxYear),
             eqTo(testMonth),
-            eqTo(true),
-            eqTo(testSubmissionId)
+            eqTo(true)
           )
         )
           .thenReturn(Future.successful(Created(testSubmissionId)))
 
         val result = controller.create(testZReference, testTaxYear, testMonth)(
           FakeRequest("POST", path).withBody(
-            Json.toJson(CreateMonthlyReturnRequest(nilReturn = true, submissionId = testSubmissionId))
+            Json.toJson(CreateMonthlyReturnRequest(nilReturn = true))
           )
         )
 
@@ -85,19 +84,19 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
             eqTo(testZReference),
             eqTo(testTaxYear),
             eqTo(testMonth),
-            eqTo(false),
-            eqTo(testSubmissionId)
+            eqTo(false)
           )
         )
-          .thenReturn(Future.successful(AlreadyExists))
+          .thenReturn(Future.successful(AlreadyExists(testSubmissionId)))
 
         val result = controller.create(testZReference, testTaxYear, testMonth)(
           FakeRequest("POST", path).withBody(
-            Json.toJson(CreateMonthlyReturnRequest(nilReturn = false, submissionId = testSubmissionId))
+            Json.toJson(CreateMonthlyReturnRequest(nilReturn = false))
           )
         )
 
         status(result) mustBe CONFLICT
+        contentAsJson(result) mustBe Json.toJson(CreateMonthlyReturnResponse(testSubmissionId))
       }
 
       "must return UNPROCESSABLE_ENTITY when the declaration period is closed" in {
@@ -106,15 +105,14 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
             eqTo(testZReference),
             eqTo(testTaxYear),
             eqTo(testMonth),
-            eqTo(false),
-            eqTo(testSubmissionId)
+            eqTo(false)
           )
         )
           .thenReturn(Future.successful(CreateMonthlyReturnResult.OutsideDeclarationPeriod))
 
         val result = controller.create(testZReference, testTaxYear, testMonth)(
           FakeRequest("POST", path).withBody(
-            Json.toJson(CreateMonthlyReturnRequest(nilReturn = false, submissionId = testSubmissionId))
+            Json.toJson(CreateMonthlyReturnRequest(nilReturn = false))
           )
         )
 
@@ -127,15 +125,14 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
             eqTo(testZReference),
             eqTo(testTaxYear),
             eqTo(testMonth),
-            eqTo(false),
-            eqTo(testSubmissionId)
+            eqTo(false)
           )
         )
           .thenReturn(Future.failed(new RuntimeException(testMongoDownMessage)))
 
         val result = controller.create(testZReference, testTaxYear, testMonth)(
           FakeRequest("POST", path).withBody(
-            Json.toJson(CreateMonthlyReturnRequest(nilReturn = false, submissionId = testSubmissionId))
+            Json.toJson(CreateMonthlyReturnRequest(nilReturn = false))
           )
         )
 

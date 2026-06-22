@@ -1,0 +1,49 @@
+meta {
+  name: 06-422-create-outside-declaration-period
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}{{servicePath}}/monthly/{{outsidePeriodZReference}}/{{taxYear}}/{{month}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "nilReturn": false
+  }
+}
+
+assert {
+  res.status: eq 422
+}
+
+script:pre-request {
+  const clockResponse = await bru.runRequest("TestOnly/Clock/03-200-set-clock-outside-declaration-period");
+  
+  if (clockResponse.status !== 200) {
+    throw new Error(`Expected clock setup to respond with 200, got ${clockResponse.status}`);
+  }
+  
+  const value = (Date.now() + Math.floor(Math.random() * 1000)) % 10000;
+  bru.setVar("outsidePeriodZReference", `Z${value.toString().padStart(4, "0")}`);
+}
+
+tests {
+  test("response explains declaration period is closed", function() {
+    if (res.status !== 422) {
+      return;
+    }
+  
+    const responseBody = res.body ?? res.getBody();
+    const body = typeof responseBody === "string" ? JSON.parse(responseBody) : responseBody;
+  
+    expect(body.ERROR).to.equal("It is not possible to create a monthly return outside its declaration period");
+  });
+}

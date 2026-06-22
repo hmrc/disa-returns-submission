@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.disareturnssubmission.models
+package uk.gov.hmrc.disareturnssubmission.utils
 
-import play.api.libs.json.{Json, OFormat}
+import java.util.UUID
+import javax.inject.{Inject, Singleton}
 
-final case class CreateMonthlyReturnRequest(nilReturn: Boolean)
+@Singleton
+class UuidGenerator @Inject() () {
 
-object CreateMonthlyReturnRequest {
-  implicit val format: OFormat[CreateMonthlyReturnRequest] = Json.format[CreateMonthlyReturnRequest]
+  def randomUuid(): UUID =
+    UUID.randomUUID()
 }
