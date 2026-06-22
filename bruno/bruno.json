@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "disa-returns-submission",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

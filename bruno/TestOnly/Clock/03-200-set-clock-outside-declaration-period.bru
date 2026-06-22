@@ -1,0 +1,16 @@
+meta {
+  name: 03-200-set-clock-outside-declaration-period
+  type: http
+  seq: 3
+}
+
+put {
+  url: {{baseUrl}}{{servicePath}}/test-only/clock/{{outsideDeclarationPeriodDate}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.date: eq {{outsideDeclarationPeriodDate}}
+}

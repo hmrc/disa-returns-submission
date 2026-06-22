@@ -18,7 +18,7 @@ object CodeCoverageSettings {
     "uk.gov.hmrc.disareturnssubmission.models.FileUploadDetails",
     "uk.gov.hmrc.disareturnssubmission.models.FileUpload",
     "uk.gov.hmrc.disareturnssubmission.testOnly.*",
-    "uk.gov.hmrc.disareturnssubmission.services.UuidGenerator",
+    "uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator",
     "uk.gov.hmrc.disareturnssubmission.models.UuidFormat"
   )
 
