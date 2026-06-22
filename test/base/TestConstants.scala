@@ -16,7 +16,7 @@
 
 package base
 
-import uk.gov.hmrc.disareturnssubmission.models.MonthlyReturn
+import uk.gov.hmrc.disareturnssubmission.models.{FileUploadDetails, MonthlyReturn}
 
 import java.time.Instant
 import java.util.UUID
@@ -69,6 +69,15 @@ trait TestConstants {
     createdOn = testExistingUpdatedOn,
     fileUploads = Nil,
     lastUpdated = testCreatedOn
+  )
+
+  protected val fileUploadDetails = FileUploadDetails(
+    fileName = testUploadReference,
+    fileMimeType = "application/x-ndjson",
+    uploadTimestamp = testExistingUpdatedOn,
+    checksum = "XUFAKrxLKna5cZ2REBfFkg==",
+    size = 100L,
+    objectStoreFileLocation = Some("disa-returns-submission")
   )
 
 }

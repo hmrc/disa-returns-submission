@@ -28,17 +28,19 @@ import play.api.test.FakeRequest
 import play.api.test.Helpers.*
 import uk.gov.hmrc.disareturnssubmission.models.*
 import uk.gov.hmrc.disareturnssubmission.services.CreateMonthlyReturnResult.*
-import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, MonthlyReturnService}
+import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, FileUploadService, MonthlyReturnService}
 
 import scala.concurrent.Future
 
 class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
 
   private val mockMonthlyReturnService = mock[MonthlyReturnService]
+  private val mockFileUploadService = mock[FileUploadService]
 
   override lazy val app: Application = applicationBuilder(
     Seq(
-      bind[MonthlyReturnService].toInstance(mockMonthlyReturnService)
+      bind[MonthlyReturnService].toInstance(mockMonthlyReturnService),
+      bind[FileUploadService].toInstance(mockFileUploadService)
     )
   ).build()
 

@@ -97,7 +97,7 @@ class MonthlyReturnSpec extends SpecBase {
   "createFileUpload" - {
 
     "must add a CREATED file upload and update lastUpdated" in {
-      val result = emptyMonthlyReturn.createFileUpload(testUploadReference, testCreatedOn)
+      val result = emptyMonthlyReturn.createFileUpload(testUploadReference, testCreatedOn, fileUploadDetails)
 
       result.fileUploads mustBe List(
         FileUpload(
@@ -110,22 +110,22 @@ class MonthlyReturnSpec extends SpecBase {
     }
 
     "must not add a duplicate upload reference" in {
-      val existing = emptyMonthlyReturn.createFileUpload(testUploadReference, testCreatedOn)
+      val existing = emptyMonthlyReturn.createFileUpload(testUploadReference, testCreatedOn, fileUploadDetails)
 
-      existing.createFileUpload(testUploadReference, testUpscanCompletedOn) mustBe existing
+      existing.createFileUpload(testUploadReference, testUpscanCompletedOn, fileUploadDetails) mustBe existing
     }
 
     "must not add a file upload to a nil return" in {
       val monthlyReturn = emptyMonthlyReturn.copy(nilReturn = true)
 
-      monthlyReturn.createFileUpload(testUploadReference, testCreatedOn) mustBe monthlyReturn
+      monthlyReturn.createFileUpload(testUploadReference, testCreatedOn, fileUploadDetails) mustBe monthlyReturn
     }
   }
 
   "updateNilReturn" - {
 
     "must set nilReturn to true and remove all file uploads" in {
-      val monthlyReturn = emptyMonthlyReturn.createFileUpload(testUploadReference, testCreatedOn)
+      val monthlyReturn = emptyMonthlyReturn.createFileUpload(testUploadReference, testCreatedOn, fileUploadDetails)
 
       val result = monthlyReturn.updateNilReturn(nilReturn = true, updatedOn = testUpscanCompletedOn)
 

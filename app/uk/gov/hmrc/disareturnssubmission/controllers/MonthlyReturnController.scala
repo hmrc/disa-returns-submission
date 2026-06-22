@@ -29,8 +29,6 @@ import uk.gov.hmrc.disareturnssubmission.validators.ValidationHelper
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
-import org.apache.pekko.stream.scaladsl.{Source as PekkoSource, *}
-import org.apache.pekko.util.ByteString
 import play.api.libs.Files
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator
@@ -112,7 +110,7 @@ class MonthlyReturnController @Inject() (
     }
 
   def submitReturn(zReference: String, taxYear: String, month: Int): Action[Files.TemporaryFile] =
-    Action.async(parse.temporaryFile(maxLength = appConfig.maxContentLength)) { request =>
+    Action.async(parse.temporaryFile(maxLength = 1_000_000_000L)) { request =>
       request.contentType.filter(_ == appConfig.contentType) match {
         case Some(_) =>
           val fileNameOrReference = uuidGenerator.randomUuid()
