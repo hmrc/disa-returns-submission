@@ -31,11 +31,11 @@ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future, blo
 
 class ObjectStoreConnector @Inject() (
   client: PlayObjectStoreClient,
-  md5Base64: Md5Base64,
   override val actorSystem: ActorSystem,
   override val configuration: Config
 )(implicit ec: ExecutionContext)
-    extends BaseConnector {
+    extends BaseConnector
+    with Md5Base64 {
 
   import uk.gov.hmrc.objectstore.client.play.Implicits.*
 
@@ -50,7 +50,7 @@ class ObjectStoreConnector @Inject() (
     Future {
       blocking {
         val length = Files.size(file)
-        val md5    = md5Base64.checkMd5Base64(file)
+        val md5    = checkMd5Base64(file)
         length -> md5
       }
     }(blockingExecutionContext).flatMap { case (length, md5) =>

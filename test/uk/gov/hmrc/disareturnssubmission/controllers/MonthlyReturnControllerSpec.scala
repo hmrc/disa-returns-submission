@@ -35,7 +35,7 @@ import scala.concurrent.Future
 class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
 
   private val mockMonthlyReturnService = mock[MonthlyReturnService]
-  private val mockFileUploadService = mock[FileUploadService]
+  private val mockFileUploadService    = mock[FileUploadService]
 
   override lazy val app: Application = applicationBuilder(
     Seq(

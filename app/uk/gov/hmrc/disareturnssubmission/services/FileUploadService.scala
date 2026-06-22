@@ -23,16 +23,17 @@ import uk.gov.hmrc.disareturnssubmission.utils.TempFileSupport
 import uk.gov.hmrc.http.HeaderCarrier
 
 import java.nio.file.Path
+import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 
-abstract class FileUploadService(
+class FileUploadService @Inject (
   override protected val temporaryFileCreator: TemporaryFileCreator,
   objectStoreConnector: ObjectStoreConnector
 )(implicit ec: ExecutionContext)
     extends Logging
     with TempFileSupport {
 
-  protected def serviceName: String
+  private def serviceName: String = "disa-returns-submission"
 
   def uploadFileToObjectStore(
     fileName: String,

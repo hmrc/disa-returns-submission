@@ -35,10 +35,10 @@ import scala.util.control.NonFatal
 class MonthlyReturnService @Inject() (
   monthlyReturnRepository: MonthlyReturnRepository,
   appConfig: AppConfig,
-  clock: Clock,
-  md5Base64: Md5Base64
+  clock: Clock
 )(implicit ec: ExecutionContext)
-    extends Logging {
+    extends Logging
+    with Md5Base64 {
 
   def create(
     zReference: String,
@@ -154,7 +154,7 @@ class MonthlyReturnService @Inject() (
       fileNameRef,
       appConfig.contentType,
       Instant.now(),
-      md5Base64.checkMd5Base64(filePath).toString,
+      checkMd5Base64(filePath).toString,
       filePath.toFile.length(),
       Some(someLocation)
     )

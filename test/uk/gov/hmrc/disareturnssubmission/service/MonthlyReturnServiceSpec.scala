@@ -255,7 +255,6 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
     new MonthlyReturnService(
       monthlyReturnRepository = mockMonthlyReturnRepository,
       appConfig = appConfig,
-      clock = Clock.fixed(now, ZoneOffset.UTC),
-      md5Base64 = md5Base64
+      clock = Clock.fixed(now, ZoneOffset.UTC)
     )
 }

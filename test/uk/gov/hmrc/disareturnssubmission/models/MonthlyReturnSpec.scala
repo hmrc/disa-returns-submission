@@ -102,7 +102,8 @@ class MonthlyReturnSpec extends SpecBase {
       result.fileUploads mustBe List(
         FileUpload(
           reference = testUploadReference,
-          createdOn = testCreatedOn
+          createdOn = testCreatedOn,
+          fileUploadDetails = Some(fileUploadDetails)
         )
       )
       result.createdOn mustBe testExistingUpdatedOn
