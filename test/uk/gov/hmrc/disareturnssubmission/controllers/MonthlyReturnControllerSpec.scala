@@ -17,7 +17,7 @@
 package uk.gov.hmrc.disareturnssubmission.controllers
 
 import base.SpecBase
-import org.mockito.ArgumentMatchers.eq as eqTo
+import org.mockito.ArgumentMatchers.{any, eq as eqTo}
 import org.mockito.Mockito.{reset, verify, when}
 import org.scalatest.BeforeAndAfterEach
 import play.api.Application
@@ -28,14 +28,17 @@ import play.api.test.FakeRequest
 import play.api.test.Helpers.*
 import uk.gov.hmrc.disareturnssubmission.models.*
 import uk.gov.hmrc.disareturnssubmission.services.CreateMonthlyReturnResult.*
-import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, FileUploadService, MonthlyReturnService}
+import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, FileUploadService, MonthlyReturnService, SubmitReturnResult}
+import uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator
 
+import java.util.UUID
 import scala.concurrent.Future
 
 class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
 
   private val mockMonthlyReturnService = mock[MonthlyReturnService]
   private val mockFileUploadService    = mock[FileUploadService]
+  private val mockUuidGenerator        = mock[UuidGenerator]
 
   override lazy val app: Application = applicationBuilder(
     Seq(
@@ -48,13 +51,14 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
 
   private val path             = s"/monthly/$testZReference/$testTaxYear/$testMonth"
   private val declarationsPath = s"$path/declarations"
+  private val submissionsPath  = s"$path/submissions"
 
   override protected def beforeEach(): Unit = {
     super.beforeEach()
     reset(mockMonthlyReturnService)
   }
 
-  "MonthlyReturnController.get" - {
+  "MonthlyReturnController" - {
 
     "MonthlyReturnController.create" - {
 
@@ -193,7 +197,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
       }
     }
 
-    "MonthlyReturnController.declareMonthlyReturn" - {
+    "MonthlyReturnController.declare" - {
 
       "must return OK when the MonthlyReturn is declared" in {
         when(mockMonthlyReturnService.declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth)))
@@ -259,6 +263,156 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
         status(result) mustBe BAD_REQUEST
         contentAsString(result) must include(zReferenceFieldName)
       }
+    }
+  }
+  "MonthlyReturnController.submit" - {
+    "must return OK when the MonthlyReturn is uploaded" in {
+      when(mockUuidGenerator.randomUuid()).thenReturn(UUID.fromString(testUploadReference))
+      when(
+        mockMonthlyReturnService.submitReturn(
+          any(),
+          any(),
+          any(),
+          any(),
+          any(),
+          any()
+        )
+      )
+        .thenReturn(Future.successful(SubmitReturnResult.UpdateSuccessful))
+
+      when(
+        mockFileUploadService
+          .uploadFileToObjectStore(any(), any(), any())
+      )
+        .thenReturn(Future.successful(Some("test/test")))
+
+      val result = controller.submitReturn(lowercaseTestZReference, testTaxYear, testMonth)(
+        FakeRequest("POST", submissionsPath)
+          .withHeaders("Content-Type" -> "application/x-ndjson")
+          .withBody(testTempFile)
+      )
+
+      status(result) mustBe OK
+    }
+
+    "must return ServiceUnavailable when the object-store returns None" in {
+      when(mockUuidGenerator.randomUuid()).thenReturn(UUID.fromString(testUploadReference))
+      when(
+        mockMonthlyReturnService.submitReturn(
+          any(),
+          any(),
+          any(),
+          any(),
+          any(),
+          any()
+        )
+      )
+        .thenReturn(Future.successful(SubmitReturnResult.UpdateSuccessful))
+
+      when(
+        mockFileUploadService
+          .uploadFileToObjectStore(any(), any(), any())
+      )
+        .thenReturn(Future.successful(None))
+
+      val result = controller.submitReturn(lowercaseTestZReference, testTaxYear, testMonth)(
+        FakeRequest("POST", submissionsPath)
+          .withHeaders("Content-Type" -> "application/x-ndjson")
+          .withBody(testTempFile)
+      )
+
+      status(result) mustBe SERVICE_UNAVAILABLE
+      contentAsString(result) must include("Object-store error")
+    }
+
+    "must return UnsupportedMediaType when the wrong filetype is uploaded" in {
+      when(mockUuidGenerator.randomUuid()).thenReturn(UUID.fromString(testUploadReference))
+      when(
+        mockMonthlyReturnService.submitReturn(
+          any(),
+          any(),
+          any(),
+          any(),
+          any(),
+          any()
+        )
+      )
+        .thenReturn(Future.successful(SubmitReturnResult.UpdateSuccessful))
+
+      when(
+        mockFileUploadService
+          .uploadFileToObjectStore(any(), any(), any())
+      )
+        .thenReturn(Future.successful(Some("test/test")))
+
+      val result = controller.submitReturn(lowercaseTestZReference, testTaxYear, testMonth)(
+        FakeRequest("POST", submissionsPath)
+          .withHeaders("Content-Type" -> "something wrong")
+          .withBody(testTempFile)
+      )
+
+      status(result) mustBe UNSUPPORTED_MEDIA_TYPE
+      contentAsString(result) must include("Content-Type must be application/x-ndjson")
+    }
+
+    "must return ServiceUnavailable when Mongo gives back an error" in {
+      when(mockUuidGenerator.randomUuid()).thenReturn(UUID.fromString(testUploadReference))
+      when(
+        mockMonthlyReturnService.submitReturn(
+          any(),
+          any(),
+          any(),
+          any(),
+          any(),
+          any()
+        )
+      )
+        .thenReturn(Future.successful(SubmitReturnResult.NotUpdatedInRepository))
+
+      when(
+        mockFileUploadService
+          .uploadFileToObjectStore(any(), any(), any())
+      )
+        .thenReturn(Future.successful(Some("test/test")))
+
+      val result = controller.submitReturn(lowercaseTestZReference, testTaxYear, testMonth)(
+        FakeRequest("POST", submissionsPath)
+          .withHeaders("Content-Type" -> "application/x-ndjson")
+          .withBody(testTempFile)
+      )
+
+      status(result) mustBe SERVICE_UNAVAILABLE
+      contentAsString(result) must include("Mongo error")
+    }
+
+    "must return Not Found when the MonthlyReturn is uploaded" in {
+      when(mockUuidGenerator.randomUuid()).thenReturn(UUID.fromString(testUploadReference))
+      when(
+        mockMonthlyReturnService.submitReturn(
+          any(),
+          any(),
+          any(),
+          any(),
+          any(),
+          any()
+        )
+      )
+        .thenReturn(Future.successful(SubmitReturnResult.MonthlyReturnNotFound))
+
+      when(
+        mockFileUploadService
+          .uploadFileToObjectStore(any(), any(), any())
+      )
+        .thenReturn(Future.successful(Some("test/test")))
+
+      val result = controller.submitReturn(lowercaseTestZReference, testTaxYear, testMonth)(
+        FakeRequest("POST", submissionsPath)
+          .withHeaders("Content-Type" -> "application/x-ndjson")
+          .withBody(testTempFile)
+      )
+
+      status(result) mustBe NOT_FOUND
+      contentAsString(result) must include("Monthly return not found")
     }
   }
 }
