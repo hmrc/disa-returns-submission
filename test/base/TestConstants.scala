@@ -38,7 +38,6 @@ trait TestConstants {
   protected val testSubmissionId: UUID = UUID.fromString("1d3df389-98d4-4fd1-b05d-88473fcba6ba")
 
   protected val testUploadReference = "2b4d6f3a-8c1e-4e4b-9c7a-123456789abc"
-  protected val testFilePath: Path  = Path.of("disa-returns-submission")
 
   protected val testExistingUpdatedOn: Instant   = Instant.parse("2026-05-17T11:00:00Z")
   protected val testRepositoryCreatedOn: Instant = Instant.parse("2026-05-17T11:30:00Z")
@@ -63,6 +62,14 @@ trait TestConstants {
 
   protected val testMongoDownMessage = "mongodb down"
 
+  private val ndjsonContent: String =
+    """{"id": "1", "name": "test"}
+      |{"id": "2", "name": "test2"}
+      |""".stripMargin
+
+  private val tempFile: Path       = Files.createTempFile("test", ".ndjson")
+  protected val testTempFile: Path = Files.write(tempFile, ndjsonContent.getBytes)
+
   protected val monthlyReturn = MonthlyReturn(
     zReference = testZReference,
     submissionId = testSubmissionId,
@@ -79,15 +86,6 @@ trait TestConstants {
     uploadTimestamp = testExistingUpdatedOn,
     checksum = "XUFAKrxLKna5cZ2REBfFkg==",
     size = 100L,
-    objectStoreFileLocation = Some(testFilePath.toString)
+    objectStoreFileLocation = Some(testTempFile.toString)
   )
-
-  private val ndjsonContent: String =
-    """{"id": "1", "name": "test"}
-      |{"id": "2", "name": "test2"}
-      |""".stripMargin
-
-  private val tempFile: Path     = Files.createTempFile("test", ".ndjson")
-  protected val testTempFile: Path = Files.write(tempFile, ndjsonContent.getBytes)
-
 }

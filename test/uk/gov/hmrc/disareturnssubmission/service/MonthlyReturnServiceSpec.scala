@@ -17,14 +17,13 @@
 package uk.gov.hmrc.disareturnssubmission.service
 
 import base.SpecBase
-import org.mockito.ArgumentMatchers.eq as eqTo
+import org.mockito.ArgumentMatchers.{any, eq as eqTo}
 import org.mockito.Mockito.{reset, verify, verifyNoInteractions, when}
 import org.scalatest.BeforeAndAfterEach
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.models.*
 import uk.gov.hmrc.disareturnssubmission.repositories.{DeclareMonthlyReturnRepositoryResult, MonthlyReturnRepository}
-import uk.gov.hmrc.disareturnssubmission.services.CreateMonthlyReturnResult
-import uk.gov.hmrc.disareturnssubmission.services.{DeclareMonthlyReturnResult, MonthlyReturnService}
+import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, MonthlyReturnService, SubmitReturnResult}
 import uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator
 
 import java.time.{Clock, Instant, ZoneOffset}
@@ -147,6 +146,32 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
       }
     }
 
+    "get" - {
+
+      "must return Some(monthlyReturn)" in {
+
+        when(mockMonthlyReturnRepository.get(any(), any(), any()))
+          .thenReturn(Future.successful(Some(monthlyReturn)))
+
+        service
+          .get(zReference, taxYear, month)
+          .futureValue mustBe Some(monthlyReturn)
+
+      }
+
+      "must return None" in {
+
+        when(mockMonthlyReturnRepository.get(any(), any(), any()))
+          .thenReturn(Future.successful(None))
+
+        service
+          .get(zReference, taxYear, month)
+          .futureValue mustBe None
+
+      }
+
+    }
+
     "declare" - {
 
       "must return Declared when the repository declares the MonthlyReturn" in {
@@ -255,6 +280,48 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
 
         verifyNoInteractions(mockMonthlyReturnRepository)
       }
+    }
+
+    "submitReturn" - {
+      "must return UpdateSuccessful" in {
+
+        when(mockMonthlyReturnRepository.get(any(), any(), any()))
+          .thenReturn(Future.successful(Some(monthlyReturn)))
+
+        when(mockMonthlyReturnRepository.upsert(any()))
+          .thenReturn(Future.successful(true))
+
+        service
+          .submitReturn(zReference, taxYear, month, testUploadReference, testTempFile, testTempFile.toString)
+          .futureValue mustBe SubmitReturnResult.UpdateSuccessful
+
+      }
+
+      "must return NotUpdatedInRepository if repository fails to update" in {
+
+        when(mockMonthlyReturnRepository.get(any(), any(), any()))
+          .thenReturn(Future.successful(Some(monthlyReturn)))
+
+        when(mockMonthlyReturnRepository.upsert(any()))
+          .thenReturn(Future.successful(false))
+
+        service
+          .submitReturn(zReference, taxYear, month, testUploadReference, testTempFile, testTempFile.toString)
+          .futureValue mustBe SubmitReturnResult.NotUpdatedInRepository
+
+      }
+
+      "must return MonthlyReturnNotFound if a Monthly return hasn't been created yet" in {
+
+        when(mockMonthlyReturnRepository.get(any(), any(), any()))
+          .thenReturn(Future.successful(None))
+
+        service
+          .submitReturn(zReference, taxYear, month, testUploadReference, testTempFile, testTempFile.toString)
+          .futureValue mustBe SubmitReturnResult.MonthlyReturnNotFound
+
+      }
+
     }
 
   }
