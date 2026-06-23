@@ -414,5 +414,33 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
       status(result) mustBe NOT_FOUND
       contentAsString(result) must include("Monthly return not found")
     }
+
+    "must return BAD_REQUEST when the submission endpoint is called with no Body" in {
+      when(mockUuidGenerator.randomUuid()).thenReturn(UUID.fromString(testUploadReference))
+      when(
+        mockMonthlyReturnService.submitReturn(
+          any(),
+          any(),
+          any(),
+          any(),
+          any(),
+          any()
+        )
+      )
+        .thenReturn(Future.successful(SubmitReturnResult.UpdateSuccessful))
+
+      when(
+        mockFileUploadService
+          .uploadFileToObjectStore(any(), any(), any())
+      )
+        .thenReturn(Future.successful(Some("test/test")))
+
+      val result = controller.submitReturn(lowercaseTestZReference, testTaxYear, testMonth)(
+        FakeRequest("POST", submissionsPath)
+          .withHeaders("Content-Type" -> "application/x-ndjson")
+      )
+
+      status(result) mustBe BAD_REQUEST
+    }
   }
 }

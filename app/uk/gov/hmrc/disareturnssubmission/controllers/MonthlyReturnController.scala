@@ -24,7 +24,7 @@ import uk.gov.hmrc.disareturnssubmission.models.{CreateMonthlyReturnRequest, Cre
 import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, FileUploadService, MonthlyReturnService, SubmitReturnResult}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.play.bootstrap.controller.WithJsonBody
-import uk.gov.hmrc.disareturnssubmission.validators.ValidationHelper
+import uk.gov.hmrc.disareturnssubmission.validators.{NdJsonValidator, ValidationHelper}
 
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
@@ -112,7 +112,9 @@ class MonthlyReturnController @Inject() (
   def submitReturn(zReference: String, taxYear: String, month: Int): Action[Files.TemporaryFile] =
     Action.async(parse.temporaryFile(maxLength = 1_000_000_000L)) { request =>
       request.contentType.filter(_ == appConfig.contentType) match {
-        case Some(_) =>
+        case Some(_) if request.body.path.toFile.length() <= 0L           =>
+          Future.successful(BadRequest(Json.obj("ERROR" -> "Request body must not be empty")))
+        case Some(_) if NdJsonValidator.isValid(request.body.path.toFile) =>
           val fileNameOrReference = uuidGenerator.randomUuid()
           fileUploadService
             .uploadFileToObjectStore(fileNameOrReference.toString, request.body.path, "application/x-ndjson")

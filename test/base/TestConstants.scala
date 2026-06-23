@@ -16,7 +16,9 @@
 
 package base
 
-import java.nio.file.{Files, Path}
+import play.api.libs.Files as PlayFiles
+import play.api.libs.Files.SingletonTemporaryFileCreator
+
 import uk.gov.hmrc.disareturnssubmission.models.{FileUploadDetails, MonthlyReturn}
 
 import java.time.Instant
@@ -67,8 +69,11 @@ trait TestConstants {
       |{"id": "2", "name": "test2"}
       |""".stripMargin
 
-  private val tempFile: Path       = Files.createTempFile("test", ".ndjson")
-  protected val testTempFile: Path = Files.write(tempFile, ndjsonContent.getBytes)
+  protected val testTempFile: PlayFiles.TemporaryFile = {
+    val file = SingletonTemporaryFileCreator.create("test", ".ndjson")
+    java.nio.file.Files.write(file.path, ndjsonContent.getBytes)
+    file
+  }
 
   protected val monthlyReturn = MonthlyReturn(
     zReference = testZReference,
@@ -88,4 +93,20 @@ trait TestConstants {
     size = 100L,
     objectStoreFileLocation = Some(testTempFile.toString)
   )
+
+  private val xmlContent: String =
+    """<?xml version="1.0" encoding="UTF-8"?>
+      |<root>
+      |  <record>
+      |    <id>1</id>
+      |    <name>test</name>
+      |  </record>
+      |</root>
+      |""".stripMargin
+
+  protected val testXmlTempFile: PlayFiles.TemporaryFile = {
+    val file = SingletonTemporaryFileCreator.create("test", ".xml")
+    java.nio.file.Files.write(file.path, xmlContent.getBytes)
+    file
+  }
 }
