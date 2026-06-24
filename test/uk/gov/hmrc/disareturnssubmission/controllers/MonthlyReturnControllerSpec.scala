@@ -228,7 +228,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
         status(result) mustBe UNPROCESSABLE_ENTITY
       }
 
-      "must return NOT_FOUND when the MonthlyReturn does not exist" in {
+      "must return UNPROCESSABLE_ENTITY when no monthly return data has been submitted" in {
         when(mockMonthlyReturnService.declare(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth), eqTo(false)))
           .thenReturn(Future.successful(DeclareMonthlyReturnResult.MonthlyReturnNotFound))
 
@@ -236,7 +236,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           FakeRequest("POST", declarationsPath).withBody(Json.obj("nilReturn" -> false))
         )
 
-        status(result) mustBe NOT_FOUND
+        status(result) mustBe UNPROCESSABLE_ENTITY
       }
 
       "must return UNPROCESSABLE_ENTITY when the declaration period is closed" in {

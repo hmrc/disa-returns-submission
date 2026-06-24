@@ -90,7 +90,11 @@ class MonthlyReturnController @Inject() (
               case DeclareMonthlyReturnResult.AlreadyDeclared          =>
                 UnprocessableEntity(Json.obj("ERROR" -> "This monthly return was already declared"))
               case DeclareMonthlyReturnResult.MonthlyReturnNotFound    =>
-                NotFound(Json.obj("ERROR" -> "Monthly return not found"))
+                UnprocessableEntity(
+                  Json.obj(
+                    "ERROR" -> "Cannot declare with nilReturn as false when no monthly return data has been submitted"
+                  )
+                )
               case DeclareMonthlyReturnResult.OutsideDeclarationPeriod =>
                 UnprocessableEntity(Json.obj("ERROR" -> "Monthly declaration period is closed."))
             }
