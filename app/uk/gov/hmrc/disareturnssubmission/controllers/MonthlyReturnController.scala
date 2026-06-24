@@ -125,7 +125,7 @@ class MonthlyReturnController @Inject() (
             }
             .recover { case NonFatal(_) =>
               ServiceUnavailable
-            } // TODO perhaps move into the encapsulated method mentioned above
+            }
         case _                                                  =>
           Future.successful(
             UnsupportedMediaType(
