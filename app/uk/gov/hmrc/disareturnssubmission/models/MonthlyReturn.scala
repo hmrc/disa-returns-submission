@@ -137,7 +137,6 @@ object Submission {
 final case class SubmissionDetails(
   fileName: String,
   fileMimeType: String,
-  uploadTimestamp: Instant,
   checksum: String,
   size: Long,
   objectStoreFileLocation: Option[String] = None,
@@ -147,9 +146,6 @@ final case class SubmissionDetails(
 object SubmissionDetails {
   implicit val format: OFormat[SubmissionDetails] = Json.format[SubmissionDetails]
 
-  val mongoFormat: OFormat[SubmissionDetails] = {
-    import MonthlyReturnFormats.mongoInstantFormat
-
+  val mongoFormat: OFormat[SubmissionDetails] =
     Json.format[SubmissionDetails]
-  }
 }

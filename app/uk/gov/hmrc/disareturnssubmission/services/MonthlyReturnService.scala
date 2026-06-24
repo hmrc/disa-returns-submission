@@ -161,7 +161,6 @@ class MonthlyReturnService @Inject() (
     val fileUploadDetails = SubmissionDetails(
       fileNameRef,
       appConfig.contentType,
-      Instant.now(clock),
       checksum,
       filePath.toFile.length(),
       Some(someLocation)

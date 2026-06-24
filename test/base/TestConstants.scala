@@ -89,7 +89,6 @@ trait TestConstants {
   protected val fileUploadDetails = SubmissionDetails(
     fileName = testUploadReference,
     fileMimeType = "application/x-ndjson",
-    uploadTimestamp = testExistingUpdatedOn,
     checksum = testMd5Hash.toString,
     size = 100L,
     objectStoreFileLocation = Some(testTempFile.toString)
