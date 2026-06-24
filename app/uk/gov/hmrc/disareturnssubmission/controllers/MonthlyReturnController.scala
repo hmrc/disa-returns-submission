@@ -21,7 +21,7 @@ import play.api.Logging
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Action, AnyContent, ControllerComponents, Result}
 import uk.gov.hmrc.disareturnssubmission.models.{CreateMonthlyReturnRequest, CreateMonthlyReturnResponse}
-import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, MonthlyReturnService, SubmissionStoreService, SubmitReturnResult}
+import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, MonthlyReturnService, SubmitReturnResult}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.play.bootstrap.controller.WithJsonBody
 import uk.gov.hmrc.disareturnssubmission.validators.ValidationHelper
@@ -35,7 +35,6 @@ import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 class MonthlyReturnController @Inject() (
   cc: ControllerComponents,
   monthlyReturnService: MonthlyReturnService,
-  submissionService: SubmissionStoreService,
   appConfig: AppConfig,
   implicit val mat: Materializer
 )(implicit ec: ExecutionContext)
@@ -114,7 +113,7 @@ class MonthlyReturnController @Inject() (
         case Some(_) if request.body.path.toFile.length() <= 0L =>
           Future.successful(BadRequest(Json.obj("ERROR" -> "Request body must not be empty")))
         case Some(_)                                            =>
-          submissionService
+          monthlyReturnService
             .storeSubmission(zReference, taxYear, month, bodyPath = request.body.path)
             .map {
               case SubmitReturnResult.UpdateSuccessful       => Ok

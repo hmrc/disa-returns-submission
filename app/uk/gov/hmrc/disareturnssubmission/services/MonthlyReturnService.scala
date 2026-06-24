@@ -17,15 +17,16 @@
 package uk.gov.hmrc.disareturnssubmission.services
 
 import play.api.Logging
+import uk.gov.hmrc.disareturnssubmission.actions.SubmissionStoreAction
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
-import uk.gov.hmrc.disareturnssubmission.models.{MonthlyReturn, SubmissionDetails}
+import uk.gov.hmrc.disareturnssubmission.models.MonthlyReturn
 import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository
 import uk.gov.hmrc.disareturnssubmission.repositories.DeclareMonthlyReturnRepositoryResult
 import uk.gov.hmrc.disareturnssubmission.services.CreateMonthlyReturnResult.*
 import uk.gov.hmrc.disareturnssubmission.utils.{Md5Base64, UuidGenerator}
 
 import java.nio.file.Path
-import java.time.{Clock, Instant, LocalDate}
+import java.time.{Clock, LocalDate}
 import java.util.UUID
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -34,6 +35,7 @@ import scala.util.control.NonFatal
 @Singleton
 class MonthlyReturnService @Inject() (
   monthlyReturnRepository: MonthlyReturnRepository,
+  porco: SubmissionStoreAction,
   appConfig: AppConfig,
   clock: Clock,
   uuidGenerator: UuidGenerator
@@ -148,38 +150,12 @@ class MonthlyReturnService @Inject() (
         }
     }
 
-  def storeSubmission(
-    zReference: String,
-    taxYear: String,
-    month: Int,
-    fileNameRef: String,
-    filePath: Path,
-    someLocation: String,
-    checksum: String
-  ): Future[SubmitReturnResult] = {
-    val toUpdate          = monthlyReturnRepository.get(zReference, taxYear, month)
-    val fileUploadDetails = SubmissionDetails(
-      fileNameRef,
-      appConfig.contentType,
-      checksum,
-      filePath.toFile.length(),
-      Some(someLocation)
-    )
-    toUpdate.flatMap {
+  def storeSubmission(zReference: String, taxYear: String, month: Int, bodyPath: Path): Future[SubmitReturnResult] =
 
-      case Some(monthlyReturn) =>
-
-        val updatedMonthlyReturn = monthlyReturn.createFileUpload(fileNameRef, Instant.now(clock), fileUploadDetails)
-
-        monthlyReturnRepository.upsert(updatedMonthlyReturn).flatMap {
-          case true  => Future.successful(SubmitReturnResult.UpdateSuccessful)
-          case false => Future.successful(SubmitReturnResult.NotUpdatedInRepository)
-        }
-
-      case _ => Future.successful(SubmitReturnResult.MonthlyReturnNotFound)
+    get(zReference, taxYear, month).flatMap {
+      case Some(value) => porco.store(zReference, taxYear, month, bodyPath)
+      case _           => Future.successful(SubmitReturnResult.MonthlyReturnNotFound)
     }
-
-  }
 
   private def isWithinDeclarationPeriod(year: String, month: Int): Boolean = {
     val nowClock   = LocalDate.now(clock)
