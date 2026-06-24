@@ -15,14 +15,15 @@ object CodeCoverageSettings {
     ".*\\$anon.*",
     "uk.gov.hmrc.disareturnssubmission.Module",
     "uk.gov.hmrc.disareturnssubmission.AppInitialiser",
-    "uk.gov.hmrc.disareturnssubmission.services.UuidGenerator",
-    "uk.gov.hmrc.disareturnssubmission.utils.*",
-    "uk.gov.hmrc.disareturnssubmission.models.*",
-    "uk.gov.hmrc.disareturnssubmission.testOnly.*",
-    "uk.gov.hmrc.disareturnssubmission.connectors.*"
+    "uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator",
+    "uk.gov.hmrc.disareturnssubmission.models.checkMd5Base64",
+    "uk.gov.hmrc.disareturnssubmission.models.UuidFormat",
+    "uk.gov.hmrc.disareturnssubmission.models.CreateMonthlyReturnRequest",
+    "uk.gov.hmrc.disareturnssubmission.models.CreateMonthlyReturnResponse",
+    "uk.gov.hmrc.disareturnssubmission.testOnly.*"
   )
 
-  val settings: Seq[Setting[_]] = Seq(
+  val settings: Seq[Setting[?]] = Seq(
     ScoverageKeys.coverageExcludedPackages := excludedPackages.mkString(";"),
     ScoverageKeys.coverageMinimumStmtTotal := 90,
     ScoverageKeys.coverageFailOnMinimum := true,

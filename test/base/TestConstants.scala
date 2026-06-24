@@ -18,8 +18,8 @@ package base
 
 import play.api.libs.Files as PlayFiles
 import play.api.libs.Files.SingletonTemporaryFileCreator
-
-import uk.gov.hmrc.disareturnssubmission.models.{FileUploadDetails, MonthlyReturn}
+import uk.gov.hmrc.disareturnssubmission.models.{MonthlyReturn, SubmissionDetails}
+import uk.gov.hmrc.objectstore.client.Md5Hash
 
 import java.time.Instant
 import java.util.UUID
@@ -63,6 +63,7 @@ trait TestConstants {
   protected val mongoNumberLongFieldName = "$numberLong"
 
   protected val testMongoDownMessage = "mongodb down"
+  val testMd5Hash: Md5Hash           = Md5Hash("d41d8cd98f00b204e9800998ecf8427e")
 
   private val ndjsonContent: String =
     """{"id": "1", "name": "test"}
@@ -81,15 +82,15 @@ trait TestConstants {
     taxYear = testTaxYear,
     month = testMonth,
     createdOn = testExistingUpdatedOn,
-    fileUploads = Nil,
+    submissions = Nil,
     lastUpdated = testCreatedOn
   )
 
-  protected val fileUploadDetails = FileUploadDetails(
+  protected val fileUploadDetails = SubmissionDetails(
     fileName = testUploadReference,
     fileMimeType = "application/x-ndjson",
     uploadTimestamp = testExistingUpdatedOn,
-    checksum = "XUFAKrxLKna5cZ2REBfFkg==",
+    checksum = testMd5Hash.toString,
     size = 100L,
     objectStoreFileLocation = Some(testTempFile.toString)
   )

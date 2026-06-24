@@ -21,23 +21,21 @@ import play.api.Logging
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Action, AnyContent, ControllerComponents, Result}
 import uk.gov.hmrc.disareturnssubmission.models.{CreateMonthlyReturnRequest, CreateMonthlyReturnResponse}
-import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, FileUploadService, MonthlyReturnService, SubmitReturnResult}
+import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, MonthlyReturnService, SubmissionStoreService, SubmitReturnResult}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.play.bootstrap.controller.WithJsonBody
-import uk.gov.hmrc.disareturnssubmission.validators.{NdJsonValidator, ValidationHelper}
+import uk.gov.hmrc.disareturnssubmission.validators.ValidationHelper
 
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
 import play.api.libs.Files
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
-import uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator
 
 class MonthlyReturnController @Inject() (
   cc: ControllerComponents,
   monthlyReturnService: MonthlyReturnService,
-  fileUploadService: FileUploadService,
-  uuidGenerator: UuidGenerator,
+  submissionService: SubmissionStoreService,
   appConfig: AppConfig,
   implicit val mat: Materializer
 )(implicit ec: ExecutionContext)
@@ -109,37 +107,26 @@ class MonthlyReturnController @Inject() (
       }
     }
 
-  def submitReturn(zReference: String, taxYear: String, month: Int): Action[Files.TemporaryFile] =
-    Action.async(parse.temporaryFile(maxLength = 1_000_000_000L)) { request =>
-      request.contentType.filter(_ == appConfig.contentType) match {
-        case Some(_) if request.body.path.toFile.length() <= 0L           =>
+  def storeSubmission(zReference: String, taxYear: String, month: Int): Action[Files.TemporaryFile] =
+    Action.async(parse.temporaryFile(maxLength = appConfig.maxContentLength)) { request =>
+      request.contentType
+        .filter(_ == appConfig.contentType) match { // TODO to be discussed if parameter validation (months etc.) is needed
+        case Some(_) if request.body.path.toFile.length() <= 0L =>
           Future.successful(BadRequest(Json.obj("ERROR" -> "Request body must not be empty")))
-        case Some(_) if NdJsonValidator.isValid(request.body.path.toFile) =>
-          val fileNameOrReference = uuidGenerator.randomUuid()
-          fileUploadService
-            .uploadFileToObjectStore(fileNameOrReference.toString, request.body.path, "application/x-ndjson")
-            .flatMap {
-              case Some(fileLocation) =>
-                monthlyReturnService
-                  .submitReturn(
-                    zReference,
-                    taxYear,
-                    month,
-                    fileNameOrReference.toString,
-                    request.body.path,
-                    fileLocation
-                  )
-                  .map {
-                    case SubmitReturnResult.UpdateSuccessful       => Ok
-                    case SubmitReturnResult.NotUpdatedInRepository =>
-                      ServiceUnavailable(Json.obj("ERROR" -> "Mongo error"))
-                    case SubmitReturnResult.MonthlyReturnNotFound  =>
-                      NotFound(Json.obj("ERROR" -> "Monthly return not found"))
-                  }
-              case None               => Future.successful(ServiceUnavailable(Json.obj("ERROR" -> "Object-store error")))
+        case Some(_)                                            =>
+          submissionService
+            .storeSubmission(zReference, taxYear, month, bodyPath = request.body.path)
+            .map {
+              case SubmitReturnResult.UpdateSuccessful       => Ok
+              case SubmitReturnResult.NotUpdatedInRepository =>
+                ServiceUnavailable(Json.obj("ERROR" -> "Mongo error"))
+              case SubmitReturnResult.MonthlyReturnNotFound  =>
+                NotFound(Json.obj("ERROR" -> "Monthly return not found"))
             }
-
-        case _ =>
+            .recover { case NonFatal(_) =>
+              ServiceUnavailable
+            } // TODO perhaps move into the encapsulated method mentioned above
+        case _                                                  =>
           Future.successful(
             UnsupportedMediaType(
               Json.obj(

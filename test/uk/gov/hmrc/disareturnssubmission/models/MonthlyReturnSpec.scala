@@ -27,7 +27,7 @@ class MonthlyReturnSpec extends SpecBase {
     taxYear = yearOnlyTestTaxYear,
     month = testMonth,
     createdOn = testExistingUpdatedOn,
-    fileUploads = Nil,
+    submissions = Nil,
     lastUpdated = testExistingUpdatedOn
   )
 
@@ -99,11 +99,11 @@ class MonthlyReturnSpec extends SpecBase {
     "must add a CREATED file upload and update lastUpdated" in {
       val result = emptyMonthlyReturn.createFileUpload(testUploadReference, testCreatedOn, fileUploadDetails)
 
-      result.fileUploads mustBe List(
-        FileUpload(
+      result.submissions mustBe List(
+        Submission(
           reference = testUploadReference,
           createdOn = testCreatedOn,
-          fileUploadDetails = Some(fileUploadDetails)
+          submissionDetails = Some(fileUploadDetails)
         )
       )
       result.createdOn mustBe testExistingUpdatedOn
@@ -131,7 +131,7 @@ class MonthlyReturnSpec extends SpecBase {
       val result = monthlyReturn.updateNilReturn(nilReturn = true, updatedOn = testUpscanCompletedOn)
 
       result.nilReturn mustBe true
-      result.fileUploads mustBe Nil
+      result.submissions mustBe Nil
       result.createdOn mustBe testExistingUpdatedOn
       result.lastUpdated mustBe testUpscanCompletedOn
     }
@@ -142,7 +142,7 @@ class MonthlyReturnSpec extends SpecBase {
       val result = monthlyReturn.updateNilReturn(nilReturn = false, updatedOn = testUpscanCompletedOn)
 
       result.nilReturn mustBe false
-      result.fileUploads mustBe Nil
+      result.submissions mustBe Nil
       result.createdOn mustBe testExistingUpdatedOn
       result.lastUpdated mustBe testUpscanCompletedOn
     }

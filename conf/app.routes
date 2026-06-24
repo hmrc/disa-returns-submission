@@ -6,4 +6,4 @@ GET    /monthly/:zReference/:taxYear/:month                                uk.go
 
 POST   /monthly/:zReference/:taxYear/:month/declarations                   uk.gov.hmrc.disareturnssubmission.controllers.MonthlyReturnController.declare(zReference: String, taxYear: String, month: Int)
 
-POST   /monthly/:zReference/:taxYear/:month/submissions                    uk.gov.hmrc.disareturnssubmission.controllers.MonthlyReturnController.submitReturn(zReference: String, taxYear: String, month: Int)
+POST   /monthly/:zReference/:taxYear/:month/submissions                    uk.gov.hmrc.disareturnssubmission.controllers.MonthlyReturnController.storeSubmission(zReference: String, taxYear: String, month: Int)

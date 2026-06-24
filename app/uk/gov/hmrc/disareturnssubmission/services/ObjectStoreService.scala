@@ -17,42 +17,41 @@
 package uk.gov.hmrc.disareturnssubmission.services
 
 import play.api.Logging
-import play.api.libs.Files.TemporaryFileCreator
 import uk.gov.hmrc.disareturnssubmission.connectors.ObjectStoreConnector
-import uk.gov.hmrc.disareturnssubmission.utils.TempFileSupport
 import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.objectstore.client.Md5Hash
 
 import java.nio.file.Path
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 
-class FileUploadService @Inject (
-  override protected val temporaryFileCreator: TemporaryFileCreator,
+class ObjectStoreService @Inject (
   objectStoreConnector: ObjectStoreConnector
 )(implicit ec: ExecutionContext)
-    extends Logging
-    with TempFileSupport {
+    extends Logging {
 
   private def serviceName: String = "disa-returns-submission"
 
   def uploadFileToObjectStore(
     fileName: String,
     filePath: Path,
-    fileType: String
-  ): Future[Option[String]] = {
+    fileType: String,
+    md5: Md5Hash
+  ): Future[String] = {
     implicit val hc: HeaderCarrier = HeaderCarrier()
     logger.info(s"${logPrefix(fileName)} Original file object-store upload started for $fileName")
     objectStoreConnector
       .putFile(
         objectName = fileName,
         file = filePath,
-        contentType = fileType
+        contentType = fileType,
+        md5
       )
       .map { location =>
         logger.info(
           s"${logPrefix(fileName)} Original file object-store upload completed for $fileName, object-store location [$location]"
         )
-        Some(location)
+        location
       }
   }
 

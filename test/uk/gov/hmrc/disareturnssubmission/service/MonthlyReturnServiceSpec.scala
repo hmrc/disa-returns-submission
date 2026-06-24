@@ -49,7 +49,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
     month = month,
     createdOn = testExistingUpdatedOn,
     nilReturn = false,
-    fileUploads = Nil,
+    submissions = Nil,
     lastUpdated = testCreatedOn
   )
 
@@ -292,7 +292,15 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
           .thenReturn(Future.successful(true))
 
         service
-          .submitReturn(zReference, taxYear, month, testUploadReference, testTempFile, testTempFile.toString)
+          .storeSubmission(
+            zReference,
+            taxYear,
+            month,
+            testUploadReference,
+            testTempFile,
+            testTempFile.toString,
+            testMd5Hash.toString
+          )
           .futureValue mustBe SubmitReturnResult.UpdateSuccessful
 
       }
@@ -306,7 +314,15 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
           .thenReturn(Future.successful(false))
 
         service
-          .submitReturn(zReference, taxYear, month, testUploadReference, testTempFile, testTempFile.toString)
+          .storeSubmission(
+            zReference,
+            taxYear,
+            month,
+            testUploadReference,
+            testTempFile,
+            testTempFile.toString,
+            testMd5Hash.toString
+          )
           .futureValue mustBe SubmitReturnResult.NotUpdatedInRepository
 
       }
@@ -317,7 +333,15 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
           .thenReturn(Future.successful(None))
 
         service
-          .submitReturn(zReference, taxYear, month, testUploadReference, testTempFile, testTempFile.toString)
+          .storeSubmission(
+            zReference,
+            taxYear,
+            month,
+            testUploadReference,
+            testTempFile,
+            testTempFile.toString,
+            testMd5Hash.toString
+          )
           .futureValue mustBe SubmitReturnResult.MonthlyReturnNotFound
 
       }

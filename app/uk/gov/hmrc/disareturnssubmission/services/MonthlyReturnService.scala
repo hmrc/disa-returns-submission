@@ -18,7 +18,7 @@ package uk.gov.hmrc.disareturnssubmission.services
 
 import play.api.Logging
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
-import uk.gov.hmrc.disareturnssubmission.models.{FileUploadDetails, MonthlyReturn}
+import uk.gov.hmrc.disareturnssubmission.models.{MonthlyReturn, SubmissionDetails}
 import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository
 import uk.gov.hmrc.disareturnssubmission.repositories.DeclareMonthlyReturnRepositoryResult
 import uk.gov.hmrc.disareturnssubmission.services.CreateMonthlyReturnResult.*
@@ -148,20 +148,21 @@ class MonthlyReturnService @Inject() (
         }
     }
 
-  def submitReturn(
+  def storeSubmission(
     zReference: String,
     taxYear: String,
-    Month: Int,
+    month: Int,
     fileNameRef: String,
     filePath: Path,
-    someLocation: String
+    someLocation: String,
+    checksum: String
   ): Future[SubmitReturnResult] = {
-    val toUpdate          = monthlyReturnRepository.get(zReference, taxYear, Month)
-    val fileUploadDetails = FileUploadDetails(
+    val toUpdate          = monthlyReturnRepository.get(zReference, taxYear, month)
+    val fileUploadDetails = SubmissionDetails(
       fileNameRef,
       appConfig.contentType,
-      Instant.now(),
-      checkMd5Base64(filePath).toString,
+      Instant.now(clock),
+      checksum,
       filePath.toFile.length(),
       Some(someLocation)
     )
@@ -169,7 +170,7 @@ class MonthlyReturnService @Inject() (
 
       case Some(monthlyReturn) =>
 
-        val updatedMonthlyReturn = monthlyReturn.createFileUpload(fileNameRef, Instant.now(), fileUploadDetails)
+        val updatedMonthlyReturn = monthlyReturn.createFileUpload(fileNameRef, Instant.now(clock), fileUploadDetails)
 
         monthlyReturnRepository.upsert(updatedMonthlyReturn).flatMap {
           case true  => Future.successful(SubmitReturnResult.UpdateSuccessful)

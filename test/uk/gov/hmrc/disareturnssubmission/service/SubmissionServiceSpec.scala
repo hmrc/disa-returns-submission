@@ -21,23 +21,23 @@ import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 import play.api.libs.Files.TemporaryFileCreator
 import uk.gov.hmrc.disareturnssubmission.connectors.ObjectStoreConnector
-import uk.gov.hmrc.disareturnssubmission.services.FileUploadService
+import uk.gov.hmrc.disareturnssubmission.services.ObjectStoreService
 
 import scala.concurrent.Future
 
-class FileUploadServiceSpec extends SpecBase {
+class SubmissionServiceSpec extends SpecBase {
   val mockTemporaryFileCreator: TemporaryFileCreator = mock[TemporaryFileCreator]
   val mockObjectStoreConnector: ObjectStoreConnector = mock[ObjectStoreConnector]
 
-  val service = new FileUploadService(mockTemporaryFileCreator, mockObjectStoreConnector)
+  val service = new ObjectStoreService(mockObjectStoreConnector)
 
   "uploadFileToObjectStore should return the file location" in {
-    when(mockObjectStoreConnector.putFile(any(), any(), any())(any()))
+    when(mockObjectStoreConnector.putFile(any(), any(), any(), any())(any()))
       .thenReturn(Future.successful("test/test"))
 
-    val res = service.uploadFileToObjectStore(testUploadReference, testTempFile, "application/x-ndjson")
+    val res = service.uploadFileToObjectStore(testUploadReference, testTempFile, "application/x-ndjson", testMd5Hash)
 
-    assert(res.futureValue === Some("test/test"))
+    assert(res.futureValue === "test/test")
   }
 
 }

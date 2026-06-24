@@ -45,12 +45,12 @@ class ObjectStoreConnector @Inject() (
   def putFile(
     objectName: String,
     file: FilePath,
-    contentType: String
+    contentType: String,
+    md5: Md5Hash
   )(implicit hc: HeaderCarrier): Future[String] =
     Future {
       blocking {
         val length = Files.size(file)
-        val md5    = checkMd5Base64(file)
         length -> md5
       }
     }(blockingExecutionContext).flatMap { case (length, md5) =>
