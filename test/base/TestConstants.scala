@@ -63,7 +63,7 @@ trait TestConstants {
   protected val mongoNumberLongFieldName = "$numberLong"
 
   protected val testMongoDownMessage = "mongodb down"
-  val testMd5Hash: Md5Hash           = Md5Hash("d41d8cd98f00b204e9800998ecf8427e")
+  val testMd5Hash: Md5Hash           = Md5Hash("6QE/wgLIe+SOOzAt8Q78Sw==")
 
   private val ndjsonContent: String =
     """{"id": "1", "name": "test"}

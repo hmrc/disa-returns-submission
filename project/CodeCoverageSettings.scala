@@ -20,6 +20,8 @@ object CodeCoverageSettings {
     "uk.gov.hmrc.disareturnssubmission.models.UuidFormat",
     "uk.gov.hmrc.disareturnssubmission.models.CreateMonthlyReturnRequest",
     "uk.gov.hmrc.disareturnssubmission.models.CreateMonthlyReturnResponse",
+    "uk.gov.hmrc.disareturnssubmission.models.SubmissionDetails",
+    "uk.gov.hmrc.disareturnssubmission.models.Submission",
     "uk.gov.hmrc.disareturnssubmission.testOnly.*"
   )
 

@@ -46,7 +46,7 @@ class SubmissionStoreService @Inject() (
 
     val md5                 = checkMd5Base64(bodyPath)
     val fileNameOrReference = uuidGenerator.randomUuid()
-    val res                 = objectStoreService
+    objectStoreService
       .uploadFileToObjectStore(fileNameOrReference.toString, bodyPath, appConfig.contentType, md5)
       .flatMap { fileLocation =>
         monthlyReturnService
@@ -60,7 +60,5 @@ class SubmissionStoreService @Inject() (
             md5.toString
           )
       }
-    println(s"\n\n\n $res\n\n\n")
-    res
   }
 }
