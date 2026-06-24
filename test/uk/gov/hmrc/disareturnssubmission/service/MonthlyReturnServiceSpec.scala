@@ -20,6 +20,7 @@ import base.SpecBase
 import org.mockito.ArgumentMatchers.{any, eq as eqTo}
 import org.mockito.Mockito.{reset, verify, verifyNoInteractions, when}
 import org.scalatest.BeforeAndAfterEach
+import uk.gov.hmrc.disareturnssubmission.actions.SubmissionStoreAction
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.models.*
 import uk.gov.hmrc.disareturnssubmission.repositories.{DeclareMonthlyReturnRepositoryResult, MonthlyReturnRepository}
@@ -32,6 +33,7 @@ import scala.concurrent.Future
 class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
 
   private val mockMonthlyReturnRepository = mock[MonthlyReturnRepository]
+  private val mockSubStoreAction          = mock[SubmissionStoreAction]
   private val appConfig                   = inject[AppConfig]
   private val mockUuidGenerator           = mock[UuidGenerator]
   private val service                     = buildService(testCreatedOn)
@@ -291,15 +293,15 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
         when(mockMonthlyReturnRepository.upsert(any()))
           .thenReturn(Future.successful(true))
 
+        when(mockSubStoreAction.store(any(), any(), any(), any()))
+          .thenReturn(Future.successful(SubmitReturnResult.UpdateSuccessful))
+
         service
           .storeSubmission(
             zReference,
             taxYear,
             month,
-            testUploadReference,
-            testTempFile,
-            testTempFile.toString,
-            testMd5Hash.toString
+            testTempFile
           )
           .futureValue mustBe SubmitReturnResult.UpdateSuccessful
 
@@ -313,15 +315,15 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
         when(mockMonthlyReturnRepository.upsert(any()))
           .thenReturn(Future.successful(false))
 
+        when(mockSubStoreAction.store(any(), any(), any(), any()))
+          .thenReturn(Future.successful(SubmitReturnResult.NotUpdatedInRepository))
+
         service
           .storeSubmission(
             zReference,
             taxYear,
             month,
-            testUploadReference,
-            testTempFile,
-            testTempFile.toString,
-            testMd5Hash.toString
+            testTempFile
           )
           .futureValue mustBe SubmitReturnResult.NotUpdatedInRepository
 
@@ -337,10 +339,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
             zReference,
             taxYear,
             month,
-            testUploadReference,
-            testTempFile,
-            testTempFile.toString,
-            testMd5Hash.toString
+            testTempFile
           )
           .futureValue mustBe SubmitReturnResult.MonthlyReturnNotFound
 
@@ -353,6 +352,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
   private def buildService(now: Instant): MonthlyReturnService =
     new MonthlyReturnService(
       monthlyReturnRepository = mockMonthlyReturnRepository,
+      mockSubStoreAction,
       appConfig = appConfig,
       clock = Clock.fixed(now, ZoneOffset.UTC),
       uuidGenerator = mockUuidGenerator

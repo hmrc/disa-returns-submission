@@ -277,9 +277,6 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           any(),
           any(),
           any(),
-          any(),
-          any(),
-          any(),
           any()
         )
       )
@@ -302,9 +299,6 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
 
       when(
         mockMonthlyReturnService.storeSubmission(
-          any(),
-          any(),
-          any(),
           any(),
           any(),
           any(),
@@ -334,9 +328,6 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           any(),
           any(),
           any(),
-          any(),
-          any(),
-          any(),
           any()
         )
       ).thenReturn(Future.successful(SubmitReturnResult.NotUpdatedInRepository))
@@ -359,9 +350,6 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
 
       when(
         mockMonthlyReturnService.storeSubmission(
-          any(),
-          any(),
-          any(),
           any(),
           any(),
           any(),
@@ -389,9 +377,6 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           any(),
           any(),
           any(),
-          any(),
-          any(),
-          any(),
           any()
         )
       )
@@ -415,9 +400,6 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
 
       when(
         mockMonthlyReturnService.storeSubmission(
-          any(),
-          any(),
-          any(),
           any(),
           any(),
           any(),

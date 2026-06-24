@@ -35,7 +35,7 @@ import scala.util.control.NonFatal
 @Singleton
 class MonthlyReturnService @Inject() (
   monthlyReturnRepository: MonthlyReturnRepository,
-  porco: SubmissionStoreAction,
+  submissionStoreAction: SubmissionStoreAction,
   appConfig: AppConfig,
   clock: Clock,
   uuidGenerator: UuidGenerator
@@ -153,7 +153,7 @@ class MonthlyReturnService @Inject() (
   def storeSubmission(zReference: String, taxYear: String, month: Int, bodyPath: Path): Future[SubmitReturnResult] =
 
     get(zReference, taxYear, month).flatMap {
-      case Some(value) => porco.store(zReference, taxYear, month, bodyPath)
+      case Some(value) => submissionStoreAction.store(zReference, taxYear, month, bodyPath)
       case _           => Future.successful(SubmitReturnResult.MonthlyReturnNotFound)
     }
 
