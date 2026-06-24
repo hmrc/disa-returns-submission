@@ -293,7 +293,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
         when(mockMonthlyReturnRepository.upsert(any()))
           .thenReturn(Future.successful(true))
 
-        when(mockSubStoreAction.store(any(), any(), any(), any()))
+        when(mockSubStoreAction.store(any(), any()))
           .thenReturn(Future.successful(SubmitReturnResult.UpdateSuccessful))
 
         service
@@ -315,7 +315,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
         when(mockMonthlyReturnRepository.upsert(any()))
           .thenReturn(Future.successful(false))
 
-        when(mockSubStoreAction.store(any(), any(), any(), any()))
+        when(mockSubStoreAction.store(any(), any()))
           .thenReturn(Future.successful(SubmitReturnResult.NotUpdatedInRepository))
 
         service

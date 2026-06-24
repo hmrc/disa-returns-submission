@@ -393,11 +393,6 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
     }
 
     "must return BAD_REQUEST when the submission endpoint is called with no Body" in {
-      when(mockUuidGenerator.randomUuid()).thenReturn(UUID.fromString(testUploadReference))
-
-      when(mockMonthlyReturnService.get(any(), any(), any())).thenReturn(Future(Some(monthlyReturn)))
-      when(mockFileUploadService.uploadFileToObjectStore(any(), any(), any(), any())).thenReturn(Future("test/test"))
-
       when(
         mockMonthlyReturnService.storeSubmission(
           any(),
@@ -406,13 +401,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           any()
         )
       )
-        .thenReturn(Future.successful(SubmitReturnResult.UpdateSuccessful))
-
-      when(
-        mockFileUploadService
-          .uploadFileToObjectStore(any(), any(), any(), any())
-      )
-        .thenReturn(Future.successful(Some("test/test")))
+        .thenReturn(Future.successful(SubmitReturnResult.NoBody))
 
       val result = controller.storeSubmission(lowercaseTestZReference, testTaxYear, testMonth)(
         FakeRequest("POST", submissionsPath)

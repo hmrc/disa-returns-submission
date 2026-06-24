@@ -16,18 +16,18 @@
 
 package uk.gov.hmrc.disareturnssubmission.actions
 
-import org.apache.pekko.stream.Materializer
+import org.apache.pekko.actor.ActorSystem
 import play.api.Logging
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
-import uk.gov.hmrc.disareturnssubmission.models.SubmissionDetails
+import uk.gov.hmrc.disareturnssubmission.models.{MonthlyReturn, SubmissionDetails}
 import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository
 import uk.gov.hmrc.disareturnssubmission.services.{ObjectStoreService, SubmitReturnResult}
 import uk.gov.hmrc.disareturnssubmission.utils.{Md5Base64, UuidGenerator}
 
-import java.nio.file.Path
+import java.nio.file.{Files, Path}
 import java.time.{Clock, Instant}
 import javax.inject.Inject
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future, blocking}
 
 class SubmissionStoreAction @Inject() (
   monthlyReturnRepository: MonthlyReturnRepository,
@@ -35,40 +35,54 @@ class SubmissionStoreAction @Inject() (
   uuidGenerator: UuidGenerator,
   clock: Clock,
   appConfig: AppConfig,
-  implicit val mat: Materializer
+  val actorSystem: ActorSystem
 )(implicit ec: ExecutionContext)
     extends Logging
     with Md5Base64 {
 
-  def store(zReference: String, taxYear: String, month: Int, bodyPath: Path): Future[SubmitReturnResult] = {
+  private implicit val blockingExecutionContext: ExecutionContextExecutor =
+    actorSystem.dispatchers.lookup("contexts.file-upload-blocking")
 
-    val md5                 = checkMd5Base64(bodyPath)
+  def store(
+    bodyPath: Path,
+    monthlyReturn: MonthlyReturn
+  ): Future[SubmitReturnResult] = {
     val fileNameOrReference = uuidGenerator.randomUuid()
-    objectStoreService
-      .uploadFileToObjectStore(fileNameOrReference.toString, bodyPath, appConfig.contentType, md5)
-      .flatMap { fileLocation =>
-        storeSubmission(
-          zReference,
-          taxYear,
-          month,
-          fileNameOrReference.toString,
-          bodyPath,
-          fileLocation,
-          md5.toString
-        )
+
+    val someMd5 = Future {
+      blocking {
+        val length = Files.size(bodyPath)
+        length -> checkMd5Base64(bodyPath)
       }
+    }(blockingExecutionContext).flatMap {
+      case (length, _) if length <= 0L => Future.successful(None)
+      case (_, md5)                    => Future.successful(Some(md5))
+    }(ec)
+
+    someMd5.flatMap {
+      case Some(md5) =>
+        objectStoreService
+          .uploadFileToObjectStore(fileNameOrReference.toString, bodyPath, appConfig.contentType, md5)
+          .flatMap { fileLocation =>
+            storeSubmission(
+              fileNameOrReference.toString,
+              bodyPath,
+              fileLocation,
+              md5.toString,
+              monthlyReturn
+            )
+          }
+      case None      => Future.successful(SubmitReturnResult.NoBody)
+    }
   }
 
   private def storeSubmission(
-    zReference: String,
-    taxYear: String,
-    month: Int,
     fileNameRef: String,
     filePath: Path,
     someLocation: String,
-    checksum: String
+    checksum: String,
+    monthlyReturn: MonthlyReturn
   ): Future[SubmitReturnResult] = {
-    val toUpdate          = monthlyReturnRepository.get(zReference, taxYear, month)
     val fileUploadDetails = SubmissionDetails(
       fileNameRef,
       appConfig.contentType,
@@ -76,18 +90,11 @@ class SubmissionStoreAction @Inject() (
       filePath.toFile.length(),
       Some(someLocation)
     )
-    toUpdate.flatMap {
 
-      case Some(monthlyReturn) =>
-
-        val updatedMonthlyReturn = monthlyReturn.createFileUpload(fileNameRef, Instant.now(clock), fileUploadDetails)
-
-        monthlyReturnRepository.upsert(updatedMonthlyReturn).flatMap {
-          case true  => Future.successful(SubmitReturnResult.UpdateSuccessful)
-          case false => Future.successful(SubmitReturnResult.NotUpdatedInRepository)
-        }
-
-      case _ => Future.successful(SubmitReturnResult.MonthlyReturnNotFound)
+    val updatedMonthlyReturn = monthlyReturn.createFileUpload(fileNameRef, Instant.now(clock), fileUploadDetails)
+    monthlyReturnRepository.upsert(updatedMonthlyReturn).flatMap {
+      case true  => Future.successful(SubmitReturnResult.UpdateSuccessful)
+      case false => Future.successful(SubmitReturnResult.NotUpdatedInRepository)
     }
 
   }

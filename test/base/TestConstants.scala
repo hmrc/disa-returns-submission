@@ -93,20 +93,4 @@ trait TestConstants {
     size = 100L,
     objectStoreFileLocation = Some(testTempFile.toString)
   )
-
-  private val xmlContent: String =
-    """<?xml version="1.0" encoding="UTF-8"?>
-      |<root>
-      |  <record>
-      |    <id>1</id>
-      |    <name>test</name>
-      |  </record>
-      |</root>
-      |""".stripMargin
-
-  protected val testXmlTempFile: PlayFiles.TemporaryFile = {
-    val file = SingletonTemporaryFileCreator.create("test", ".xml")
-    java.nio.file.Files.write(file.path, xmlContent.getBytes)
-    file
-  }
 }

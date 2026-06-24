@@ -153,8 +153,8 @@ class MonthlyReturnService @Inject() (
   def storeSubmission(zReference: String, taxYear: String, month: Int, bodyPath: Path): Future[SubmitReturnResult] =
 
     get(zReference, taxYear, month).flatMap {
-      case Some(value) => submissionStoreAction.store(zReference, taxYear, month, bodyPath)
-      case _           => Future.successful(SubmitReturnResult.MonthlyReturnNotFound)
+      case Some(monthlyReturn) => submissionStoreAction.store(bodyPath, monthlyReturn)
+      case _                   => Future.successful(SubmitReturnResult.MonthlyReturnNotFound)
     }
 
   private def isWithinDeclarationPeriod(year: String, month: Int): Boolean = {
@@ -206,4 +206,5 @@ object SubmitReturnResult {
   case object UpdateSuccessful extends SubmitReturnResult
   case object MonthlyReturnNotFound extends SubmitReturnResult
   case object NotUpdatedInRepository extends SubmitReturnResult
+  case object NoBody extends SubmitReturnResult
 }

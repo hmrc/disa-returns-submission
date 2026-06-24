@@ -110,9 +110,7 @@ class MonthlyReturnController @Inject() (
     Action.async(parse.temporaryFile(maxLength = appConfig.maxContentLength)) { request =>
       request.contentType
         .filter(_ == appConfig.contentType) match { // TODO to be discussed if parameter validation (months etc.) is needed
-        case Some(_) if request.body.path.toFile.length() <= 0L =>
-          Future.successful(BadRequest(Json.obj("ERROR" -> "Request body must not be empty")))
-        case Some(_)                                            =>
+        case Some(_) =>
           monthlyReturnService
             .storeSubmission(zReference, taxYear, month, bodyPath = request.body.path)
             .map {
@@ -121,11 +119,12 @@ class MonthlyReturnController @Inject() (
                 ServiceUnavailable(Json.obj("ERROR" -> "Mongo error"))
               case SubmitReturnResult.MonthlyReturnNotFound  =>
                 NotFound(Json.obj("ERROR" -> "Monthly return not found"))
+              case SubmitReturnResult.NoBody                 => BadRequest(Json.obj("ERROR" -> "Request body must not be empty"))
             }
             .recover { case NonFatal(_) =>
               ServiceUnavailable
             }
-        case _                                                  =>
+        case _       =>
           Future.successful(
             UnsupportedMediaType(
               Json.obj(
