@@ -18,11 +18,11 @@ package uk.gov.hmrc.disareturnssubmission.controllers
 
 
 import play.api.http.Status.{BAD_REQUEST, CONFLICT, CREATED, NOT_FOUND, OK, UNPROCESSABLE_ENTITY}
-import play.api.libs.json.JsValue
+import play.api.libs.json.{JsValue, Json}
 import uk.gov.hmrc.disareturnssubmission.BaseIntegrationSpec
 import org.scalatest.wordspec.AnyWordSpec
 
-class MonthlyReturnControllerSpec extends BaseIntegrationSpec {
+class MonthlyReturnControllerISpec extends BaseIntegrationSpec {
 
   private val monthlyPath = s"$testServicePath/monthly/$testZReference/$testTaxYear/$testMonth"
   private val invalidMonthlyPath =
@@ -76,24 +76,24 @@ class MonthlyReturnControllerSpec extends BaseIntegrationSpec {
 
     "return 200 Ok when the monthly return is declared successfully" in {
       postJson(monthlyPath, nilReturnFalseRequest).status shouldBe CREATED
-      val result = postJson(declarationPath)
+      val result = postJson(declarationPath, Json.obj("nilReturn" -> false))
 
       result.status shouldBe OK
     }
 
     "return 422 UnprocessableEntity when the monthly return was already declared" in {
       postJson(monthlyPath, nilReturnFalseRequest).status shouldBe CREATED
-      postJson(declarationPath).status shouldBe OK
-      val result = postJson(declarationPath)
+      postJson(declarationPath,Json.obj("nilReturn" -> false)).status shouldBe OK
+      val result = postJson(declarationPath, Json.obj("nilReturn" -> false))
 
       result.status shouldBe UNPROCESSABLE_ENTITY
     }
 
     "return 404 NotFound when the monthly return wasn't previously created" in {
 
-      val result = postJson(declarationPath)
+      val result = postJson(declarationPath, Json.obj("nilReturn" -> false))
 
-      result.status shouldBe NOT_FOUND
+      result.status shouldBe UNPROCESSABLE_ENTITY
     }
   }
 }

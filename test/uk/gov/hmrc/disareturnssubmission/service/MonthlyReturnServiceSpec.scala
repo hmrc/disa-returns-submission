@@ -348,12 +348,13 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
           .futureValue mustBe SubmitReturnResult.MonthlyReturnNotFound
 
       }
+    }
 
     "declare with nilReturn true" - {
 
       val existingReturnWithUploads = monthlyReturn.copy(
-        fileUploads = List(
-          uk.gov.hmrc.disareturnssubmission.models.FileUpload(reference = "ref-1", createdOn = testExistingUpdatedOn)
+        submissions = List(
+          uk.gov.hmrc.disareturnssubmission.models.Submission(reference = "ref-1", createdOn = testExistingUpdatedOn)
         )
       )
 
@@ -436,7 +437,6 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
       }
 
     }
-
   }
 
   private def buildService(now: Instant): MonthlyReturnService =

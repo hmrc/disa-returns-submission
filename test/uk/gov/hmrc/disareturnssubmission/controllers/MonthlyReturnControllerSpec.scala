@@ -34,7 +34,7 @@ import uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator
 import java.util.UUID
 import scala.concurrent.Future
 
-class MonthlyReturnControllerISpec extends SpecBase with BeforeAndAfterEach {
+class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
 
   private val mockMonthlyReturnService = mock[MonthlyReturnService]
   private val mockFileUploadService    = mock[ObjectStoreService]
