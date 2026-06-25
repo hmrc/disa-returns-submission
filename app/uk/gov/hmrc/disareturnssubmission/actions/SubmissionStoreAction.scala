@@ -56,38 +56,38 @@ class SubmissionStoreAction @Inject() (
       }
     }(blockingExecutionContext).flatMap {
       case (length, _) if length <= 0L => Future.successful(None)
-      case (_, md5)                    => Future.successful(Some(md5))
+      case (length, md5)               => Future.successful(Some(md5 -> length))
     }(ec)
 
     someMd5.flatMap {
-      case Some(md5) =>
+      case Some(md5, length) =>
         objectStoreService
           .uploadFileToObjectStore(fileNameOrReference.toString, bodyPath, appConfig.contentType, md5)
           .flatMap { fileLocation =>
             storeSubmission(
               fileNameOrReference.toString,
-              bodyPath,
               fileLocation,
               md5.toString,
-              monthlyReturn
+              monthlyReturn,
+              length
             )
           }
-      case None      => Future.successful(SubmitReturnResult.NoBody)
+      case None              => Future.successful(SubmitReturnResult.NoBody)
     }
   }
 
   private def storeSubmission(
     fileNameRef: String,
-    filePath: Path,
     someLocation: String,
     checksum: String,
-    monthlyReturn: MonthlyReturn
+    monthlyReturn: MonthlyReturn,
+    length: Long
   ): Future[SubmitReturnResult] = {
     val fileUploadDetails = SubmissionDetails(
       fileNameRef,
       appConfig.contentType,
       checksum,
-      filePath.toFile.length(),
+      length,
       Some(someLocation)
     )
 

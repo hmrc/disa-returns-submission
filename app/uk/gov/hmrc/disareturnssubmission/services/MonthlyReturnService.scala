@@ -23,7 +23,7 @@ import uk.gov.hmrc.disareturnssubmission.models.MonthlyReturn
 import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository
 import uk.gov.hmrc.disareturnssubmission.repositories.DeclareMonthlyReturnRepositoryResult
 import uk.gov.hmrc.disareturnssubmission.services.CreateMonthlyReturnResult.*
-import uk.gov.hmrc.disareturnssubmission.utils.{Md5Base64, UuidGenerator}
+import uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator
 
 import java.nio.file.Path
 import java.time.{Clock, LocalDate}
@@ -40,8 +40,7 @@ class MonthlyReturnService @Inject() (
   clock: Clock,
   uuidGenerator: UuidGenerator
 )(implicit ec: ExecutionContext)
-    extends Logging
-    with Md5Base64 {
+    extends Logging {
 
   def create(
     zReference: String,

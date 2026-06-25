@@ -26,6 +26,12 @@ import java.util.UUID
 
 trait TestConstants {
 
+  // ======= IT Tests =======
+  protected val testServicePath                                = "/disa-returns-submission"
+  protected val monthlyReturnsCollectionName                   = "monthlyReturns"
+  protected val monthlyReturnFileUploadWorkItemsCollectionName = "monthlyReturnFileUploadWorkItems"
+
+  // ====== Unit Tests ======
   protected val testZReference          = "Z1234"
   protected val lowercaseTestZReference = "z1234"
   protected val invalidTestZReference   = "1234"
@@ -65,7 +71,7 @@ trait TestConstants {
   protected val testMongoDownMessage = "mongodb down"
   val testMd5Hash: Md5Hash           = Md5Hash("6QE/wgLIe+SOOzAt8Q78Sw==")
 
-  private val ndjsonContent: String =
+  protected val ndjsonContent: String =
     """{"id": "1", "name": "test"}
       |{"id": "2", "name": "test2"}
       |""".stripMargin
