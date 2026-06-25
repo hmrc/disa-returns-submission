@@ -40,7 +40,7 @@ import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.play.audit.http.connector.DatastreamMetrics
 
 import java.time.{Clock, ZoneOffset}
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 import scala.reflect.ClassTag
 
 trait BaseIntegrationSpec
@@ -72,7 +72,11 @@ trait BaseIntegrationSpec
       "mongodb.uri"                         -> "mongodb://localhost:27017/disa-returns-submission-it",
       "microservice.services.disa-returns-submission.protocol" -> "http",
       "microservice.services.disa-returns-submission.host"     -> "localhost",
-      "microservice.services.disa-returns-submission.port"     -> wireMockPort
+      "microservice.services.disa-returns-submission.port"     -> wireMockPort,
+      "microservice.services.object-store.protocol"            -> "http",
+      "microservice.services.object-store.host"                -> "localhost",
+      "microservice.services.object-store.port"                -> wireMockPort,
+      "http-verbs.retries.intervals"                           -> Seq("1ms", "1ms", "1ms")
     )
 
   protected def inject[T: ClassTag]: T =

@@ -17,33 +17,35 @@
 package uk.gov.hmrc.disareturnssubmission.utils
 
 import com.github.tomakehurst.wiremock.client.WireMock.*
-import play.api.libs.json.Json
+import play.api.http.Status.INTERNAL_SERVER_ERROR
 
 
 trait ObjectStoreWireMockStubs {
 
-  private val objectStoreOwner = "disa-returns-backend"
+  private val objectStorePath = "/object-store/object/disa-returns-submission/[^/]+"
 
-  protected def stubObjectStorePut(objectName: String): Unit =
+  protected def stubObjectStorePut(): Unit =
     stubFor(
-      put(urlEqualTo(objectStorePath(objectName)))
+      put(urlPathMatching(objectStorePath))
         .willReturn(
           aResponse()
             .withStatus(200)
             .withHeader("Content-Type", "application/json")
             .withBody(
-              Json
-                .obj(
-                  "location"      -> objectName,
-                  "contentLength" -> 123,
-                  "contentMD5"    -> "CY9rzUYh03PK3k6DJie09g==",
-                  "lastModified"  -> "2026-05-17T12:00:00Z"
-                )
-                .toString()
+              """{
+                |  "location": "object-store/object/disa-returns-submission/file",
+                |  "contentLength": 123,
+                |  "contentMD5": "CY9rzUYh03PK3k6DJie09g==",
+                |  "lastModified": "2026-05-17T12:00:00Z"
+                |} """.stripMargin
             )
         )
     )
 
-  private def objectStorePath(objectName: String): String =
-    s"/object-store/object/$objectStoreOwner/$objectName"
+  protected def stubObjectStorePutInternalServerError(): Unit =
+    stubFor(
+      put(urlPathMatching(objectStorePath))
+        .willReturn(aResponse().withStatus(INTERNAL_SERVER_ERROR))
+    )
+
 }
