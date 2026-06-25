@@ -16,25 +16,26 @@
 
 package uk.gov.hmrc.disareturnssubmission.controllers
 
-
-import play.api.http.Status.{BAD_REQUEST, CONFLICT, CREATED, NOT_FOUND, OK, UNPROCESSABLE_ENTITY}
+import play.api.http.Status.{BAD_REQUEST, CONFLICT, CREATED, NOT_FOUND, OK, SERVICE_UNAVAILABLE, UNPROCESSABLE_ENTITY}
 import play.api.libs.json.{JsValue, Json}
 import uk.gov.hmrc.disareturnssubmission.BaseIntegrationSpec
 import org.scalatest.wordspec.AnyWordSpec
+import uk.gov.hmrc.disareturnssubmission.utils.ObjectStoreWireMockStubs
 
-class MonthlyReturnControllerISpec extends BaseIntegrationSpec {
+
+class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreWireMockStubs {
 
   private val monthlyPath = s"$testServicePath/monthly/$testZReference/$testTaxYear/$testMonth"
-  private val invalidMonthlyPath =
-    s"$testServicePath/monthly/$invalidTestZReference/$invalidTestTaxYear/$invalidTestMonth"
+  private val invalidMonthlyPath = s"$testServicePath/monthly/$invalidTestZReference/$invalidTestTaxYear/$invalidTestMonth"
 
   private val declarationPath = monthlyPath ++ "/declarations"
+  private val submissionPath  = monthlyPath ++ "/submissions"
 
 
   "POST /monthly/:zReference/:taxYear/:month" should {
 
     "return 201 Created when the monthly return is created successfully" in {
-      val result = postJson(monthlyPath, nilReturnFalseRequest)
+      val result       = postJson(monthlyPath, nilReturnFalseRequest)
       val submissionId = (result.json \ submissionIdFieldName).as[String]
 
       result.status shouldBe CREATED
@@ -94,6 +95,51 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec {
       val result = postJson(declarationPath, Json.obj("nilReturn" -> false))
 
       result.status shouldBe UNPROCESSABLE_ENTITY
+    }
+  }
+
+  "POST /monthly/:zReference/:taxYear/:month/submissions" should {
+
+    "return 200 Ok when the monthly return is submitted successfully" in {
+
+      postJson(monthlyPath, nilReturnFalseRequest)
+
+      stubObjectStorePut(testUploadReference)
+
+      val result = postJson(submissionPath, ndjsonContent, "application/x-ndjson")
+
+      result.status shouldBe OK
+    }
+
+    "return 503 BadRequest when the repository update fails" in {
+
+      postJson(monthlyPath, nilReturnFalseRequest)
+
+      stubObjectStorePut(testUploadReference)
+
+      val result = postJson(submissionPath, ndjsonContent, "application/x-ndjson")
+
+      result.status shouldBe SERVICE_UNAVAILABLE
+    }
+
+    "return 404 NotFound when the monthly return couldn't be found" in {
+
+      stubObjectStorePut(testUploadReference)
+
+      val result = postJson(submissionPath, ndjsonContent, "application/x-ndjson")
+
+      result.status shouldBe NOT_FOUND
+    }
+
+    "return 400 BadRequest when the body is empty" in {
+
+      postJson(monthlyPath, nilReturnFalseRequest)
+
+      stubObjectStorePut(testUploadReference)
+
+      val result = postJson(submissionPath, "", "application/x-ndjson")
+
+      result.status shouldBe BAD_REQUEST
     }
   }
 }

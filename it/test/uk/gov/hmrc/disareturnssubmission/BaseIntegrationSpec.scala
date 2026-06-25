@@ -24,6 +24,7 @@ import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
+import org.scalatestplus.mockito.MockitoSugar
 import org.scalatestplus.play.guice.GuiceOneServerPerSuite
 import play.api.Application
 import play.api.http.Status.CREATED
@@ -39,12 +40,13 @@ import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.play.audit.http.connector.DatastreamMetrics
 
 import java.time.{Clock, ZoneOffset}
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.reflect.ClassTag
 
 trait BaseIntegrationSpec
   extends AnyWordSpec
     with Matchers
+    with MockitoSugar
     with GuiceOneServerPerSuite
     with BeforeAndAfterEach
     with BeforeAndAfterAll
