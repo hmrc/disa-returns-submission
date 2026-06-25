@@ -104,18 +104,18 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
 
       postJson(monthlyPath, nilReturnFalseRequest)
 
-      stubObjectStorePut(testUploadReference)
+      stubObjectStorePut()
 
       val result = postJson(submissionPath, ndjsonContent, "application/x-ndjson")
 
       result.status shouldBe OK
     }
 
-    "return 503 BadRequest when the repository update fails" in {
+    "return 503 ServiceUnavailable when the object-store upload fails" in {
 
       postJson(monthlyPath, nilReturnFalseRequest)
 
-      stubObjectStorePut(testUploadReference)
+      stubObjectStorePutInternalServerError()
 
       val result = postJson(submissionPath, ndjsonContent, "application/x-ndjson")
 
@@ -124,7 +124,7 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
 
     "return 404 NotFound when the monthly return couldn't be found" in {
 
-      stubObjectStorePut(testUploadReference)
+      stubObjectStorePut()
 
       val result = postJson(submissionPath, ndjsonContent, "application/x-ndjson")
 
@@ -135,7 +135,7 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
 
       postJson(monthlyPath, nilReturnFalseRequest)
 
-      stubObjectStorePut(testUploadReference)
+      stubObjectStorePut()
 
       val result = postJson(submissionPath, "", "application/x-ndjson")
 
