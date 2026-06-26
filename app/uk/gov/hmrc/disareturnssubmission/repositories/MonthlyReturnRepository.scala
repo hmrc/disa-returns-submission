@@ -84,7 +84,7 @@ class MonthlyReturnRepository @Inject() (
       month = month,
       createdOn = createdOn,
       nilReturn = nilReturn,
-      fileUploads = Nil,
+      submissions = Nil,
       lastUpdated = createdOn
     )
 
@@ -120,8 +120,8 @@ class MonthlyReturnRepository @Inject() (
     taxYear: String,
     month: Int,
     reference: String
-  ): Future[Option[FileUpload]] =
-    get(zReference, taxYear, month).map(_.flatMap(_.fileUploads.find(_.reference == reference)))
+  ): Future[Option[Submission]] =
+    get(zReference, taxYear, month).map(_.flatMap(_.submissions.find(_.reference == reference)))
 
   private def replace(monthlyReturn: MonthlyReturn): Future[Boolean] =
     collection

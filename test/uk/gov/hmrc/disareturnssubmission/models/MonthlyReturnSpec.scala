@@ -27,7 +27,7 @@ class MonthlyReturnSpec extends SpecBase {
     taxYear = yearOnlyTestTaxYear,
     month = testMonth,
     createdOn = testExistingUpdatedOn,
-    fileUploads = Nil,
+    submissions = Nil,
     lastUpdated = testExistingUpdatedOn
   )
 
@@ -97,12 +97,13 @@ class MonthlyReturnSpec extends SpecBase {
   "createFileUpload" - {
 
     "must add a CREATED file upload and update lastUpdated" in {
-      val result = emptyMonthlyReturn.createFileUpload(testUploadReference, testCreatedOn)
+      val result = emptyMonthlyReturn.createFileUpload(testUploadReference, testCreatedOn, fileUploadDetails)
 
-      result.fileUploads mustBe List(
-        FileUpload(
+      result.submissions mustBe List(
+        Submission(
           reference = testUploadReference,
-          createdOn = testCreatedOn
+          createdOn = testCreatedOn,
+          submissionDetails = Some(fileUploadDetails)
         )
       )
       result.createdOn mustBe testExistingUpdatedOn
@@ -110,27 +111,27 @@ class MonthlyReturnSpec extends SpecBase {
     }
 
     "must not add a duplicate upload reference" in {
-      val existing = emptyMonthlyReturn.createFileUpload(testUploadReference, testCreatedOn)
+      val existing = emptyMonthlyReturn.createFileUpload(testUploadReference, testCreatedOn, fileUploadDetails)
 
-      existing.createFileUpload(testUploadReference, testUpscanCompletedOn) mustBe existing
+      existing.createFileUpload(testUploadReference, testUpscanCompletedOn, fileUploadDetails) mustBe existing
     }
 
     "must not add a file upload to a nil return" in {
       val monthlyReturn = emptyMonthlyReturn.copy(nilReturn = true)
 
-      monthlyReturn.createFileUpload(testUploadReference, testCreatedOn) mustBe monthlyReturn
+      monthlyReturn.createFileUpload(testUploadReference, testCreatedOn, fileUploadDetails) mustBe monthlyReturn
     }
   }
 
   "updateNilReturn" - {
 
     "must set nilReturn to true and remove all file uploads" in {
-      val monthlyReturn = emptyMonthlyReturn.createFileUpload(testUploadReference, testCreatedOn)
+      val monthlyReturn = emptyMonthlyReturn.createFileUpload(testUploadReference, testCreatedOn, fileUploadDetails)
 
       val result = monthlyReturn.updateNilReturn(nilReturn = true, updatedOn = testUpscanCompletedOn)
 
       result.nilReturn mustBe true
-      result.fileUploads mustBe Nil
+      result.submissions mustBe Nil
       result.createdOn mustBe testExistingUpdatedOn
       result.lastUpdated mustBe testUpscanCompletedOn
     }
@@ -141,7 +142,7 @@ class MonthlyReturnSpec extends SpecBase {
       val result = monthlyReturn.updateNilReturn(nilReturn = false, updatedOn = testUpscanCompletedOn)
 
       result.nilReturn mustBe false
-      result.fileUploads mustBe Nil
+      result.submissions mustBe Nil
       result.createdOn mustBe testExistingUpdatedOn
       result.lastUpdated mustBe testUpscanCompletedOn
     }

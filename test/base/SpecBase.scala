@@ -27,6 +27,7 @@ import play.api.Application
 import play.api.inject.bind
 import play.api.inject.guice.{GuiceApplicationBuilder, GuiceableModule}
 import uk.gov.hmrc.disareturnssubmission.config.{InternalAuthTokenInitialiser, NoOpInternalAuthTokenInitialiser}
+import org.apache.pekko.stream.Materializer
 
 import scala.concurrent.ExecutionContext
 import scala.reflect.ClassTag
@@ -46,6 +47,8 @@ trait SpecBase
     scala.concurrent.ExecutionContext.Implicits.global
 
   override lazy val app: Application = applicationBuilder().build()
+
+  implicit lazy val mat: Materializer = app.materializer
 
   protected def inject[T: ClassTag]: T =
     app.injector.instanceOf[T]

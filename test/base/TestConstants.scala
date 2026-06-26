@@ -16,13 +16,22 @@
 
 package base
 
-import uk.gov.hmrc.disareturnssubmission.models.MonthlyReturn
+import play.api.libs.Files as PlayFiles
+import play.api.libs.Files.SingletonTemporaryFileCreator
+import uk.gov.hmrc.disareturnssubmission.models.{MonthlyReturn, SubmissionDetails}
+import uk.gov.hmrc.objectstore.client.Md5Hash
 
 import java.time.Instant
 import java.util.UUID
 
 trait TestConstants {
 
+  // ======= IT Tests =======
+  protected val testServicePath                                = "/disa-returns-submission"
+  protected val monthlyReturnsCollectionName                   = "monthlyReturns"
+  protected val monthlyReturnFileUploadWorkItemsCollectionName = "monthlyReturnFileUploadWorkItems"
+
+  // ====== Unit Tests ======
   protected val testZReference          = "Z1234"
   protected val lowercaseTestZReference = "z1234"
   protected val invalidTestZReference   = "1234"
@@ -60,6 +69,20 @@ trait TestConstants {
   protected val mongoNumberLongFieldName = "$numberLong"
 
   protected val testMongoDownMessage = "mongodb down"
+  val testMd5Hash: Md5Hash           = Md5Hash("6QE/wgLIe+SOOzAt8Q78Sw==")
+
+  val testFileLength = 100L
+
+  protected val ndjsonContent: String =
+    """{"id": "1", "name": "test"}
+      |{"id": "2", "name": "test2"}
+      |""".stripMargin
+
+  protected val testTempFile: PlayFiles.TemporaryFile = {
+    val file = SingletonTemporaryFileCreator.create("test", ".ndjson")
+    java.nio.file.Files.write(file.path, ndjsonContent.getBytes)
+    file
+  }
 
   protected val monthlyReturn = MonthlyReturn(
     zReference = testZReference,
@@ -67,8 +90,15 @@ trait TestConstants {
     taxYear = testTaxYear,
     month = testMonth,
     createdOn = testExistingUpdatedOn,
-    fileUploads = Nil,
+    submissions = Nil,
     lastUpdated = testCreatedOn
   )
 
+  protected val fileUploadDetails = SubmissionDetails(
+    fileName = testUploadReference,
+    fileMimeType = "application/x-ndjson",
+    checksum = testMd5Hash.toString,
+    size = testFileLength,
+    objectStoreFileLocation = Some(testTempFile.toString)
+  )
 }

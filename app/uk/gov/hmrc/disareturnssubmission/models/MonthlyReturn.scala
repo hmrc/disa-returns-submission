@@ -41,7 +41,7 @@ final case class MonthlyReturn(
   month: Int,
   createdOn: Instant,
   nilReturn: Boolean = false,
-  fileUploads: List[FileUpload],
+  submissions: List[Submission] = List(),
   declaredOn: Option[Instant] = None,
   lastUpdated: Instant
 ) {
@@ -57,14 +57,15 @@ final case class MonthlyReturn(
       )
     }
 
-  def createFileUpload(reference: String, createdOn: Instant): MonthlyReturn =
-    if (nilReturn || fileUploads.exists(_.reference == reference)) {
+  def createFileUpload(reference: String, createdOn: Instant, submissionDetails: SubmissionDetails): MonthlyReturn =
+    if (nilReturn || submissions.exists(_.reference == reference)) {
       this
     } else {
       copy(
-        fileUploads = fileUploads :+ FileUpload(
+        submissions = submissions :+ Submission(
           reference = reference,
-          createdOn = createdOn
+          createdOn = createdOn,
+          submissionDetails = Some(submissionDetails)
         ),
         lastUpdated = createdOn
       )
@@ -74,7 +75,7 @@ final case class MonthlyReturn(
     if (nilReturn) {
       val updatedReturn = copy(
         nilReturn = true,
-        fileUploads = Nil,
+        submissions = Nil,
         lastUpdated = updatedOn
       )
 
@@ -103,7 +104,7 @@ object MonthlyReturn {
   val mongoFormat: OFormat[MonthlyReturn] = {
     import MonthlyReturnFormats.mongoInstantFormat
 
-    implicit val fileUploadFormat: OFormat[FileUpload] = FileUpload.mongoFormat
+    implicit val submissionFormat: OFormat[Submission] = Submission.mongoFormat
 
     val derivedMongoFormat: OFormat[MonthlyReturn] =
       Json.using[Json.WithDefaultValues].format[MonthlyReturn]
@@ -115,38 +116,36 @@ object MonthlyReturn {
   }
 }
 
-final case class FileUpload(
+final case class Submission(
   reference: String,
   createdOn: Instant,
-  fileUploadDetails: Option[FileUploadDetails] = None
+  submissionDetails: Option[SubmissionDetails] = None
 )
 
-object FileUpload {
-  implicit val format: OFormat[FileUpload] = Json.format[FileUpload]
+object Submission {
+  implicit val format: OFormat[Submission] = Json.format[Submission]
 
-  val mongoFormat: OFormat[FileUpload] = {
+  val mongoFormat: OFormat[Submission] = {
     import MonthlyReturnFormats.mongoInstantFormat
 
-    implicit val fileUploadDetailsFormat: OFormat[FileUploadDetails] = FileUploadDetails.mongoFormat
+    implicit val submissionDetailsFormat: OFormat[SubmissionDetails] = SubmissionDetails.mongoFormat
 
-    Json.format[FileUpload]
+    Json.format[Submission]
   }
 }
 
-final case class FileUploadDetails(
+final case class SubmissionDetails(
   fileName: String,
   fileMimeType: String,
-  uploadTimestamp: Instant,
   checksum: String,
-  size: Long
+  size: Long,
+  objectStoreFileLocation: Option[String] = None,
+  objectStoreFileErrorsLocation: Option[String] = None
 )
 
-object FileUploadDetails {
-  implicit val format: OFormat[FileUploadDetails] = Json.format[FileUploadDetails]
+object SubmissionDetails {
+  implicit val format: OFormat[SubmissionDetails] = Json.format[SubmissionDetails]
 
-  val mongoFormat: OFormat[FileUploadDetails] = {
-    import MonthlyReturnFormats.mongoInstantFormat
-
-    Json.format[FileUploadDetails]
-  }
+  val mongoFormat: OFormat[SubmissionDetails] =
+    Json.format[SubmissionDetails]
 }

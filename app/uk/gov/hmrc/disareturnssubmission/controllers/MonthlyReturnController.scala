@@ -16,11 +16,14 @@
 
 package uk.gov.hmrc.disareturnssubmission.controllers
 
+import org.apache.pekko.stream.Materializer
 import play.api.Logging
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Action, AnyContent, ControllerComponents, Result}
+
 import uk.gov.hmrc.disareturnssubmission.models.{CreateMonthlyReturnRequest, CreateMonthlyReturnResponse, DeclarationRequest}
-import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, MonthlyReturnService}
+import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, MonthlyReturnService, SubmitReturnResult}
+
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.play.bootstrap.controller.WithJsonBody
 import uk.gov.hmrc.disareturnssubmission.validators.ValidationHelper
@@ -28,10 +31,14 @@ import uk.gov.hmrc.disareturnssubmission.validators.ValidationHelper
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
+import play.api.libs.Files
+import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 
 class MonthlyReturnController @Inject() (
   cc: ControllerComponents,
-  monthlyReturnService: MonthlyReturnService
+  monthlyReturnService: MonthlyReturnService,
+  appConfig: AppConfig,
+  implicit val mat: Materializer
 )(implicit ec: ExecutionContext)
     extends BackendController(cc)
     with WithJsonBody
@@ -101,6 +108,35 @@ class MonthlyReturnController @Inject() (
             }
             .recover { case NonFatal(_) => ServiceUnavailable }
         }
+      }
+    }
+
+  def storeSubmission(zReference: String, taxYear: String, month: Int): Action[Files.TemporaryFile] =
+    Action.async(parse.temporaryFile(maxLength = appConfig.maxContentLength)) { request =>
+      request.contentType
+        .filter(_ == appConfig.contentType) match { // TODO to be discussed if parameter validation (months etc.) is needed
+        case Some(_) =>
+          monthlyReturnService
+            .storeSubmission(zReference, taxYear, month, bodyPath = request.body.path)
+            .map {
+              case SubmitReturnResult.UpdateSuccessful       => Ok
+              case SubmitReturnResult.NotUpdatedInRepository =>
+                ServiceUnavailable(Json.obj("ERROR" -> "Mongo error"))
+              case SubmitReturnResult.MonthlyReturnNotFound  =>
+                NotFound(Json.obj("ERROR" -> "Monthly return not found"))
+              case SubmitReturnResult.NoBody                 => BadRequest(Json.obj("ERROR" -> "Request body must not be empty"))
+            }
+            .recover { case NonFatal(_) =>
+              ServiceUnavailable
+            }
+        case _       =>
+          Future.successful(
+            UnsupportedMediaType(
+              Json.obj(
+                "ERROR" -> "Content-Type must be application/x-ndjson"
+              )
+            )
+          )
       }
     }
 

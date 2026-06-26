@@ -17,6 +17,7 @@
 package uk.gov.hmrc.disareturnssubmission.services
 
 import play.api.Logging
+import uk.gov.hmrc.disareturnssubmission.actions.SubmissionStoreAction
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.models.MonthlyReturn
 import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository
@@ -24,6 +25,7 @@ import uk.gov.hmrc.disareturnssubmission.repositories.DeclareMonthlyReturnReposi
 import uk.gov.hmrc.disareturnssubmission.services.CreateMonthlyReturnResult.*
 import uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator
 
+import java.nio.file.Path
 import java.time.{Clock, LocalDate}
 import java.util.UUID
 import javax.inject.{Inject, Singleton}
@@ -33,6 +35,7 @@ import scala.util.control.NonFatal
 @Singleton
 class MonthlyReturnService @Inject() (
   monthlyReturnRepository: MonthlyReturnRepository,
+  submissionStoreAction: SubmissionStoreAction,
   appConfig: AppConfig,
   clock: Clock,
   uuidGenerator: UuidGenerator
@@ -201,6 +204,13 @@ class MonthlyReturnService @Inject() (
         Future.failed(exception)
       }
 
+  def storeSubmission(zReference: String, taxYear: String, month: Int, bodyPath: Path): Future[SubmitReturnResult] =
+
+    get(zReference, taxYear, month).flatMap {
+      case Some(monthlyReturn) => submissionStoreAction.store(bodyPath, monthlyReturn)
+      case _                   => Future.successful(SubmitReturnResult.MonthlyReturnNotFound)
+    }
+
   private def isWithinDeclarationPeriod(year: String, month: Int): Boolean = {
     val nowClock   = LocalDate.now(clock)
     val dayOfMonth = nowClock.getDayOfMonth
@@ -242,4 +252,13 @@ object UpdateNilReturnResult {
   final case class NilReturnUpdated(monthlyReturn: MonthlyReturn) extends UpdateNilReturnResult
   case object MonthlyReturnAlreadyDeclared extends UpdateNilReturnResult
   case object MonthlyReturnNotFound extends UpdateNilReturnResult
+}
+
+sealed trait SubmitReturnResult
+
+object SubmitReturnResult {
+  case object UpdateSuccessful extends SubmitReturnResult
+  case object MonthlyReturnNotFound extends SubmitReturnResult
+  case object NotUpdatedInRepository extends SubmitReturnResult
+  case object NoBody extends SubmitReturnResult
 }

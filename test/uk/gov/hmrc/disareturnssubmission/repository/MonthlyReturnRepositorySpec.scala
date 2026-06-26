@@ -81,7 +81,7 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
             month = month,
             createdOn = fixedNow,
             nilReturn = false,
-            fileUploads = Nil,
+            submissions = Nil,
             lastUpdated = fixedNow
           )
         )
@@ -93,7 +93,7 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
           month = month,
           createdOn = fixedNow,
           nilReturn = false,
-          fileUploads = Nil,
+          submissions = Nil,
           lastUpdated = fixedNow
         )
       }
@@ -107,7 +107,7 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
             month = month,
             createdOn = fixedNow,
             nilReturn = true,
-            fileUploads = Nil,
+            submissions = Nil,
             lastUpdated = fixedNow
           )
         )
@@ -119,7 +119,7 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
           month = month,
           createdOn = fixedNow,
           nilReturn = true,
-          fileUploads = Nil,
+          submissions = Nil,
           lastUpdated = fixedNow
         )
       }
@@ -149,17 +149,17 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
 
       "must replace an existing MonthlyReturn for the same key" in {
         val existing    = buildMonthlyReturn(
-          fileUploads = List(createdFileUpload(reference = "old-reference"))
+          submissions = List(createdFileUpload(reference = "old-reference"))
         )
         val replacement = buildMonthlyReturn(
-          fileUploads = List(createdFileUpload(reference = "new-reference"))
+          submissions = List(createdFileUpload(reference = "new-reference"))
         )
 
         repository.upsert(existing).futureValue
         repository.upsert(replacement).futureValue mustBe true
 
         val stored = repository.get(zReference, taxYear, month).futureValue.value
-        stored.fileUploads.map(_.reference) mustBe List("new-reference")
+        stored.submissions.map(_.reference) mustBe List("new-reference")
         stored.lastUpdated mustBe fixedNow
       }
     }
@@ -197,7 +197,7 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
 
   private def buildMonthlyReturn(
     nilReturn: Boolean = false,
-    fileUploads: List[FileUpload] = Nil,
+    submissions: List[Submission] = Nil,
     declaredOn: Option[Instant] = None,
     lastUpdated: Instant = existingUpdated
   ): MonthlyReturn =
@@ -208,15 +208,15 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
       month = month,
       createdOn = lastUpdated,
       nilReturn = nilReturn,
-      fileUploads = fileUploads,
+      submissions = submissions,
       declaredOn = declaredOn,
       lastUpdated = lastUpdated
     )
 
   private def createdFileUpload(
     reference: String = uploadReference
-  ): FileUpload =
-    FileUpload(
+  ): Submission =
+    Submission(
       reference = reference,
       createdOn = createdOn
     )

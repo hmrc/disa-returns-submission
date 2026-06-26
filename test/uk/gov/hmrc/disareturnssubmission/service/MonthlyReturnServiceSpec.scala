@@ -17,14 +17,14 @@
 package uk.gov.hmrc.disareturnssubmission.service
 
 import base.SpecBase
-import org.mockito.ArgumentMatchers.eq as eqTo
+import org.mockito.ArgumentMatchers.{any, eq as eqTo}
 import org.mockito.Mockito.{reset, verify, verifyNoInteractions, when}
 import org.scalatest.BeforeAndAfterEach
+import uk.gov.hmrc.disareturnssubmission.actions.SubmissionStoreAction
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.models.*
 import uk.gov.hmrc.disareturnssubmission.repositories.{DeclareMonthlyReturnRepositoryResult, MonthlyReturnRepository}
-import uk.gov.hmrc.disareturnssubmission.services.CreateMonthlyReturnResult
-import uk.gov.hmrc.disareturnssubmission.services.{DeclareMonthlyReturnResult, MonthlyReturnService}
+import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, MonthlyReturnService, SubmitReturnResult}
 import uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator
 
 import java.time.{Clock, Instant, ZoneOffset}
@@ -33,6 +33,7 @@ import scala.concurrent.Future
 class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
 
   private val mockMonthlyReturnRepository = mock[MonthlyReturnRepository]
+  private val mockSubStoreAction          = mock[SubmissionStoreAction]
   private val appConfig                   = inject[AppConfig]
   private val mockUuidGenerator           = mock[UuidGenerator]
   private val service                     = buildService(testCreatedOn)
@@ -50,7 +51,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
     month = month,
     createdOn = testExistingUpdatedOn,
     nilReturn = false,
-    fileUploads = Nil,
+    submissions = Nil,
     lastUpdated = testCreatedOn
   )
 
@@ -287,11 +288,73 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
       }
     }
 
+    "submitReturn" - {
+      "must return UpdateSuccessful" in {
+
+        when(mockMonthlyReturnRepository.get(any(), any(), any()))
+          .thenReturn(Future.successful(Some(monthlyReturn)))
+
+        when(mockMonthlyReturnRepository.upsert(any()))
+          .thenReturn(Future.successful(true))
+
+        when(mockSubStoreAction.store(any(), any()))
+          .thenReturn(Future.successful(SubmitReturnResult.UpdateSuccessful))
+
+        service
+          .storeSubmission(
+            zReference,
+            taxYear,
+            month,
+            testTempFile
+          )
+          .futureValue mustBe SubmitReturnResult.UpdateSuccessful
+
+      }
+
+      "must return NotUpdatedInRepository if repository fails to update" in {
+
+        when(mockMonthlyReturnRepository.get(any(), any(), any()))
+          .thenReturn(Future.successful(Some(monthlyReturn)))
+
+        when(mockMonthlyReturnRepository.upsert(any()))
+          .thenReturn(Future.successful(false))
+
+        when(mockSubStoreAction.store(any(), any()))
+          .thenReturn(Future.successful(SubmitReturnResult.NotUpdatedInRepository))
+
+        service
+          .storeSubmission(
+            zReference,
+            taxYear,
+            month,
+            testTempFile
+          )
+          .futureValue mustBe SubmitReturnResult.NotUpdatedInRepository
+
+      }
+
+      "must return MonthlyReturnNotFound if a Monthly return hasn't been created yet" in {
+
+        when(mockMonthlyReturnRepository.get(any(), any(), any()))
+          .thenReturn(Future.successful(None))
+
+        service
+          .storeSubmission(
+            zReference,
+            taxYear,
+            month,
+            testTempFile
+          )
+          .futureValue mustBe SubmitReturnResult.MonthlyReturnNotFound
+
+      }
+    }
+
     "declare with nilReturn true" - {
 
       val existingReturnWithUploads = monthlyReturn.copy(
-        fileUploads = List(
-          uk.gov.hmrc.disareturnssubmission.models.FileUpload(reference = "ref-1", createdOn = testExistingUpdatedOn)
+        submissions = List(
+          uk.gov.hmrc.disareturnssubmission.models.Submission(reference = "ref-1", createdOn = testExistingUpdatedOn)
         )
       )
 
@@ -372,13 +435,14 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
 
         service.declare(zReference, taxYear, month, nilReturn = true).failed.futureValue mustBe a[RuntimeException]
       }
-    }
 
+    }
   }
 
   private def buildService(now: Instant): MonthlyReturnService =
     new MonthlyReturnService(
       monthlyReturnRepository = mockMonthlyReturnRepository,
+      mockSubStoreAction,
       appConfig = appConfig,
       clock = Clock.fixed(now, ZoneOffset.UTC),
       uuidGenerator = mockUuidGenerator
