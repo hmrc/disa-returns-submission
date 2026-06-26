@@ -32,10 +32,17 @@ class SubmissionServiceSpec extends SpecBase {
   val service = new ObjectStoreService(mockObjectStoreConnector)
 
   "uploadFileToObjectStore should return the file location" in {
-    when(mockObjectStoreConnector.putFile(any(), any(), any(), any())(any()))
+    when(mockObjectStoreConnector.putFile(any(), any(), any(), any(), any())(any()))
       .thenReturn(Future.successful("test/test"))
 
-    val res = service.uploadFileToObjectStore(testUploadReference, testTempFile, "application/x-ndjson", testMd5Hash)
+    val res =
+      service.uploadFileToObjectStore(
+        testUploadReference,
+        testTempFile,
+        "application/x-ndjson",
+        testMd5Hash,
+        testFileLength
+      )
 
     assert(res.futureValue === "test/test")
   }

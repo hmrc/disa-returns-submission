@@ -55,7 +55,8 @@ class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
       when(mockUuidGenerator.randomUuid()).thenReturn(UUID.fromString(testUploadReference))
       when(mockMonthlyReturnService.get(any(), any(), any())).thenReturn(Future(Some(monthlyReturn)))
 
-      when(mockObjectStoreService.uploadFileToObjectStore(any(), any(), any(), any())).thenReturn(Future("test/test"))
+      when(mockObjectStoreService.uploadFileToObjectStore(any(), any(), any(), any(), any()))
+        .thenReturn(Future("test/test"))
 
       when(mockMonthlyReturnRepository.upsert(any()))
         .thenReturn(Future.successful(true))
@@ -69,7 +70,8 @@ class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
       when(mockUuidGenerator.randomUuid()).thenReturn(UUID.fromString(testUploadReference))
       when(mockMonthlyReturnService.get(any(), any(), any())).thenReturn(Future(Some(monthlyReturn)))
 
-      when(mockObjectStoreService.uploadFileToObjectStore(any(), any(), any(), any())).thenReturn(Future("test/test"))
+      when(mockObjectStoreService.uploadFileToObjectStore(any(), any(), any(), any(), any()))
+        .thenReturn(Future("test/test"))
 
       when(mockMonthlyReturnRepository.upsert(any()))
         .thenReturn(Future.successful(false))

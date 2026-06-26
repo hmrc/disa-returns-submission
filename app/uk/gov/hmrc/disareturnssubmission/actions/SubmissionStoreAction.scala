@@ -62,7 +62,7 @@ class SubmissionStoreAction @Inject() (
     someMd5.flatMap {
       case Some(md5, length) =>
         objectStoreService
-          .uploadFileToObjectStore(fileNameOrReference.toString, bodyPath, appConfig.contentType, md5)
+          .uploadFileToObjectStore(fileNameOrReference.toString, bodyPath, appConfig.contentType, md5, length)
           .flatMap { fileLocation =>
             storeSubmission(
               fileNameOrReference.toString,

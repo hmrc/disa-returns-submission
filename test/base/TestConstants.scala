@@ -71,6 +71,8 @@ trait TestConstants {
   protected val testMongoDownMessage = "mongodb down"
   val testMd5Hash: Md5Hash           = Md5Hash("6QE/wgLIe+SOOzAt8Q78Sw==")
 
+  val testFileLength = 100L
+
   protected val ndjsonContent: String =
     """{"id": "1", "name": "test"}
       |{"id": "2", "name": "test2"}
@@ -96,7 +98,7 @@ trait TestConstants {
     fileName = testUploadReference,
     fileMimeType = "application/x-ndjson",
     checksum = testMd5Hash.toString,
-    size = 100L,
+    size = testFileLength,
     objectStoreFileLocation = Some(testTempFile.toString)
   )
 }

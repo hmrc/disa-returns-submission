@@ -27,14 +27,13 @@ import uk.gov.hmrc.objectstore.client.{Md5Hash, Path}
 
 import java.nio.file.{Files, Path as FilePath}
 import javax.inject.Inject
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future, blocking}
+import scala.concurrent.{ExecutionContextExecutor, Future}
 
 class ObjectStoreConnector @Inject() (
   client: PlayObjectStoreClient,
   override val actorSystem: ActorSystem,
   override val configuration: Config
-)(implicit ec: ExecutionContext)
-    extends BaseConnector
+) extends BaseConnector
     with Md5Base64 {
 
   import uk.gov.hmrc.objectstore.client.play.Implicits.*
@@ -46,14 +45,14 @@ class ObjectStoreConnector @Inject() (
     objectName: String,
     file: FilePath,
     contentType: String,
-    md5: Md5Hash
+    md5: Md5Hash,
+    length: Long
   )(implicit hc: HeaderCarrier): Future[String] =
-    Future {
-      blocking {
-        val length = Files.size(file)
-        length -> md5
-      }
-    }(blockingExecutionContext).flatMap { case (length, md5) =>
+
+    if (!Files.exists(file))
+      Future.failed(new java.nio.file.NoSuchFileException(file.toString))
+    else
+
       retryFor[String]("put object-store file")(retryCondition) {
         client
           .putObject(
@@ -67,6 +66,5 @@ class ObjectStoreConnector @Inject() (
           )
           .map(_.location.asUri)
       }
-    }(ec)
 
 }

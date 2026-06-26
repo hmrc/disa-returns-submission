@@ -56,17 +56,21 @@ class ObjectStoreConnectorSpec extends SpecBase {
 
       when(client.putObject(any, any[Payload[Source[ByteString, ?]]], any, any, any, any)(any, any))
         .thenReturn(
-          Future.successful(ObjectSummaryWithMd5(summaryLocation, 12L, Md5Hash(md5Base64("file-content")), Instant.now))
+          Future.successful(
+            ObjectSummaryWithMd5(summaryLocation, testFileLength, Md5Hash(md5Base64("file-content")), Instant.now)
+          )
         )
 
       try {
         val service = new ObjectStoreConnector(client, inject[ActorSystem], retryConfig)
 
-        service.putFile("object-name", file, "text/plain", testMd5Hash).futureValue mustBe summaryLocation.asUri
+        service
+          .putFile("object-name", file, "text/plain", testMd5Hash, testFileLength)
+          .futureValue mustBe summaryLocation.asUri
 
         verify(client).putObject(any, payloadCaptor.capture(), any, any, any, any)(any, any)
         val payload = payloadCaptor.getValue
-        payload.length mustBe 12L
+        payload.length mustBe testFileLength
         payload.md5Hash mustBe Md5Hash(md5Base64("file-content"))
         payload.content
           .runWith(Sink.fold(ByteString.empty)(_ ++ _))(inject[Materializer])
@@ -79,7 +83,11 @@ class ObjectStoreConnectorSpec extends SpecBase {
       val service     = new ObjectStoreConnector(client, inject[ActorSystem], retryConfig)
       val missingFile = Files.createTempDirectory("disa-missing-parent").resolve("missing.txt")
 
-      val result = service.putFile("object-name", missingFile, "text/plain", testMd5Hash)
+      val errorMessage = "object-store upload failed"
+      when(client.putObject(any, any[Payload[Source[ByteString, ?]]], any, any, any, any)(any, any))
+        .thenReturn(Future.failed(UpstreamErrorResponse(errorMessage, INTERNAL_SERVER_ERROR)))
+
+      val result = service.putFile("object-name", missingFile, "text/plain", testMd5Hash, testFileLength)
 
       result.failed.futureValue mustBe a[java.nio.file.NoSuchFileException]
       Files.deleteIfExists(missingFile.getParent)
@@ -96,7 +104,7 @@ class ObjectStoreConnectorSpec extends SpecBase {
         .thenReturn(Future.failed(UpstreamErrorResponse(errorMessage, INTERNAL_SERVER_ERROR)))
 
       try {
-        val result = service.putFile("object-name", file, "text/plain", testMd5Hash).failed.futureValue
+        val result = service.putFile("object-name", file, "text/plain", testMd5Hash, testFileLength).failed.futureValue
 
         result mustBe UpstreamErrorResponse(errorMessage, INTERNAL_SERVER_ERROR)
         verify(client, times(callAmountWithRetries))

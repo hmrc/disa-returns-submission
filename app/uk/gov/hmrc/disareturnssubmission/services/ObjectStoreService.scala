@@ -36,7 +36,8 @@ class ObjectStoreService @Inject (
     fileName: String,
     filePath: Path,
     fileType: String,
-    md5: Md5Hash
+    md5: Md5Hash,
+    length: Long
   ): Future[String] = {
     implicit val hc: HeaderCarrier = HeaderCarrier()
     logger.info(s"${logPrefix(fileName)} Original file object-store upload started for $fileName")
@@ -45,7 +46,8 @@ class ObjectStoreService @Inject (
         objectName = fileName,
         file = filePath,
         contentType = fileType,
-        md5
+        md5,
+        length
       )
       .map { location =>
         logger.info(

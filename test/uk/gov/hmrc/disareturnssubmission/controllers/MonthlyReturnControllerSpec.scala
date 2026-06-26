@@ -283,7 +283,8 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
       when(mockUuidGenerator.randomUuid()).thenReturn(UUID.fromString(testUploadReference))
 
       when(mockMonthlyReturnService.get(any(), any(), any())).thenReturn(Future(Some(monthlyReturn)))
-      when(mockFileUploadService.uploadFileToObjectStore(any(), any(), any(), any())).thenReturn(Future("test/test"))
+      when(mockFileUploadService.uploadFileToObjectStore(any(), any(), any(), any(), any()))
+        .thenReturn(Future("test/test"))
 
       when(
         mockMonthlyReturnService.storeSubmission(
@@ -308,7 +309,8 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
       when(mockUuidGenerator.randomUuid()).thenReturn(UUID.fromString(testUploadReference))
 
       when(mockMonthlyReturnService.get(any(), any(), any())).thenReturn(Future(Some(monthlyReturn)))
-      when(mockFileUploadService.uploadFileToObjectStore(any(), any(), any(), any())).thenReturn(Future("test/test"))
+      when(mockFileUploadService.uploadFileToObjectStore(any(), any(), any(), any(), any()))
+        .thenReturn(Future("test/test"))
 
       when(
         mockMonthlyReturnService.storeSubmission(
@@ -334,7 +336,8 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
       when(mockUuidGenerator.randomUuid()).thenReturn(UUID.fromString(testUploadReference))
 
       when(mockMonthlyReturnService.get(any(), any(), any())).thenReturn(Future(Some(monthlyReturn)))
-      when(mockFileUploadService.uploadFileToObjectStore(any(), any(), any(), any())).thenReturn(Future("test/test"))
+      when(mockFileUploadService.uploadFileToObjectStore(any(), any(), any(), any(), any()))
+        .thenReturn(Future("test/test"))
 
       when(
         mockMonthlyReturnService.storeSubmission(
@@ -359,7 +362,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
       when(mockUuidGenerator.randomUuid()).thenReturn(UUID.fromString(testUploadReference))
 
       when(mockMonthlyReturnService.get(any(), any(), any())).thenReturn(Future(Some(monthlyReturn)))
-      when(mockFileUploadService.uploadFileToObjectStore(any(), any(), any(), any())).thenReturn(Future(None))
+      when(mockFileUploadService.uploadFileToObjectStore(any(), any(), any(), any(), any())).thenReturn(Future(None))
 
       when(
         mockMonthlyReturnService.storeSubmission(
@@ -383,7 +386,8 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
       when(mockUuidGenerator.randomUuid()).thenReturn(UUID.fromString(testUploadReference))
 
       when(mockMonthlyReturnService.get(any(), any(), any())).thenReturn(Future(None))
-      when(mockFileUploadService.uploadFileToObjectStore(any(), any(), any(), any())).thenReturn(Future("test/test"))
+      when(mockFileUploadService.uploadFileToObjectStore(any(), any(), any(), any(), any()))
+        .thenReturn(Future("test/test"))
 
       when(
         mockMonthlyReturnService.storeSubmission(
