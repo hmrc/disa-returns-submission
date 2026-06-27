@@ -16,6 +16,10 @@ lazy val microservice = Project("disa-returns-submission", file("."))
   .settings(CodeCoverageSettings.settings: _*)
   .settings(PlayKeys.playDefaultPort := 12103)
 
+Test / javaOptions += "-Dlogger.resource=logback-test.xml"
+Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat
+Test / fork := true
+
 lazy val it = project
   .enablePlugins(PlayScala)
   .dependsOn(microservice % "test->test")
