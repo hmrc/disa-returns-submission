@@ -18,7 +18,7 @@ package uk.gov.hmrc.disareturnssubmission.service
 
 import base.SpecBase
 import org.mockito.ArgumentMatchers.{any, eq as eqTo}
-import org.mockito.Mockito.{reset, verify, verifyNoInteractions, when}
+import org.mockito.Mockito.{never, reset, verify, verifyNoInteractions, when}
 import org.scalatest.BeforeAndAfterEach
 import uk.gov.hmrc.disareturnssubmission.actions.SubmissionStoreAction
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
@@ -58,6 +58,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
   override protected def beforeEach(): Unit = {
     super.beforeEach()
     reset(mockMonthlyReturnRepository)
+    reset(mockSubStoreAction)
     reset(mockUuidGenerator)
   }
 
@@ -101,6 +102,46 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
         service
           .create(zReference, taxYear, month, nilReturn = false)
           .futureValue mustBe CreateMonthlyReturnResult.AlreadyExists(testSubmissionId)
+      }
+
+      "must fail when the repository rejects the create but the MonthlyReturn cannot be found" in {
+        when(mockUuidGenerator.randomUuid()).thenReturn(generatedSubmissionId)
+        when(
+          mockMonthlyReturnRepository.create(
+            eqTo(zReference),
+            eqTo(taxYear),
+            eqTo(month),
+            eqTo(generatedSubmissionId),
+            eqTo(false)
+          )
+        )
+          .thenReturn(Future.successful(None))
+        when(mockMonthlyReturnRepository.get(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+          .thenReturn(Future.successful(None))
+
+        service
+          .create(zReference, taxYear, month, nilReturn = false)
+          .failed
+          .futureValue mustBe a[IllegalStateException]
+      }
+
+      "must fail when the repository fails to create the MonthlyReturn" in {
+        when(mockUuidGenerator.randomUuid()).thenReturn(generatedSubmissionId)
+        when(
+          mockMonthlyReturnRepository.create(
+            eqTo(zReference),
+            eqTo(taxYear),
+            eqTo(month),
+            eqTo(generatedSubmissionId),
+            eqTo(false)
+          )
+        )
+          .thenReturn(Future.failed(new RuntimeException(testMongoDownMessage)))
+
+        service
+          .create(zReference, taxYear, month, nilReturn = false)
+          .failed
+          .futureValue mustBe a[RuntimeException]
       }
 
       "must return OutsideDeclarationPeriod if creating a return on April 2026 for the 2025-26 tax year" in {
@@ -294,9 +335,6 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
         when(mockMonthlyReturnRepository.get(any(), any(), any()))
           .thenReturn(Future.successful(Some(monthlyReturn)))
 
-        when(mockMonthlyReturnRepository.upsert(any()))
-          .thenReturn(Future.successful(true))
-
         when(mockSubStoreAction.store(any(), any()))
           .thenReturn(Future.successful(SubmitReturnResult.UpdateSuccessful))
 
@@ -315,9 +353,6 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
 
         when(mockMonthlyReturnRepository.get(any(), any(), any()))
           .thenReturn(Future.successful(Some(monthlyReturn)))
-
-        when(mockMonthlyReturnRepository.upsert(any()))
-          .thenReturn(Future.successful(false))
 
         when(mockSubStoreAction.store(any(), any()))
           .thenReturn(Future.successful(SubmitReturnResult.NotUpdatedInRepository))
@@ -347,28 +382,41 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
           )
           .futureValue mustBe SubmitReturnResult.MonthlyReturnNotFound
 
+        verifyNoInteractions(mockSubStoreAction)
+
+      }
+
+      "must fail when the submission store action fails" in {
+        when(mockMonthlyReturnRepository.get(any(), any(), any()))
+          .thenReturn(Future.successful(Some(monthlyReturn)))
+
+        when(mockSubStoreAction.store(any(), any()))
+          .thenReturn(Future.failed(new RuntimeException(testMongoDownMessage)))
+
+        service
+          .storeSubmission(
+            zReference,
+            taxYear,
+            month,
+            testTempFile
+          )
+          .failed
+          .futureValue mustBe a[RuntimeException]
       }
     }
 
     "declare with nilReturn true" - {
 
-      val existingReturnWithUploads = monthlyReturn.copy(
-        submissions = List(
-          uk.gov.hmrc.disareturnssubmission.models.Submission(reference = "ref-1", createdOn = testExistingUpdatedOn)
-        )
-      )
-
-      val declaredReturn = monthlyReturn.copy(declaredOn = Some(testCreatedOn))
-
       "must return Declared when no monthly return exists and one is created" in {
-        when(mockMonthlyReturnRepository.get(eqTo(zReference), eqTo(taxYear), eqTo(month)))
-          .thenReturn(Future.successful(None))
+        when(mockMonthlyReturnRepository.declareNilReturn(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+          .thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnNotFound))
+        when(mockUuidGenerator.randomUuid()).thenReturn(testSubmissionId)
         when(
           mockMonthlyReturnRepository.create(
             eqTo(zReference),
             eqTo(taxYear),
             eqTo(month),
-            org.mockito.ArgumentMatchers.any[java.util.UUID],
+            eqTo(testSubmissionId),
             eqTo(true)
           )
         )
@@ -379,28 +427,80 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
         service
           .declare(zReference, taxYear, month, nilReturn = true)
           .futureValue mustBe DeclareMonthlyReturnResult.Declared
+
+        verify(mockUuidGenerator).randomUuid()
+        verify(mockMonthlyReturnRepository).declare(eqTo(zReference), eqTo(taxYear), eqTo(month))
+      }
+
+      "must return AlreadyDeclared when created nil return is already declared before fallback declaration completes" in {
+        when(mockMonthlyReturnRepository.declareNilReturn(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+          .thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnNotFound))
+        when(mockUuidGenerator.randomUuid()).thenReturn(testSubmissionId)
+        when(
+          mockMonthlyReturnRepository.create(
+            eqTo(zReference),
+            eqTo(taxYear),
+            eqTo(month),
+            eqTo(testSubmissionId),
+            eqTo(true)
+          )
+        )
+          .thenReturn(Future.successful(Some(monthlyReturn.copy(nilReturn = true))))
+        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+          .thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnAlreadyDeclared))
+
+        service
+          .declare(zReference, taxYear, month, nilReturn = true)
+          .futureValue mustBe DeclareMonthlyReturnResult.AlreadyDeclared
+      }
+
+      "must return MonthlyReturnNotFound when created nil return cannot be found by fallback declaration" in {
+        when(mockMonthlyReturnRepository.declareNilReturn(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+          .thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnNotFound))
+        when(mockUuidGenerator.randomUuid()).thenReturn(testSubmissionId)
+        when(
+          mockMonthlyReturnRepository.create(
+            eqTo(zReference),
+            eqTo(taxYear),
+            eqTo(month),
+            eqTo(testSubmissionId),
+            eqTo(true)
+          )
+        )
+          .thenReturn(Future.successful(Some(monthlyReturn.copy(nilReturn = true))))
+        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+          .thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnNotFound))
+
+        service
+          .declare(zReference, taxYear, month, nilReturn = true)
+          .futureValue mustBe DeclareMonthlyReturnResult.MonthlyReturnNotFound
       }
 
       "must return Declared and update existing monthly return to nil return" in {
-        when(mockMonthlyReturnRepository.get(eqTo(zReference), eqTo(taxYear), eqTo(month)))
-          .thenReturn(Future.successful(Some(existingReturnWithUploads)))
-        when(mockMonthlyReturnRepository.upsert(org.mockito.ArgumentMatchers.any[MonthlyReturn]))
-          .thenReturn(Future.successful(true))
+        when(mockMonthlyReturnRepository.declareNilReturn(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+          .thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared))
 
         service
           .declare(zReference, taxYear, month, nilReturn = true)
           .futureValue mustBe DeclareMonthlyReturnResult.Declared
 
-        verify(mockMonthlyReturnRepository).upsert(org.mockito.ArgumentMatchers.any[MonthlyReturn])
+        verify(mockMonthlyReturnRepository).declareNilReturn(eqTo(zReference), eqTo(taxYear), eqTo(month))
+        verify(mockUuidGenerator, never()).randomUuid()
+        verify(mockMonthlyReturnRepository, never()).create(any(), any(), any(), any(), any())
+        verify(mockMonthlyReturnRepository, never()).declare(any(), any(), any())
       }
 
       "must return AlreadyDeclared when existing monthly return is already declared" in {
-        when(mockMonthlyReturnRepository.get(eqTo(zReference), eqTo(taxYear), eqTo(month)))
-          .thenReturn(Future.successful(Some(declaredReturn)))
+        when(mockMonthlyReturnRepository.declareNilReturn(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+          .thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnAlreadyDeclared))
 
         service
           .declare(zReference, taxYear, month, nilReturn = true)
           .futureValue mustBe DeclareMonthlyReturnResult.AlreadyDeclared
+
+        verify(mockUuidGenerator, never()).randomUuid()
+        verify(mockMonthlyReturnRepository, never()).create(any(), any(), any(), any(), any())
+        verify(mockMonthlyReturnRepository, never()).declare(any(), any(), any())
       }
 
       "must return OutsideDeclarationPeriod when outside declaration period" in {
@@ -413,14 +513,15 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
       }
 
       "must fail when no monthly return exists and create returns None" in {
-        when(mockMonthlyReturnRepository.get(eqTo(zReference), eqTo(taxYear), eqTo(month)))
-          .thenReturn(Future.successful(None))
+        when(mockMonthlyReturnRepository.declareNilReturn(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+          .thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnNotFound))
+        when(mockUuidGenerator.randomUuid()).thenReturn(testSubmissionId)
         when(
           mockMonthlyReturnRepository.create(
             eqTo(zReference),
             eqTo(taxYear),
             eqTo(month),
-            org.mockito.ArgumentMatchers.any[java.util.UUID],
+            eqTo(testSubmissionId),
             eqTo(true)
           )
         )
@@ -430,7 +531,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
       }
 
       "must fail when repository throws an exception" in {
-        when(mockMonthlyReturnRepository.get(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+        when(mockMonthlyReturnRepository.declareNilReturn(eqTo(zReference), eqTo(taxYear), eqTo(month)))
           .thenReturn(Future.failed(new RuntimeException("mongodb down")))
 
         service.declare(zReference, taxYear, month, nilReturn = true).failed.futureValue mustBe a[RuntimeException]

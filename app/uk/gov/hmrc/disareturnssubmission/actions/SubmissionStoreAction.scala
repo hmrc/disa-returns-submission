@@ -25,7 +25,6 @@ import uk.gov.hmrc.disareturnssubmission.services.{ObjectStoreService, SubmitRet
 import uk.gov.hmrc.disareturnssubmission.utils.{Md5Base64, UuidGenerator}
 
 import java.nio.file.{Files, Path}
-import java.time.{Clock, Instant}
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future, blocking}
 
@@ -33,7 +32,6 @@ class SubmissionStoreAction @Inject() (
   monthlyReturnRepository: MonthlyReturnRepository,
   objectStoreService: ObjectStoreService,
   uuidGenerator: UuidGenerator,
-  clock: Clock,
   appConfig: AppConfig,
   val actorSystem: ActorSystem
 )(implicit ec: ExecutionContext)
@@ -91,11 +89,18 @@ class SubmissionStoreAction @Inject() (
       Some(someLocation)
     )
 
-    val updatedMonthlyReturn = monthlyReturn.createFileUpload(fileNameRef, Instant.now(clock), fileUploadDetails)
-    monthlyReturnRepository.upsert(updatedMonthlyReturn).flatMap {
-      case true  => Future.successful(SubmitReturnResult.UpdateSuccessful)
-      case false => Future.successful(SubmitReturnResult.NotUpdatedInRepository)
-    }
+    monthlyReturnRepository
+      .createSubmission(
+        zReference = monthlyReturn.zReference,
+        taxYear = monthlyReturn.taxYear,
+        month = monthlyReturn.month,
+        reference = fileNameRef,
+        submissionDetails = fileUploadDetails
+      )
+      .flatMap {
+        case true  => Future.successful(SubmitReturnResult.UpdateSuccessful)
+        case false => Future.successful(SubmitReturnResult.NotUpdatedInRepository)
+      }
 
   }
 }

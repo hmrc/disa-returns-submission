@@ -115,37 +115,3 @@ object MonthlyReturn {
     )
   }
 }
-
-final case class Submission(
-  reference: String,
-  createdOn: Instant,
-  submissionDetails: Option[SubmissionDetails] = None
-)
-
-object Submission {
-  implicit val format: OFormat[Submission] = Json.format[Submission]
-
-  val mongoFormat: OFormat[Submission] = {
-    import MonthlyReturnFormats.mongoInstantFormat
-
-    implicit val submissionDetailsFormat: OFormat[SubmissionDetails] = SubmissionDetails.mongoFormat
-
-    Json.format[Submission]
-  }
-}
-
-final case class SubmissionDetails(
-  fileName: String,
-  fileMimeType: String,
-  checksum: String,
-  size: Long,
-  objectStoreFileLocation: Option[String] = None,
-  objectStoreFileErrorsLocation: Option[String] = None
-)
-
-object SubmissionDetails {
-  implicit val format: OFormat[SubmissionDetails] = Json.format[SubmissionDetails]
-
-  val mongoFormat: OFormat[SubmissionDetails] =
-    Json.format[SubmissionDetails]
-}
