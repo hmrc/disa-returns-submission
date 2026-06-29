@@ -17,19 +17,28 @@
 package uk.gov.hmrc.disareturnssubmission.repositories
 
 import org.bson.conversions.Bson
+import org.mongodb.scala.result.UpdateResult
 import org.mongodb.scala.model.*
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.models.*
-import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository.CreateFileUploadRepositoryResult.*
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.MongoUtils.DuplicateKey
-import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
+import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
 
 import java.time.{Clock, Instant}
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
+
+private val declaredOnField          = "declaredOn"
+private val lastUpdatedField         = "lastUpdated"
+private val monthField               = "month"
+private val nilReturnField           = "nilReturn"
+private val submissionsField         = "submissions"
+private val submissionReferenceField = "submissions.reference"
+private val taxYearField             = "taxYear"
+private val zReferenceField          = "zReference"
 
 @Singleton
 class MonthlyReturnRepository @Inject() (
@@ -43,13 +52,13 @@ class MonthlyReturnRepository @Inject() (
       domainFormat = MonthlyReturn.mongoFormat,
       indexes = Seq(
         IndexModel(
-          Indexes.ascending("lastUpdated"),
+          Indexes.ascending(lastUpdatedField),
           IndexOptions()
             .name("monthlyReturnsTtl")
             .expireAfter(appConfig.monthlyReturnTimeToLiveInDays, TimeUnit.DAYS)
         ),
         IndexModel(
-          Indexes.ascending("zReference", "taxYear", "month"),
+          Indexes.ascending(zReferenceField, taxYearField, monthField),
           IndexOptions()
             .name("monthlyReturnKeyIdx")
             .unique(true)
@@ -58,17 +67,6 @@ class MonthlyReturnRepository @Inject() (
       replaceIndexes = true
     ) {
 
-  def get(zReference: String, taxYear: String, month: Int): Future[Option[MonthlyReturn]] =
-    collection
-      .find(byKey(zReference, taxYear, month))
-      .headOption()
-
-  def deleteAll(): Future[Long] =
-    collection
-      .deleteMany(Filters.empty())
-      .toFuture()
-      .map(_.getDeletedCount)
-
   def create(
     zReference: String,
     taxYear: String,
@@ -76,7 +74,8 @@ class MonthlyReturnRepository @Inject() (
     submissionId: UUID,
     nilReturn: Boolean
   ): Future[Option[MonthlyReturn]] = {
-    val createdOn     = now()
+    val createdOn = now()
+
     val monthlyReturn = MonthlyReturn(
       zReference = zReference,
       submissionId = submissionId,
@@ -95,63 +94,135 @@ class MonthlyReturnRepository @Inject() (
       .recover { case DuplicateKey(_) => None }
   }
 
-  def upsert(monthlyReturn: MonthlyReturn): Future[Boolean] =
-    replace(monthlyReturn.copy(lastUpdated = now()))
+  def createSubmission(
+    zReference: String,
+    taxYear: String,
+    month: Int,
+    reference: String,
+    submissionDetails: SubmissionDetails
+  ): Future[Boolean] = {
+    val createdOn = now()
+
+    val submission = Submission(
+      reference = reference,
+      createdOn = createdOn,
+      submissionDetails = Some(submissionDetails)
+    )
+
+    val isNotNilReturn           = Filters.equal(nilReturnField, false)
+    val hasNoDuplicateSubmission = Filters.ne(submissionReferenceField, reference)
+    val filter                   = Filters.and(
+      byKey(zReference, taxYear, month),
+      isNotNilReturn,
+      hasNoDuplicateSubmission
+    )
+
+    val updateWithNewSubmission = Updates.combine(
+      Updates.push(submissionsField, submissionBson(submission)),
+      Updates.set(lastUpdatedField, createdOn)
+    )
+
+    collection
+      .updateOne(
+        filter = filter,
+        update = updateWithNewSubmission
+      )
+      .toFuture()
+      .map(_.getModifiedCount == 1)
+  }
 
   def declare(zReference: String, taxYear: String, month: Int): Future[DeclareMonthlyReturnRepositoryResult] = {
     val declaredOn = now()
 
-    get(zReference, taxYear, month).flatMap {
-      case Some(monthlyReturn) if monthlyReturn.hasDeclaration =>
-        Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnAlreadyDeclared)
+    val isNotDeclared = Filters.exists(declaredOnField, exists = false)
 
-      case Some(monthlyReturn) =>
-        val updatedMonthlyReturn = monthlyReturn.declare(declaredOn)
+    val filter = Filters.and(
+      byKey(zReference, taxYear, month),
+      isNotDeclared
+    )
 
-        replace(updatedMonthlyReturn).map(_ => DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared)
+    val updateDeclaration = Updates.combine(
+      Updates.set(declaredOnField, declaredOn),
+      Updates.set(lastUpdatedField, declaredOn)
+    )
 
-      case None =>
-        Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnNotFound)
-    }
-  }
-
-  def getFileUpload(
-    zReference: String,
-    taxYear: String,
-    month: Int,
-    reference: String
-  ): Future[Option[Submission]] =
-    get(zReference, taxYear, month).map(_.flatMap(_.submissions.find(_.reference == reference)))
-
-  private def replace(monthlyReturn: MonthlyReturn): Future[Boolean] =
     collection
-      .replaceOne(
-        filter = byKey(monthlyReturn.zReference, monthlyReturn.taxYear, monthlyReturn.month),
-        replacement = monthlyReturn,
-        options = ReplaceOptions().upsert(true)
+      .updateOne(
+        filter = filter,
+        update = updateDeclaration
       )
       .toFuture()
-      .map(_.wasAcknowledged())
+      .flatMap(toDeclareMonthlyReturnRepositoryResult(zReference, taxYear, month))
+  }
+
+  def declareNilReturn(
+    zReference: String,
+    taxYear: String,
+    month: Int
+  ): Future[DeclareMonthlyReturnRepositoryResult] = {
+    val declaredOn = now()
+
+    val isNotDeclared = Filters.exists(declaredOnField, exists = false)
+
+    val filter = Filters.and(
+      byKey(zReference, taxYear, month),
+      isNotDeclared
+    )
+
+    val updateDeclarationAndClearSubmissions = Updates.combine(
+      Updates.set(nilReturnField, true),
+      Updates.set(submissionsField, List.empty[Submission]),
+      Updates.set(declaredOnField, declaredOn),
+      Updates.set(lastUpdatedField, declaredOn)
+    )
+
+    collection
+      .updateOne(
+        filter = filter,
+        update = updateDeclarationAndClearSubmissions
+      )
+      .toFuture()
+      .flatMap(toDeclareMonthlyReturnRepositoryResult(zReference, taxYear, month))
+  }
+
+  def deleteAll(): Future[Long] =
+    collection
+      .deleteMany(Filters.empty())
+      .toFuture()
+      .map(_.getDeletedCount)
+
+  def get(zReference: String, taxYear: String, month: Int): Future[Option[MonthlyReturn]] =
+    collection
+      .find(byKey(zReference, taxYear, month))
+      .headOption()
 
   private def byKey(zReference: String, taxYear: String, month: Int): Bson =
     Filters.and(
-      Filters.equal("zReference", zReference),
-      Filters.equal("taxYear", taxYear),
-      Filters.equal("month", month)
+      Filters.equal(zReferenceField, zReference),
+      Filters.equal(taxYearField, taxYear),
+      Filters.equal(monthField, month)
     )
 
   private def now(): Instant = Instant.now(clock)
-}
 
-object MonthlyReturnRepository {
+  private def submissionBson(submission: Submission) =
+    Codecs.toBson(submission)(Submission.mongoFormat)
 
-  sealed trait CreateFileUploadRepositoryResult
-
-  object CreateFileUploadRepositoryResult {
-    final case class FileUploadCreated(monthlyReturn: MonthlyReturn) extends CreateFileUploadRepositoryResult
-    case object FileUploadAlreadyExists extends CreateFileUploadRepositoryResult
-    case object MonthlyReturnNotFound extends CreateFileUploadRepositoryResult
-  }
+  private def toDeclareMonthlyReturnRepositoryResult(
+    zReference: String,
+    taxYear: String,
+    month: Int
+  )(result: UpdateResult): Future[DeclareMonthlyReturnRepositoryResult] =
+    if (result.getModifiedCount == 1) {
+      Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared)
+    } else {
+      get(zReference, taxYear, month).map {
+        case Some(monthlyReturn) if monthlyReturn.hasDeclaration =>
+          DeclareMonthlyReturnRepositoryResult.MonthlyReturnAlreadyDeclared
+        case _                                                   =>
+          DeclareMonthlyReturnRepositoryResult.MonthlyReturnNotFound
+      }
+    }
 }
 
 sealed trait DeclareMonthlyReturnRepositoryResult

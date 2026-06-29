@@ -1,9 +1,11 @@
 # microservice specific routes
 
+# monthly returns
 POST   /monthly/:zReference/:taxYear/:month                                uk.gov.hmrc.disareturnssubmission.controllers.MonthlyReturnController.create(zReference: String, taxYear: String, month: Int)
 GET    /monthly/:zReference/:taxYear/:month                                uk.gov.hmrc.disareturnssubmission.controllers.MonthlyReturnController.get(zReference: String, taxYear: String, month: Int)
 
-
+# monthly returns declarations
 POST   /monthly/:zReference/:taxYear/:month/declarations                   uk.gov.hmrc.disareturnssubmission.controllers.MonthlyReturnController.declare(zReference: String, taxYear: String, month: Int)
 
+# monthly returns submissions
 POST   /monthly/:zReference/:taxYear/:month/submissions                    uk.gov.hmrc.disareturnssubmission.controllers.MonthlyReturnController.storeSubmission(zReference: String, taxYear: String, month: Int)

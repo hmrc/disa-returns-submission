@@ -26,7 +26,6 @@ import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository
 import uk.gov.hmrc.disareturnssubmission.services.{MonthlyReturnService, ObjectStoreService, SubmitReturnResult}
 import uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator
 
-import java.time.{Clock, Instant, ZoneOffset}
 import java.util.UUID
 import scala.concurrent.Future
 import scala.language.postfixOps
@@ -37,15 +36,12 @@ class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
   private val mockMonthlyReturnRepository = mock[MonthlyReturnRepository]
   private val mockObjectStoreService      = mock[ObjectStoreService]
   private val mockUuidGenerator           = mock[UuidGenerator]
-  private val fixedNow: Instant           = testCreatedOn
-  private val fixedClock: Clock           = Clock.fixed(fixedNow, ZoneOffset.UTC)
   private val appConfig                   = inject[AppConfig]
 
   val action = new SubmissionStoreAction(
     mockMonthlyReturnRepository,
     mockObjectStoreService,
     mockUuidGenerator,
-    fixedClock,
     appConfig,
     inject[ActorSystem]
   )
@@ -58,7 +54,7 @@ class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
       when(mockObjectStoreService.uploadFileToObjectStore(any(), any(), any(), any(), any()))
         .thenReturn(Future("test/test"))
 
-      when(mockMonthlyReturnRepository.upsert(any()))
+      when(mockMonthlyReturnRepository.createSubmission(any(), any(), any(), any(), any()))
         .thenReturn(Future.successful(true))
 
       val result = action.store(testTempFile, monthlyReturn)
@@ -73,7 +69,7 @@ class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
       when(mockObjectStoreService.uploadFileToObjectStore(any(), any(), any(), any(), any()))
         .thenReturn(Future("test/test"))
 
-      when(mockMonthlyReturnRepository.upsert(any()))
+      when(mockMonthlyReturnRepository.createSubmission(any(), any(), any(), any(), any()))
         .thenReturn(Future.successful(false))
 
       val result = action.store(testTempFile, monthlyReturn)

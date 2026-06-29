@@ -17,12 +17,14 @@
 package uk.gov.hmrc.disareturnssubmission.repository
 
 import base.SpecBase
+import org.mongodb.scala.SingleObservableFuture
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.models.*
 import uk.gov.hmrc.disareturnssubmission.repositories.{DeclareMonthlyReturnRepositoryResult, MonthlyReturnRepository}
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
 
 import java.time.{Clock, Instant, ZoneOffset}
+import scala.concurrent.Future
 
 class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoRepositorySupport[MonthlyReturn] {
 
@@ -58,13 +60,13 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
       "must return a MonthlyReturn by zReference, taxYear and month" in {
         val monthlyReturn = buildMonthlyReturn()
 
-        repository.upsert(monthlyReturn).futureValue
+        insertMonthlyReturn(monthlyReturn)
 
-        repository.get(zReference, taxYear, month).futureValue.value mustBe monthlyReturn.copy(lastUpdated = fixedNow)
+        repository.get(zReference, taxYear, month).futureValue.value mustBe monthlyReturn
       }
 
       "must not return a MonthlyReturn with a different key" in {
-        repository.upsert(buildMonthlyReturn()).futureValue
+        insertMonthlyReturn(buildMonthlyReturn())
 
         repository.get(zReference, taxYear, 6).futureValue mustBe None
       }
@@ -137,37 +139,10 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
       }
     }
 
-    "upsert" - {
-
-      "must insert a MonthlyReturn and set lastUpdated" in {
-        val monthlyReturn = buildMonthlyReturn(lastUpdated = existingUpdated)
-
-        repository.upsert(monthlyReturn).futureValue mustBe true
-
-        repository.get(zReference, taxYear, month).futureValue.value mustBe monthlyReturn.copy(lastUpdated = fixedNow)
-      }
-
-      "must replace an existing MonthlyReturn for the same key" in {
-        val existing    = buildMonthlyReturn(
-          submissions = List(createdFileUpload(reference = "old-reference"))
-        )
-        val replacement = buildMonthlyReturn(
-          submissions = List(createdFileUpload(reference = "new-reference"))
-        )
-
-        repository.upsert(existing).futureValue
-        repository.upsert(replacement).futureValue mustBe true
-
-        val stored = repository.get(zReference, taxYear, month).futureValue.value
-        stored.submissions.map(_.reference) mustBe List("new-reference")
-        stored.lastUpdated mustBe fixedNow
-      }
-    }
-
     "declare" - {
 
       "must declare a MonthlyReturn when it exists" in {
-        repository.upsert(buildMonthlyReturn()).futureValue
+        insertMonthlyReturn(buildMonthlyReturn())
 
         val result = repository.declare(zReference, taxYear, month).futureValue
 
@@ -179,7 +154,7 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
       }
 
       "must return MonthlyReturnAlreadyDeclared when the MonthlyReturn has already been declared" in {
-        repository.upsert(buildMonthlyReturn(declaredOn = Some(existingUpdated))).futureValue
+        insertMonthlyReturn(buildMonthlyReturn(declaredOn = Some(existingUpdated)))
 
         repository.declare(zReference, taxYear, month).futureValue mustBe
           DeclareMonthlyReturnRepositoryResult.MonthlyReturnAlreadyDeclared
@@ -191,9 +166,119 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
         repository.declare(zReference, taxYear, month).futureValue mustBe
           DeclareMonthlyReturnRepositoryResult.MonthlyReturnNotFound
       }
+
+      "must only allow one concurrent declaration" in {
+        insertMonthlyReturn(buildMonthlyReturn())
+
+        val results = Future
+          .sequence(
+            Seq(
+              repository.declare(zReference, taxYear, month),
+              repository.declare(zReference, taxYear, month)
+            )
+          )
+          .futureValue
+
+        results.count(_ == DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared) mustBe 1
+        results.count(_ == DeclareMonthlyReturnRepositoryResult.MonthlyReturnAlreadyDeclared) mustBe 1
+      }
+    }
+
+    "declareNilReturn" - {
+
+      "must declare a MonthlyReturn as a nil return and clear submissions atomically" in {
+        insertMonthlyReturn(buildMonthlyReturn(submissions = List(createdFileUpload())))
+
+        repository.declareNilReturn(zReference, taxYear, month).futureValue mustBe
+          DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared
+
+        val stored = repository.get(zReference, taxYear, month).futureValue.value
+        stored.nilReturn mustBe true
+        stored.submissions mustBe Nil
+        stored.declaredOn mustBe Some(fixedNow)
+        stored.lastUpdated mustBe fixedNow
+      }
+
+      "must return MonthlyReturnAlreadyDeclared when the MonthlyReturn has already been declared" in {
+        insertMonthlyReturn(buildMonthlyReturn(declaredOn = Some(existingUpdated)))
+
+        repository.declareNilReturn(zReference, taxYear, month).futureValue mustBe
+          DeclareMonthlyReturnRepositoryResult.MonthlyReturnAlreadyDeclared
+      }
+
+      "must return MonthlyReturnNotFound when the MonthlyReturn does not exist" in {
+        repository.declareNilReturn(zReference, taxYear, month).futureValue mustBe
+          DeclareMonthlyReturnRepositoryResult.MonthlyReturnNotFound
+      }
+    }
+
+    "createSubmission" - {
+
+      "must append a new submission without replacing existing submissions" in {
+        val existingReference = "existing-reference"
+        insertMonthlyReturn(buildMonthlyReturn(submissions = List(createdFileUpload(existingReference))))
+
+        repository
+          .createSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
+          .futureValue mustBe true
+
+        val stored = repository.get(zReference, taxYear, month).futureValue.value
+        stored.submissions.map(_.reference) must contain theSameElementsInOrderAs List(
+          existingReference,
+          uploadReference
+        )
+        stored.lastUpdated mustBe fixedNow
+      }
+
+      "must return false when the reference already exists" in {
+        insertMonthlyReturn(buildMonthlyReturn(submissions = List(createdFileUpload(uploadReference))))
+
+        repository
+          .createSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
+          .futureValue mustBe false
+
+        repository.get(zReference, taxYear, month).futureValue.value.submissions.size mustBe 1
+      }
+
+      "must return false for nil returns" in {
+        insertMonthlyReturn(buildMonthlyReturn(nilReturn = true))
+
+        repository
+          .createSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
+          .futureValue mustBe false
+      }
+
+      "must preserve concurrent submission creates for different references" in {
+        val firstReference  = "11111111-1111-4111-8111-111111111111"
+        val secondReference = "22222222-2222-4222-8222-222222222222"
+        insertMonthlyReturn(buildMonthlyReturn())
+
+        Future
+          .sequence(
+            Seq(
+              repository.createSubmission(zReference, taxYear, month, firstReference, fileUploadDetails),
+              repository.createSubmission(zReference, taxYear, month, secondReference, fileUploadDetails)
+            )
+          )
+          .futureValue must contain theSameElementsAs Seq(true, true)
+
+        val stored = repository.get(zReference, taxYear, month).futureValue.value
+        stored.submissions.map(_.reference) must contain theSameElementsAs Seq(firstReference, secondReference)
+      }
+
+      "must allow submissions after declaration" in {
+        insertMonthlyReturn(buildMonthlyReturn(declaredOn = Some(existingUpdated)))
+
+        repository
+          .createSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
+          .futureValue mustBe true
+      }
     }
 
   }
+
+  private def insertMonthlyReturn(monthlyReturn: MonthlyReturn): Unit =
+    repository.collection.insertOne(monthlyReturn).toFuture().futureValue
 
   private def buildMonthlyReturn(
     nilReturn: Boolean = false,
@@ -218,6 +303,7 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
   ): Submission =
     Submission(
       reference = reference,
-      createdOn = createdOn
+      createdOn = createdOn,
+      submissionDetails = Some(fileUploadDetails)
     )
 }
