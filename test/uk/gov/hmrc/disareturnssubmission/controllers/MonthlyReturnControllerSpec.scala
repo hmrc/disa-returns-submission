@@ -21,7 +21,7 @@ import org.mockito.ArgumentMatchers.{any, eq as eqTo}
 import org.mockito.Mockito.{reset, verify, when}
 import org.scalatest.BeforeAndAfterEach
 import play.api.Application
-import play.api.http.HeaderNames.LOCATION
+import play.api.http.HeaderNames.{AUTHORIZATION, LOCATION}
 import play.api.inject.bind
 import play.api.libs.json.Json
 import play.api.test.FakeRequest
@@ -49,9 +49,13 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
 
   private lazy val controller = inject[MonthlyReturnController]
 
-  private val path             = s"/monthly/$testZReference/$testTaxYear/$testMonth"
-  private val declarationsPath = s"$path/declarations"
-  private val submissionsPath  = s"$path/submissions"
+  private val path                   = s"/monthly/$testZReference/$testTaxYear/$testMonth"
+  private val declarationsPath       = s"$path/declarations"
+  private val submissionsPath        = s"$path/submissions"
+  private val validInternalAuthToken = "valid-internal-auth-token-disa-returns-backend"
+
+  private def authorizedRequest(method: String, path: String) =
+    FakeRequest(method, path).withHeaders(AUTHORIZATION -> validInternalAuthToken)
 
   override protected def beforeEach(): Unit = {
     super.beforeEach()
@@ -74,7 +78,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           .thenReturn(Future.successful(Created(testSubmissionId)))
 
         val result = controller.create(testZReference, testTaxYear, testMonth)(
-          FakeRequest("POST", path).withBody(
+          authorizedRequest("POST", path).withBody(
             Json.toJson(CreateMonthlyReturnRequest(nilReturn = true))
           )
         )
@@ -96,7 +100,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           .thenReturn(Future.successful(AlreadyExists(testSubmissionId)))
 
         val result = controller.create(testZReference, testTaxYear, testMonth)(
-          FakeRequest("POST", path).withBody(
+          authorizedRequest("POST", path).withBody(
             Json.toJson(CreateMonthlyReturnRequest(nilReturn = false))
           )
         )
@@ -117,7 +121,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           .thenReturn(Future.successful(CreateMonthlyReturnResult.OutsideDeclarationPeriod))
 
         val result = controller.create(testZReference, testTaxYear, testMonth)(
-          FakeRequest("POST", path).withBody(
+          authorizedRequest("POST", path).withBody(
             Json.toJson(CreateMonthlyReturnRequest(nilReturn = false))
           )
         )
@@ -137,7 +141,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           .thenReturn(Future.failed(new RuntimeException(testMongoDownMessage)))
 
         val result = controller.create(testZReference, testTaxYear, testMonth)(
-          FakeRequest("POST", path).withBody(
+          authorizedRequest("POST", path).withBody(
             Json.toJson(CreateMonthlyReturnRequest(nilReturn = false))
           )
         )
@@ -147,7 +151,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
 
       "must return BAD_REQUEST when nilReturn is not a boolean" in {
         val result = controller.create(testZReference, testTaxYear, testMonth)(
-          FakeRequest("POST", path).withBody(
+          authorizedRequest("POST", path).withBody(
             Json.obj(nilReturnFieldName -> "false")
           )
         )
@@ -163,7 +167,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           .thenReturn(Future.successful(Some(monthlyReturn)))
 
         val result =
-          controller.get(lowercaseTestZReference, testTaxYear, testMonth)(FakeRequest("GET", path))
+          controller.get(lowercaseTestZReference, testTaxYear, testMonth)(authorizedRequest("GET", path))
 
         status(result) mustBe OK
         contentAsJson(result) mustBe Json.toJson(monthlyReturn)
@@ -174,7 +178,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
         when(mockMonthlyReturnService.get(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth)))
           .thenReturn(Future.successful(None))
 
-        val result = controller.get(testZReference, testTaxYear, testMonth)(FakeRequest("GET", path))
+        val result = controller.get(testZReference, testTaxYear, testMonth)(authorizedRequest("GET", path))
 
         status(result) mustBe NOT_FOUND
       }
@@ -183,14 +187,14 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
         when(mockMonthlyReturnService.get(eqTo(testZReference), eqTo(testTaxYear), eqTo(testMonth)))
           .thenReturn(Future.failed(new RuntimeException(testMongoDownMessage)))
 
-        val result = controller.get(testZReference, testTaxYear, testMonth)(FakeRequest("GET", path))
+        val result = controller.get(testZReference, testTaxYear, testMonth)(authorizedRequest("GET", path))
 
         status(result) mustBe SERVICE_UNAVAILABLE
       }
 
       "must return BAD_REQUEST when path parameters are invalid" in {
         val result =
-          controller.get(invalidTestZReference, testTaxYear, testMonth)(FakeRequest("GET", path))
+          controller.get(invalidTestZReference, testTaxYear, testMonth)(authorizedRequest("GET", path))
 
         status(result) mustBe BAD_REQUEST
         contentAsString(result) must include(zReferenceFieldName)
@@ -204,7 +208,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           .thenReturn(Future.successful(DeclareMonthlyReturnResult.Declared))
 
         val result = controller.declare(lowercaseTestZReference, testTaxYear, testMonth)(
-          FakeRequest("POST", declarationsPath).withBody(Json.obj("nilReturn" -> false))
+          authorizedRequest("POST", declarationsPath).withBody(Json.obj("nilReturn" -> false))
         )
 
         status(result) mustBe OK
@@ -216,7 +220,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           .thenReturn(Future.successful(DeclareMonthlyReturnResult.Declared))
 
         val result = controller.declare(testZReference, testTaxYear, testMonth)(
-          FakeRequest("POST", declarationsPath).withBody(Json.obj("nilReturn" -> true))
+          authorizedRequest("POST", declarationsPath).withBody(Json.obj("nilReturn" -> true))
         )
 
         status(result) mustBe OK
@@ -228,7 +232,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           .thenReturn(Future.successful(DeclareMonthlyReturnResult.AlreadyDeclared))
 
         val result = controller.declare(testZReference, testTaxYear, testMonth)(
-          FakeRequest("POST", declarationsPath).withBody(Json.obj("nilReturn" -> false))
+          authorizedRequest("POST", declarationsPath).withBody(Json.obj("nilReturn" -> false))
         )
 
         status(result) mustBe UNPROCESSABLE_ENTITY
@@ -239,7 +243,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           .thenReturn(Future.successful(DeclareMonthlyReturnResult.MonthlyReturnNotFound))
 
         val result = controller.declare(testZReference, testTaxYear, testMonth)(
-          FakeRequest("POST", declarationsPath).withBody(Json.obj("nilReturn" -> false))
+          authorizedRequest("POST", declarationsPath).withBody(Json.obj("nilReturn" -> false))
         )
 
         status(result) mustBe UNPROCESSABLE_ENTITY
@@ -251,7 +255,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           .thenReturn(Future.successful(DeclareMonthlyReturnResult.OutsideDeclarationPeriod))
 
         val result = controller.declare(testZReference, testTaxYear, testMonth)(
-          FakeRequest("POST", declarationsPath).withBody(Json.obj("nilReturn" -> false))
+          authorizedRequest("POST", declarationsPath).withBody(Json.obj("nilReturn" -> false))
         )
 
         status(result) mustBe UNPROCESSABLE_ENTITY
@@ -262,7 +266,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           .thenReturn(Future.failed(new RuntimeException(testMongoDownMessage)))
 
         val result = controller.declare(testZReference, testTaxYear, testMonth)(
-          FakeRequest("POST", declarationsPath).withBody(Json.obj("nilReturn" -> false))
+          authorizedRequest("POST", declarationsPath).withBody(Json.obj("nilReturn" -> false))
         )
 
         status(result) mustBe SERVICE_UNAVAILABLE
@@ -270,7 +274,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
 
       "must return BAD_REQUEST when path parameters are invalid" in {
         val result = controller.declare(invalidTestZReference, testTaxYear, testMonth)(
-          FakeRequest("POST", declarationsPath).withBody(Json.obj("nilReturn" -> false))
+          authorizedRequest("POST", declarationsPath).withBody(Json.obj("nilReturn" -> false))
         )
 
         status(result) mustBe BAD_REQUEST
@@ -297,7 +301,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
         .thenReturn(Future.successful(SubmitReturnResult.UpdateSuccessful))
 
       val result = controller.storeSubmission(lowercaseTestZReference, testTaxYear, testMonth)(
-        FakeRequest("POST", submissionsPath)
+        authorizedRequest("POST", submissionsPath)
           .withHeaders("Content-Type" -> "application/x-ndjson")
           .withBody(testTempFile)
       )
@@ -323,7 +327,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
         .thenReturn(Future.successful(SubmitReturnResult.UpdateSuccessful))
 
       val result = controller.storeSubmission(lowercaseTestZReference, testTaxYear, testMonth)(
-        FakeRequest("POST", submissionsPath)
+        authorizedRequest("POST", submissionsPath)
           .withHeaders("Content-Type" -> "something wrong")
           .withBody(testTempFile)
       )
@@ -349,7 +353,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
       ).thenReturn(Future.successful(SubmitReturnResult.NotUpdatedInRepository))
 
       val result = controller.storeSubmission(lowercaseTestZReference, testTaxYear, testMonth)(
-        FakeRequest("POST", submissionsPath)
+        authorizedRequest("POST", submissionsPath)
           .withHeaders("Content-Type" -> "application/x-ndjson")
           .withBody(testTempFile)
       )
@@ -374,7 +378,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
       ).thenReturn(Future.successful(SubmitReturnResult.NotUpdatedInRepository))
 
       val result = controller.storeSubmission(lowercaseTestZReference, testTaxYear, testMonth)(
-        FakeRequest("POST", submissionsPath)
+        authorizedRequest("POST", submissionsPath)
           .withHeaders("Content-Type" -> "application/x-ndjson")
           .withBody(testTempFile)
       )
@@ -400,7 +404,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
         .thenReturn(Future.successful(SubmitReturnResult.MonthlyReturnNotFound))
 
       val result = controller.storeSubmission(lowercaseTestZReference, testTaxYear, testMonth)(
-        FakeRequest("POST", submissionsPath)
+        authorizedRequest("POST", submissionsPath)
           .withHeaders("Content-Type" -> "application/x-ndjson")
           .withBody(testTempFile)
       )
@@ -421,7 +425,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
         .thenReturn(Future.successful(SubmitReturnResult.NoBody))
 
       val result = controller.storeSubmission(lowercaseTestZReference, testTaxYear, testMonth)(
-        FakeRequest("POST", submissionsPath)
+        authorizedRequest("POST", submissionsPath)
           .withHeaders("Content-Type" -> "application/x-ndjson")
       )
 

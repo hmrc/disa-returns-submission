@@ -49,6 +49,15 @@ Test-only clock routes are available only with that router:
 - `DELETE /disa-returns-submission/test-only/clock`
 - `DELETE /disa-returns-submission/test-only/monthly-returns`
 
+Production monthly return routes require an internal-auth token. Local Bruno requests use:
+
+```text
+Authorization: valid-internal-auth-token-disa-returns-backend
+```
+
+That token must exist in local internal-auth with `READ` and `WRITE` permissions for `disa-returns-submission/*`.
+The test-only routes above remain unauthenticated.
+
 Use `GET` to inspect the app clock:
 
 ```bash

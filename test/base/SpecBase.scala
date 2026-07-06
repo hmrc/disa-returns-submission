@@ -24,12 +24,19 @@ import org.scalatest.matchers.must.Matchers
 import org.scalatestplus.mockito.MockitoSugar
 import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import play.api.Application
+import play.api.mvc.ControllerComponents
 import play.api.inject.bind
 import play.api.inject.guice.{GuiceApplicationBuilder, GuiceableModule}
 import uk.gov.hmrc.disareturnssubmission.config.{InternalAuthTokenInitialiser, NoOpInternalAuthTokenInitialiser}
 import org.apache.pekko.stream.Materializer
+import org.mockito.ArgumentMatchers.any
+import org.mockito.Mockito.when
+import play.api.test.Helpers.stubControllerComponents
+import uk.gov.hmrc.internalauth.client.{BackendAuthComponents, Predicate}
+import uk.gov.hmrc.internalauth.client.test.{BackendAuthComponentsStub, StubBehaviour}
 
 import scala.concurrent.ExecutionContext
+import scala.concurrent.Future
 import scala.reflect.ClassTag
 
 trait SpecBase
@@ -46,6 +53,11 @@ trait SpecBase
   implicit val ec: ExecutionContext =
     scala.concurrent.ExecutionContext.Implicits.global
 
+  protected val mockStubBehaviour: StubBehaviour = mock[StubBehaviour]
+
+  when(mockStubBehaviour.stubAuth(any[Option[Predicate]], any()))
+    .thenAnswer(_ => Future.successful(()))
+
   override lazy val app: Application = applicationBuilder().build()
 
   implicit lazy val mat: Materializer = app.materializer
@@ -57,9 +69,13 @@ trait SpecBase
     additionalOverrides: Seq[GuiceableModule] = Nil
   ): GuiceApplicationBuilder = {
 
+    implicit val controllerComponents: ControllerComponents = stubControllerComponents()
+
     val defaultOverrides: Seq[GuiceableModule] = Seq(
       bind[InternalAuthTokenInitialiser]
-        .to[NoOpInternalAuthTokenInitialiser]
+        .to[NoOpInternalAuthTokenInitialiser],
+      bind[BackendAuthComponents]
+        .toInstance(BackendAuthComponentsStub(mockStubBehaviour))
     )
 
     val builder = new GuiceApplicationBuilder()

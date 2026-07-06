@@ -27,7 +27,8 @@ import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatestplus.mockito.MockitoSugar
 import org.scalatestplus.play.guice.GuiceOneServerPerSuite
 import play.api.Application
-import play.api.http.Status.CREATED
+import play.api.http.HeaderNames.AUTHORIZATION
+import play.api.http.Status.{CREATED, FORBIDDEN, OK, UNAUTHORIZED}
 import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.json.{JsObject, Json}
@@ -78,6 +79,9 @@ trait BaseIntegrationSpec
       "microservice.services.object-store.protocol"            -> "http",
       "microservice.services.object-store.host"                -> "localhost",
       "microservice.services.object-store.port"                -> wireMockPort,
+      "microservice.services.internal-auth.protocol"           -> "http",
+      "microservice.services.internal-auth.host"               -> "localhost",
+      "microservice.services.internal-auth.port"               -> wireMockPort,
       "http-verbs.retries.intervals"                           -> Seq("1ms", "1ms", "1ms")
     )
 
@@ -89,8 +93,40 @@ trait BaseIntegrationSpec
 
   override protected def beforeEach(): Unit = {
     super.beforeEach()
+    stubInternalAuth()
     stubReturnsSubmissionCreateMonthlyReturn()
     clearMongoCollections()
+  }
+
+  protected def stubInternalAuth(): Unit = {
+    stubFor(
+      post(urlEqualTo("/internal-auth/auth"))
+        .withHeader(AUTHORIZATION, equalTo(validInternalAuthToken))
+        .willReturn(
+          aResponse()
+            .withStatus(OK)
+            .withHeader("Content-Type", "application/json")
+            .withBody("""{"retrievals":{}}""")
+        )
+    )
+
+    stubFor(
+      post(urlEqualTo("/internal-auth/auth"))
+        .withHeader(AUTHORIZATION, equalTo(invalidInternalAuthToken))
+        .willReturn(aResponse().withStatus(UNAUTHORIZED))
+    )
+
+    stubFor(
+      post(urlEqualTo("/internal-auth/auth"))
+        .withHeader(AUTHORIZATION, equalTo(forbiddenInternalAuthToken))
+        .willReturn(aResponse().withStatus(FORBIDDEN))
+    )
+
+    stubFor(
+      post(urlEqualTo("/internal-auth/auth"))
+        .atPriority(10)
+        .willReturn(aResponse().withStatus(UNAUTHORIZED))
+    )
   }
 
   protected def stubReturnsSubmissionCreateMonthlyReturn(

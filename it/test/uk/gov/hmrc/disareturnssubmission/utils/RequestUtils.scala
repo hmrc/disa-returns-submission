@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.disareturnssubmission.utils
 
-import play.api.http.HeaderNames.CONTENT_TYPE
+import play.api.http.HeaderNames.{AUTHORIZATION, CONTENT_TYPE}
 import play.api.libs.json.JsValue
 import play.api.libs.ws.{WSClient, WSResponse, writeableOf_JsValue, writeableOf_String}
 import play.api.test.Helpers.await
@@ -28,7 +28,21 @@ trait RequestUtils extends DefaultAwaitTimeout {
 
   protected def serviceUrl(path: String): String
 
+  protected val validInternalAuthToken: String     = "valid-internal-auth-token-disa-returns-backend"
+  protected val invalidInternalAuthToken: String   = "invalid-internal-auth-token"
+  protected val forbiddenInternalAuthToken: String = "forbidden-internal-auth-token"
+
   protected def get(path: String): WSResponse =
+    getWithAuthorization(path, validInternalAuthToken)
+
+  protected def getWithAuthorization(path: String, authorization: String): WSResponse =
+    await(
+      ws.url(serviceUrl(path))
+        .withHttpHeaders(AUTHORIZATION -> authorization)
+        .get()
+    )
+
+  protected def getWithoutAuthorization(path: String): WSResponse =
     await(
       ws.url(serviceUrl(path))
         .get()
@@ -41,12 +55,32 @@ trait RequestUtils extends DefaultAwaitTimeout {
     )
 
   protected def postJson(path: String, body: String, withContent: String): WSResponse =
+    postJsonWithAuthorization(path, body, withContent, validInternalAuthToken)
+
+  protected def postJsonWithAuthorization(path: String, body: String, withContent: String, authorization: String): WSResponse =
+    await(
+      ws.url(serviceUrl(path)).withHttpHeaders("Content-Type" -> withContent)
+        .withHttpHeaders(AUTHORIZATION -> authorization)
+        .post(body)
+    )
+
+  protected def postJsonWithoutAuthorization(path: String, body: String, withContent: String): WSResponse =
     await(
       ws.url(serviceUrl(path)).withHttpHeaders("Content-Type" -> withContent)
         .post(body)
     )
 
   protected def postJson(path: String, body: JsValue): WSResponse =
+    postJsonWithAuthorization(path, body, validInternalAuthToken)
+
+  protected def postJsonWithAuthorization(path: String, body: JsValue, authorization: String): WSResponse =
+    await(
+      ws.url(serviceUrl(path))
+        .withHttpHeaders(AUTHORIZATION -> authorization)
+        .post(body)
+    )
+
+  protected def postJsonWithoutAuthorization(path: String, body: JsValue): WSResponse =
     await(
       ws.url(serviceUrl(path))
         .post(body)
