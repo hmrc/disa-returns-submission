@@ -16,10 +16,9 @@
 
 package uk.gov.hmrc.disareturnssubmission.controllers
 
-import play.api.http.Status.{BAD_REQUEST, CONFLICT, CREATED, NOT_FOUND, OK, SERVICE_UNAVAILABLE, UNPROCESSABLE_ENTITY}
-import play.api.libs.json.{JsValue, Json}
+import play.api.http.Status.{BAD_REQUEST, CONFLICT, CREATED, FORBIDDEN, NOT_FOUND, OK, SERVICE_UNAVAILABLE, UNAUTHORIZED, UNPROCESSABLE_ENTITY}
+import play.api.libs.json.Json
 import uk.gov.hmrc.disareturnssubmission.BaseIntegrationSpec
-import org.scalatest.wordspec.AnyWordSpec
 import uk.gov.hmrc.disareturnssubmission.utils.ObjectStoreWireMockStubs
 
 
@@ -63,6 +62,24 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
 
       result.status shouldBe UNPROCESSABLE_ENTITY
     }
+
+    "return 401 Unauthorized when no internal auth token is provided" in {
+      val result = postJsonWithoutAuthorization(monthlyPath, nilReturnFalseRequest)
+
+      result.status shouldBe UNAUTHORIZED
+    }
+
+    "return 401 Unauthorized when the internal auth token is invalid" in {
+      val result = postJsonWithAuthorization(monthlyPath, nilReturnFalseRequest, invalidInternalAuthToken)
+
+      result.status shouldBe UNAUTHORIZED
+    }
+
+    "return 403 Forbidden when the internal auth token does not have permission" in {
+      val result = postJsonWithAuthorization(monthlyPath, nilReturnFalseRequest, forbiddenInternalAuthToken)
+
+      result.status shouldBe FORBIDDEN
+    }
   }
 
   "GET /monthly/:zReference/:taxYear/:month" should {
@@ -79,6 +96,23 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
       result.status shouldBe NOT_FOUND
     }
 
+    "return 401 Unauthorized when no internal auth token is provided" in {
+      val result = getWithoutAuthorization(monthlyPath)
+
+      result.status shouldBe UNAUTHORIZED
+    }
+
+    "return 401 Unauthorized when the internal auth token is invalid" in {
+      val result = getWithAuthorization(monthlyPath, invalidInternalAuthToken)
+
+      result.status shouldBe UNAUTHORIZED
+    }
+
+    "return 403 Forbidden when the internal auth token does not have permission" in {
+      val result = getWithAuthorization(monthlyPath, forbiddenInternalAuthToken)
+
+      result.status shouldBe FORBIDDEN
+    }
   }
 
   "POST /monthly/:zReference/:taxYear/:month/declarations" should {
@@ -109,6 +143,24 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
       val result = postJson(currentMonthDeclarationPath, Json.obj("nilReturn" -> false))
 
       result.status shouldBe UNPROCESSABLE_ENTITY
+    }
+
+    "return 401 Unauthorized when no internal auth token is provided" in {
+      val result = postJsonWithoutAuthorization(declarationPath, Json.obj("nilReturn" -> false))
+
+      result.status shouldBe UNAUTHORIZED
+    }
+
+    "return 401 Unauthorized when the internal auth token is invalid" in {
+      val result = postJsonWithAuthorization(declarationPath, Json.obj("nilReturn" -> false), invalidInternalAuthToken)
+
+      result.status shouldBe UNAUTHORIZED
+    }
+
+    "return 403 Forbidden when the internal auth token does not have permission" in {
+      val result = postJsonWithAuthorization(declarationPath, Json.obj("nilReturn" -> false), forbiddenInternalAuthToken)
+
+      result.status shouldBe FORBIDDEN
     }
   }
 
@@ -154,6 +206,24 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
       val result = postJson(submissionPath, "", "application/x-ndjson")
 
       result.status shouldBe BAD_REQUEST
+    }
+
+    "return 401 Unauthorized when no internal auth token is provided" in {
+      val result = postJsonWithoutAuthorization(submissionPath, ndjsonContent, "application/x-ndjson")
+
+      result.status shouldBe UNAUTHORIZED
+    }
+
+    "return 401 Unauthorized when the internal auth token is invalid" in {
+      val result = postJsonWithAuthorization(submissionPath, ndjsonContent, "application/x-ndjson", invalidInternalAuthToken)
+
+      result.status shouldBe UNAUTHORIZED
+    }
+
+    "return 403 Forbidden when the internal auth token does not have permission" in {
+      val result = postJsonWithAuthorization(submissionPath, ndjsonContent, "application/x-ndjson", forbiddenInternalAuthToken)
+
+      result.status shouldBe FORBIDDEN
     }
   }
 }

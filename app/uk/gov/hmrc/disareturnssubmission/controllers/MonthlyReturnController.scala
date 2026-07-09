@@ -33,11 +33,13 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
 import play.api.libs.Files
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
+import uk.gov.hmrc.internalauth.client.{BackendAuthComponents, IAAction, Predicate, Resource, ResourceLocation, ResourceType}
 
 class MonthlyReturnController @Inject() (
   cc: ControllerComponents,
   monthlyReturnService: MonthlyReturnService,
   appConfig: AppConfig,
+  auth: BackendAuthComponents,
   implicit val mat: Materializer
 )(implicit ec: ExecutionContext)
     extends BackendController(cc)
@@ -45,7 +47,7 @@ class MonthlyReturnController @Inject() (
     with Logging {
 
   def create(zReference: String, taxYear: String, month: Int): Action[JsValue] =
-    Action.async(parse.json) { implicit request =>
+    auth.authorizedAction(writePermission).async(parse.json) { implicit request =>
       withValidMonthlyReturnParams(zReference, taxYear, month) { (validZReference, validTaxYear, validMonth) =>
         withJsonBody[CreateMonthlyReturnRequest] { createRequest =>
           logger.info(
@@ -70,7 +72,7 @@ class MonthlyReturnController @Inject() (
     }
 
   def get(zReference: String, taxYear: String, month: Int): Action[AnyContent] =
-    Action.async {
+    auth.authorizedAction(readPermission).async {
       logger.info(
         s"[MonthlyReturnController][getMonthlyReturn] Get monthly return request for zReference [$zReference], taxYear [$taxYear], month [$month]"
       )
@@ -87,7 +89,7 @@ class MonthlyReturnController @Inject() (
     }
 
   def declare(zReference: String, taxYear: String, month: Int): Action[JsValue] =
-    Action.async(parse.json) { implicit request =>
+    auth.authorizedAction(writePermission).async(parse.json) { implicit request =>
       withValidMonthlyReturnParams(zReference, taxYear, month) { (validZReference, validTaxYear, validMonth) =>
         withJsonBody[DeclarationRequest] { declarationRequest =>
           monthlyReturnService
@@ -112,33 +114,46 @@ class MonthlyReturnController @Inject() (
     }
 
   def storeSubmission(zReference: String, taxYear: String, month: Int): Action[Files.TemporaryFile] =
-    Action.async(parse.temporaryFile(maxLength = appConfig.maxContentLength)) { request =>
-      request.contentType
-        .filter(_ == appConfig.contentType) match { // TODO to be discussed if parameter validation (months etc.) is needed
-        case Some(_) =>
-          monthlyReturnService
-            .storeSubmission(zReference, taxYear, month, bodyPath = request.body.path)
-            .map {
-              case SubmitReturnResult.UpdateSuccessful       => Ok
-              case SubmitReturnResult.NotUpdatedInRepository =>
-                ServiceUnavailable(Json.obj("ERROR" -> "Mongo error"))
-              case SubmitReturnResult.MonthlyReturnNotFound  =>
-                NotFound(Json.obj("ERROR" -> "Monthly return not found"))
-              case SubmitReturnResult.NoBody                 => BadRequest(Json.obj("ERROR" -> "Request body must not be empty"))
-            }
-            .recover { case NonFatal(_) =>
-              ServiceUnavailable
-            }
-        case _       =>
-          Future.successful(
-            UnsupportedMediaType(
-              Json.obj(
-                "ERROR" -> "Content-Type must be application/x-ndjson"
+    auth.authorizedAction(writePermission).async(parse.temporaryFile(maxLength = appConfig.maxContentLength)) {
+      request =>
+        request.contentType
+          .filter(_ == appConfig.contentType) match { // TODO to be discussed if parameter validation (months etc.) is needed
+          case Some(_) =>
+            monthlyReturnService
+              .storeSubmission(zReference, taxYear, month, bodyPath = request.body.path)
+              .map {
+                case SubmitReturnResult.UpdateSuccessful       => Ok
+                case SubmitReturnResult.NotUpdatedInRepository =>
+                  ServiceUnavailable(Json.obj("ERROR" -> "Mongo error"))
+                case SubmitReturnResult.MonthlyReturnNotFound  =>
+                  NotFound(Json.obj("ERROR" -> "Monthly return not found"))
+                case SubmitReturnResult.NoBody                 => BadRequest(Json.obj("ERROR" -> "Request body must not be empty"))
+              }
+              .recover { case NonFatal(_) =>
+                ServiceUnavailable
+              }
+          case _       =>
+            Future.successful(
+              UnsupportedMediaType(
+                Json.obj(
+                  "ERROR" -> "Content-Type must be application/x-ndjson"
+                )
               )
             )
-          )
-      }
+        }
     }
+
+  private val readPermission: Predicate =
+    permission("READ")
+
+  private val writePermission: Predicate =
+    permission("WRITE")
+
+  private def permission(action: String): Predicate =
+    Predicate.Permission(
+      Resource(ResourceType("disa-returns-submission"), ResourceLocation("*")),
+      IAAction(action)
+    )
 
   private def withValidMonthlyReturnParams(
     zReference: String,
