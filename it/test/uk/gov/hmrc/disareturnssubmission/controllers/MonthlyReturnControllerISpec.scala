@@ -27,9 +27,11 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
 
   private val monthlyPath = s"$testServicePath/monthly/$testZReference/$testTaxYear/$testMonth"
   private val invalidMonthlyPath = s"$testServicePath/monthly/$invalidTestZReference/$invalidTestTaxYear/$invalidTestMonth"
+  private val currentMonthPath = s"$testServicePath/monthly/$testZReference/$testTaxYear/6"
 
   private val declarationPath = monthlyPath ++ "/declarations"
   private val submissionPath  = monthlyPath ++ "/submissions"
+  private val currentMonthDeclarationPath = currentMonthPath ++ "/declarations"
 
 
   "POST /monthly/:zReference/:taxYear/:month" should {
@@ -54,6 +56,12 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
       val result = postJson(monthlyPath, nilReturnFalseRequest)
 
       result.status shouldBe CONFLICT
+    }
+
+    "return 422 UnprocessableEntity when the monthly return is not for the previous monthly period" in {
+      val result = postJson(currentMonthPath, nilReturnFalseRequest)
+
+      result.status shouldBe UNPROCESSABLE_ENTITY
     }
   }
 
@@ -93,6 +101,12 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
     "return 404 NotFound when the monthly return wasn't previously created" in {
 
       val result = postJson(declarationPath, Json.obj("nilReturn" -> false))
+
+      result.status shouldBe UNPROCESSABLE_ENTITY
+    }
+
+    "return 422 UnprocessableEntity when the monthly return is not for the previous monthly period" in {
+      val result = postJson(currentMonthDeclarationPath, Json.obj("nilReturn" -> false))
 
       result.status shouldBe UNPROCESSABLE_ENTITY
     }

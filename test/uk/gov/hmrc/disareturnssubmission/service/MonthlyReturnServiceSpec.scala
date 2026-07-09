@@ -36,7 +36,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
   private val mockSubStoreAction          = mock[SubmissionStoreAction]
   private val appConfig                   = inject[AppConfig]
   private val mockUuidGenerator           = mock[UuidGenerator]
-  private val service                     = buildService(testCreatedOn)
+  private val service                     = buildService(Instant.parse("2026-06-17T12:00:00Z"))
 
   private val zReference = testZReference
   private val taxYear    = testTaxYear
@@ -144,7 +144,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
           .futureValue mustBe a[RuntimeException]
       }
 
-      "must return OutsideDeclarationPeriod if creating a return on April 2026 for the 2025-26 tax year" in {
+      "must return OutsideDeclarationPeriod if creating a return on April 2026 for April 2026" in {
         val startDate = buildService(Instant.parse(s"2026-04-0${appConfig.declarationPeriodStart}T00:00:00Z"))
 
         startDate
@@ -153,6 +153,24 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
           CreateMonthlyReturnResult.OutsideDeclarationPeriod
 
         verifyNoInteractions(mockMonthlyReturnRepository)
+      }
+
+      "must allow creating a return on April 2026 for March 2026 in the 2025-26 tax year" in {
+        val startDate = buildService(Instant.parse(s"2026-04-0${appConfig.declarationPeriodStart}T00:00:00Z"))
+        when(mockUuidGenerator.randomUuid()).thenReturn(testSubmissionId)
+        when(
+          mockMonthlyReturnRepository.create(
+            eqTo(zReference),
+            eqTo("2025-26"),
+            eqTo(3),
+            eqTo(testSubmissionId),
+            eqTo(false)
+          )
+        ).thenReturn(Future.successful(Some(monthlyReturn.copy(taxYear = "2025-26", month = 3))))
+
+        startDate
+          .create(zReference, "2025-26", 3, nilReturn = false)
+          .futureValue mustBe CreateMonthlyReturnResult.Created(testSubmissionId)
       }
 
       "must return OutsideDeclarationPeriod if creating a return on April 2026 for the 2027-28 tax year" in {
@@ -177,15 +195,22 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
         verifyNoInteractions(mockMonthlyReturnRepository)
       }
 
-      "must return OutsideDeclarationPeriod if creating a return on July 2026 for June 2026" in {
+      "must allow creating a return on July 2026 for June 2026" in {
         val startDate = buildService(Instant.parse(s"2026-07-0${appConfig.declarationPeriodStart}T00:00:00Z"))
+        when(mockUuidGenerator.randomUuid()).thenReturn(testSubmissionId)
+        when(
+          mockMonthlyReturnRepository.create(
+            eqTo(zReference),
+            eqTo("2026-27"),
+            eqTo(6),
+            eqTo(testSubmissionId),
+            eqTo(false)
+          )
+        ).thenReturn(Future.successful(Some(monthlyReturn.copy(month = 6))))
 
         startDate
           .create(zReference, "2026-27", 6, nilReturn = false)
-          .futureValue mustBe
-          CreateMonthlyReturnResult.OutsideDeclarationPeriod
-
-        verifyNoInteractions(mockMonthlyReturnRepository)
+          .futureValue mustBe CreateMonthlyReturnResult.Created(testSubmissionId)
       }
     }
 
@@ -247,7 +272,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
       }
 
       "must allow declarations from the configured start day" in {
-        val startOfDeclarationPeriod = Instant.parse("2026-05-06T00:00:00Z")
+        val startOfDeclarationPeriod = Instant.parse("2026-06-06T00:00:00Z")
         val startDayService          = buildService(startOfDeclarationPeriod)
         when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo(taxYear), eqTo(month)))
           .thenReturn(
@@ -259,7 +284,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
       }
 
       "must return OutsideDeclarationPeriod and not call the repository before the configured start day" in {
-        val beforeStartDayService = buildService(Instant.parse("2026-05-05T23:59:59Z"))
+        val beforeStartDayService = buildService(Instant.parse("2026-06-05T23:59:59Z"))
 
         beforeStartDayService.declare(zReference, taxYear, month, nilReturn = false).futureValue mustBe
           DeclareMonthlyReturnResult.OutsideDeclarationPeriod
@@ -268,7 +293,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
       }
 
       "must allow declarations until the end of the configured end day" in {
-        val endOfDeclarationPeriod = Instant.parse("2026-05-19T23:59:59Z")
+        val endOfDeclarationPeriod = Instant.parse("2026-06-19T23:59:59Z")
         val endDayService          = buildService(endOfDeclarationPeriod)
         when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo(taxYear), eqTo(month)))
           .thenReturn(
@@ -280,7 +305,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
       }
 
       "must return OutsideDeclarationPeriod and not call the repository after the configured end day" in {
-        val afterEndDayService = buildService(Instant.parse("2026-05-20T00:00:00Z"))
+        val afterEndDayService = buildService(Instant.parse("2026-06-20T00:00:00Z"))
 
         afterEndDayService.declare(zReference, taxYear, month, nilReturn = false).futureValue mustBe
           DeclareMonthlyReturnResult.OutsideDeclarationPeriod
@@ -288,13 +313,22 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
         verifyNoInteractions(mockMonthlyReturnRepository)
       }
 
-      "must return OutsideDeclarationPeriod if declaring on April 2026 for the 2025-26 tax year" in {
+      "must return OutsideDeclarationPeriod if declaring on April 2026 for April 2026" in {
         val startDate = buildService(Instant.parse(s"2026-04-0${appConfig.declarationPeriodStart}T00:00:00Z"))
 
         startDate.declare(zReference, "2025-26", 4, nilReturn = false).futureValue mustBe
           DeclareMonthlyReturnResult.OutsideDeclarationPeriod
 
         verifyNoInteractions(mockMonthlyReturnRepository)
+      }
+
+      "must allow declaring on April 2026 for March 2026 in the 2025-26 tax year" in {
+        val startDate = buildService(Instant.parse(s"2026-04-0${appConfig.declarationPeriodStart}T00:00:00Z"))
+        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo("2025-26"), eqTo(3)))
+          .thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared))
+
+        startDate.declare(zReference, "2025-26", 3, nilReturn = false).futureValue mustBe
+          DeclareMonthlyReturnResult.Declared
       }
 
       "must return OutsideDeclarationPeriod if declaring on April 2026 for the 2027-28 tax year" in {
@@ -317,15 +351,14 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
         verifyNoInteractions(mockMonthlyReturnRepository)
       }
 
-      "must return OutsideDeclarationPeriod if declaring on July 2026 for June 2026" in {
+      "must allow declaring on July 2026 for June 2026" in {
         val startDate = buildService(Instant.parse(s"2026-07-0${appConfig.declarationPeriodStart}T00:00:00Z"))
+        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo("2026-27"), eqTo(6)))
+          .thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared))
 
         startDate
           .declare(zReference, "2026-27", 6, nilReturn = false)
-          .futureValue mustBe
-          DeclareMonthlyReturnResult.OutsideDeclarationPeriod
-
-        verifyNoInteractions(mockMonthlyReturnRepository)
+          .futureValue mustBe DeclareMonthlyReturnResult.Declared
       }
     }
 
@@ -504,7 +537,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
       }
 
       "must return OutsideDeclarationPeriod when outside declaration period" in {
-        val beforeStartDayService = buildService(Instant.parse("2026-05-05T23:59:59Z"))
+        val beforeStartDayService = buildService(Instant.parse("2026-06-05T23:59:59Z"))
 
         beforeStartDayService.declare(zReference, taxYear, month, nilReturn = true).futureValue mustBe
           DeclareMonthlyReturnResult.OutsideDeclarationPeriod
