@@ -25,7 +25,7 @@ import uk.gov.hmrc.disareturnssubmission.services.CreateMonthlyReturnResult.*
 import uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator
 
 import java.nio.file.Path
-import java.time.{Clock, LocalDate}
+import java.time.{Clock, LocalDate, YearMonth}
 import java.util.UUID
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -261,21 +261,23 @@ class MonthlyReturnService @Inject() (
         Future.failed(exception)
       }
 
-  private def isWithinDeclarationPeriod(year: String, month: Int): Boolean = {
-    val nowClock   = LocalDate.now(clock)
-    val dayOfMonth = nowClock.getDayOfMonth
-
-    val startYear    = year.split("-").head.toInt
-    val taxYearStart = LocalDate.of(startYear, 4, 6)
-    val taxYearEnd   = LocalDate.of(startYear + 1, 4, 5)
+  private def isWithinDeclarationPeriod(taxYear: String, month: Int): Boolean = {
+    val today               = LocalDate.now(clock)
+    val dayOfMonth          = today.getDayOfMonth
+    val previousMonthPeriod = YearMonth.from(today).minusMonths(1)
 
     val isDayWithinDeclarationPeriod =
       dayOfMonth >= appConfig.declarationPeriodStart && dayOfMonth <= appConfig.declarationPeriodEnd
 
-    val isCurrentMonth   = nowClock.getMonthValue == month
-    val isCurrentTaxYear = nowClock.isAfter(taxYearStart) && nowClock.isBefore(taxYearEnd)
+    val isPreviousMonth   = previousMonthPeriod.getMonthValue == month
+    val isPreviousTaxYear = taxYearFor(previousMonthPeriod) == taxYear
 
-    isDayWithinDeclarationPeriod && isCurrentMonth && isCurrentTaxYear
+    isDayWithinDeclarationPeriod && isPreviousMonth && isPreviousTaxYear
+  }
+
+  private def taxYearFor(period: YearMonth): String = {
+    val startYear = if (period.getMonthValue >= 4) period.getYear else period.getYear - 1
+    f"$startYear%04d-${(startYear + 1) % 100}%02d"
   }
 }
 
