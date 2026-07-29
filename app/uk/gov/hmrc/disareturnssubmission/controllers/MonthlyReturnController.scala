@@ -93,45 +93,70 @@ class MonthlyReturnController @Inject() (
       withValidMonthlyReturnParams(zReference, taxYear, month) { (validZReference, validTaxYear, validMonth) =>
         withJsonBody[DeclarationRequest] { declarationRequest =>
           monthlyReturnService
-            .declare(validZReference, validTaxYear, validMonth, declarationRequest.nilReturn)
+            .declare(
+              validZReference,
+              validTaxYear,
+              validMonth,
+              declarationRequest.nilReturn,
+              declarationRequest.pendingSubmissionIds
+            )
             .map {
-              case DeclareMonthlyReturnResult.Declared                 => Ok
-              case DeclareMonthlyReturnResult.AlreadyDeclared          =>
+              case DeclareMonthlyReturnResult.Declared                       => Ok
+              case DeclareMonthlyReturnResult.AlreadyDeclared                =>
                 UnprocessableEntity(Json.obj("ERROR" -> "This monthly return was already declared"))
-              case DeclareMonthlyReturnResult.MonthlyReturnNotFound    =>
+              case DeclareMonthlyReturnResult.MonthlyReturnNotFound          =>
                 UnprocessableEntity(
                   Json.obj(
                     "code"  -> "NO_SUBMISSION_DATA",
                     "error" -> "Cannot declare with nilReturn as false when no monthly return data has been submitted"
                   )
                 )
-              case DeclareMonthlyReturnResult.OutsideDeclarationPeriod =>
+              case DeclareMonthlyReturnResult.OutsideDeclarationPeriod       =>
                 UnprocessableEntity(Json.obj("ERROR" -> "Monthly declaration period is closed."))
+              case DeclareMonthlyReturnResult.PendingSubmissionsForNilReturn =>
+                BadRequest(Json.obj("ERROR" -> "Pending submission IDs cannot be supplied for a nil return"))
             }
             .recover { case NonFatal(_) => ServiceUnavailable }
         }
       }
     }
 
-  def storeSubmission(zReference: String, taxYear: String, month: Int): Action[Files.TemporaryFile] =
+  def storeSubmission(
+    zReference: String,
+    taxYear: String,
+    month: Int,
+    submissionId: String
+  ): Action[Files.TemporaryFile] =
     auth.authorizedAction(writePermission).async(parse.temporaryFile(maxLength = appConfig.maxContentLength)) {
       request =>
         request.contentType
-          .filter(_ == appConfig.contentType) match { // TODO to be discussed if parameter validation (months etc.) is needed
+          .filter(_ == appConfig.contentType) match {
           case Some(_) =>
-            monthlyReturnService
-              .storeSubmission(zReference, taxYear, month, bodyPath = request.body.path)
-              .map {
-                case SubmitReturnResult.UpdateSuccessful       => Ok
-                case SubmitReturnResult.NotUpdatedInRepository =>
-                  ServiceUnavailable(Json.obj("ERROR" -> "Mongo error"))
-                case SubmitReturnResult.MonthlyReturnNotFound  =>
-                  NotFound(Json.obj("ERROR" -> "Monthly return not found"))
-                case SubmitReturnResult.NoBody                 => BadRequest(Json.obj("ERROR" -> "Request body must not be empty"))
-              }
-              .recover { case NonFatal(_) =>
-                ServiceUnavailable
-              }
+            withValidMonthlyReturnParams(zReference, taxYear, month) { (validZReference, validTaxYear, validMonth) =>
+              monthlyReturnService
+                .storeSubmission(
+                  validZReference,
+                  validTaxYear,
+                  validMonth,
+                  submissionId,
+                  bodyPath = request.body.path
+                )
+                .map {
+                  case SubmitReturnResult.UpdateSuccessful      =>
+                    Ok
+                  case SubmitReturnResult.SubmissionConflict    =>
+                    Conflict(
+                      Json.obj("ERROR" -> "Submission has already been stored or the monthly return has been declared")
+                    )
+                  case SubmitReturnResult.MonthlyReturnNotFound =>
+                    NotFound(Json.obj("ERROR" -> "Monthly return not found"))
+                  case SubmitReturnResult.NoBody                =>
+                    BadRequest(Json.obj("ERROR" -> "Request body must not be empty"))
+                }
+                .recover { case NonFatal(_) =>
+                  ServiceUnavailable
+                }
+            }
           case _       =>
             Future.successful(
               UnsupportedMediaType(

@@ -18,63 +18,84 @@ package uk.gov.hmrc.disareturnssubmission.actions
 
 import base.SpecBase
 import org.apache.pekko.actor.ActorSystem
-import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.when
+import org.mockito.ArgumentMatchers.{any, eq as eqTo}
+import org.mockito.Mockito.{reset, verify, verifyNoInteractions, when}
 import org.scalatest.BeforeAndAfterEach
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
-import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository
-import uk.gov.hmrc.disareturnssubmission.services.{MonthlyReturnService, ObjectStoreService, SubmitReturnResult}
-import uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator
+import uk.gov.hmrc.disareturnssubmission.repositories.{MonthlyReturnRepository, StoreSubmissionRepositoryResult}
+import uk.gov.hmrc.disareturnssubmission.services.{ObjectStoreService, SubmitReturnResult}
 
-import java.util.UUID
+import java.nio.file.Files
 import scala.concurrent.Future
 import scala.language.postfixOps
 
 class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
 
-  private val mockMonthlyReturnService    = mock[MonthlyReturnService]
   private val mockMonthlyReturnRepository = mock[MonthlyReturnRepository]
   private val mockObjectStoreService      = mock[ObjectStoreService]
-  private val mockUuidGenerator           = mock[UuidGenerator]
   private val appConfig                   = inject[AppConfig]
 
   val action = new SubmissionStoreAction(
     mockMonthlyReturnRepository,
     mockObjectStoreService,
-    mockUuidGenerator,
     appConfig,
     inject[ActorSystem]
   )
 
+  override protected def beforeEach(): Unit = {
+    super.beforeEach()
+    reset(mockMonthlyReturnRepository, mockObjectStoreService)
+  }
+
   "SubmissionStoreAction" - {
     "must return UpdateSuccessful when successfully storing in Mongo" in {
-      when(mockUuidGenerator.randomUuid()).thenReturn(UUID.fromString(testUploadReference))
-      when(mockMonthlyReturnService.get(any(), any(), any())).thenReturn(Future(Some(monthlyReturn)))
-
       when(mockObjectStoreService.uploadFileToObjectStore(any(), any(), any(), any(), any()))
         .thenReturn(Future("test/test"))
 
-      when(mockMonthlyReturnRepository.createSubmission(any(), any(), any(), any(), any()))
-        .thenReturn(Future.successful(true))
+      when(mockMonthlyReturnRepository.storeSubmission(any(), any(), any(), any(), any()))
+        .thenReturn(Future.successful(StoreSubmissionRepositoryResult.SubmissionStored))
 
-      val result = action.store(testTempFile, monthlyReturn)
+      val result = action.store(testTempFile, monthlyReturn, testUploadReference)
 
       result.futureValue mustBe SubmitReturnResult.UpdateSuccessful
+      verify(mockObjectStoreService)
+        .uploadFileToObjectStore(eqTo(testUploadReference), any(), any(), any(), any())
+      verify(mockMonthlyReturnRepository)
+        .storeSubmission(any(), any(), any(), eqTo(testUploadReference), any())
     }
 
-    "must return NotUpdatedInRepository when unable to store in Mongo" in {
-      when(mockUuidGenerator.randomUuid()).thenReturn(UUID.fromString(testUploadReference))
-      when(mockMonthlyReturnService.get(any(), any(), any())).thenReturn(Future(Some(monthlyReturn)))
-
+    "must return SubmissionConflict when the repository reports a conflict" in {
       when(mockObjectStoreService.uploadFileToObjectStore(any(), any(), any(), any(), any()))
         .thenReturn(Future("test/test"))
 
-      when(mockMonthlyReturnRepository.createSubmission(any(), any(), any(), any(), any()))
-        .thenReturn(Future.successful(false))
+      when(mockMonthlyReturnRepository.storeSubmission(any(), any(), any(), any(), any()))
+        .thenReturn(Future.successful(StoreSubmissionRepositoryResult.SubmissionConflict))
 
-      val result = action.store(testTempFile, monthlyReturn)
+      action
+        .store(testTempFile, monthlyReturn, testUploadReference)
+        .futureValue mustBe SubmitReturnResult.SubmissionConflict
+    }
 
-      result.futureValue mustBe SubmitReturnResult.NotUpdatedInRepository
+    "must return MonthlyReturnNotFound when the repository can no longer find the return" in {
+      when(mockObjectStoreService.uploadFileToObjectStore(any(), any(), any(), any(), any()))
+        .thenReturn(Future("test/test"))
+      when(mockMonthlyReturnRepository.storeSubmission(any(), any(), any(), any(), any()))
+        .thenReturn(Future.successful(StoreSubmissionRepositoryResult.MonthlyReturnNotFound))
+
+      action
+        .store(testTempFile, monthlyReturn, testUploadReference)
+        .futureValue mustBe SubmitReturnResult.MonthlyReturnNotFound
+    }
+
+    "must return NoBody without calling object store or Mongo when the body is empty" in {
+      val emptyFile = play.api.libs.Files.SingletonTemporaryFileCreator.create("empty", ".ndjson")
+      Files.size(emptyFile.path) mustBe 0L
+
+      action
+        .store(emptyFile, monthlyReturn, testUploadReference)
+        .futureValue mustBe SubmitReturnResult.NoBody
+
+      verifyNoInteractions(mockObjectStoreService, mockMonthlyReturnRepository)
     }
   }
 }

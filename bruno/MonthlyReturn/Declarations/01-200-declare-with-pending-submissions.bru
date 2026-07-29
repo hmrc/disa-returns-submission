@@ -1,0 +1,38 @@
+meta {
+  name: 01-200-declare-with-pending-submissions
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}{{servicePath}}/monthly/{{zReference}}/{{taxYear}}/{{month}}/declarations
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "nilReturn": false,
+    "pendingSubmissionIds": [
+      "{{putSubmissionId}}"
+    ]
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+script:pre-request {
+  const createResponse = await bru.runRequest("MonthlyReturn/Create/01-201-create-nil-return-false");
+
+  if (createResponse.status !== 201) {
+    throw new Error(`Expected monthly return setup to respond with 201, got ${createResponse.status}`);
+  }
+
+  bru.setVar("putSubmissionId", `pending-${Date.now()}`);
+}

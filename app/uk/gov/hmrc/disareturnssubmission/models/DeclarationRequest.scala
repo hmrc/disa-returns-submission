@@ -18,8 +18,12 @@ package uk.gov.hmrc.disareturnssubmission.models
 
 import play.api.libs.json.{Json, OFormat}
 
-final case class DeclarationRequest(nilReturn: Boolean)
+final case class DeclarationRequest(
+  nilReturn: Boolean,
+  pendingSubmissionIds: List[String] = Nil
+)
 
 object DeclarationRequest {
-  implicit val format: OFormat[DeclarationRequest] = Json.format[DeclarationRequest]
+  implicit val format: OFormat[DeclarationRequest] =
+    Json.using[Json.WithDefaultValues].format[DeclarationRequest]
 }
