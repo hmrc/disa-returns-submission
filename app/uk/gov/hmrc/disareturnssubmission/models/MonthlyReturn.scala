@@ -47,6 +47,15 @@ final case class MonthlyReturn(
 ) {
   def hasDeclaration: Boolean = declaredOn.isDefined
 
+  def hasStoredSubmission(reference: String): Boolean =
+    submissions.exists(submission => submission.reference == reference && submission.status == SubmissionStatus.Stored)
+
+  def canStoreSubmission(reference: String): Boolean =
+    !hasStoredSubmission(reference) &&
+      (submissions.exists(submission =>
+        submission.reference == reference && submission.status == SubmissionStatus.Created
+      ) || (!hasDeclaration && !nilReturn))
+
   def declare(declaredOn: Instant): MonthlyReturn =
     if (hasDeclaration) {
       this

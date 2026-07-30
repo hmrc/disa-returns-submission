@@ -19,7 +19,7 @@ package uk.gov.hmrc.disareturnssubmission.services
 import play.api.Logging
 import uk.gov.hmrc.disareturnssubmission.actions.SubmissionStoreAction
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
-import uk.gov.hmrc.disareturnssubmission.models.{MonthlyReturn, SubmissionStatus}
+import uk.gov.hmrc.disareturnssubmission.models.MonthlyReturn
 import uk.gov.hmrc.disareturnssubmission.repositories.{DeclareMonthlyReturnRepositoryResult, MonthlyReturnRepository}
 import uk.gov.hmrc.disareturnssubmission.services.CreateMonthlyReturnResult.*
 import uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator
@@ -238,20 +238,13 @@ class MonthlyReturnService @Inject() (
 
     get(zReference, taxYear, month)
       .flatMap {
-        case Some(monthlyReturn)
-            if monthlyReturn.submissions.exists(submission =>
-              submission.reference == submissionId && submission.status == SubmissionStatus.Stored
-            ) =>
+        case Some(monthlyReturn) if monthlyReturn.hasStoredSubmission(submissionId) =>
           logger.warn(
             s"[MonthlyReturnService][storeSubmission] Submission [$submissionId] is already stored for zReference [$zReference], taxYear [$taxYear], month [$month]"
           )
           Future.successful(SubmitReturnResult.SubmissionConflict)
 
-        case Some(monthlyReturn)
-            if (monthlyReturn.hasDeclaration || monthlyReturn.nilReturn) &&
-              !monthlyReturn.submissions.exists(submission =>
-                submission.reference == submissionId && submission.status == SubmissionStatus.Created
-              ) =>
+        case Some(monthlyReturn) if !monthlyReturn.canStoreSubmission(submissionId) =>
           logger.warn(
             s"[MonthlyReturnService][storeSubmission] Monthly return cannot accept submission [$submissionId] for zReference [$zReference], taxYear [$taxYear], month [$month]"
           )

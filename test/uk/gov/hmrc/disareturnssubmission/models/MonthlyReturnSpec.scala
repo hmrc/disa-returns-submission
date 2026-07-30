@@ -94,6 +94,71 @@ class MonthlyReturnSpec extends SpecBase {
     }
   }
 
+  "hasStoredSubmission" - {
+
+    "must report whether the reference belongs to a STORED submission" in {
+      val monthlyReturn = emptyMonthlyReturn.copy(
+        submissions = List(
+          Submission(
+            reference = testUploadReference,
+            status = SubmissionStatus.Created,
+            createdOn = testCreatedOn
+          ),
+          Submission(
+            reference = "stored-reference",
+            status = SubmissionStatus.Stored,
+            createdOn = testCreatedOn,
+            submissionDetails = Some(fileUploadDetails)
+          )
+        )
+      )
+
+      monthlyReturn.hasStoredSubmission(testUploadReference) mustBe false
+      monthlyReturn.hasStoredSubmission("stored-reference") mustBe true
+      monthlyReturn.hasStoredSubmission("missing-reference") mustBe false
+    }
+  }
+
+  "canStoreSubmission" - {
+
+    "must allow a missing submission before declaration" in {
+      emptyMonthlyReturn.canStoreSubmission(testUploadReference) mustBe true
+    }
+
+    "must allow a CREATED submission after declaration" in {
+      val monthlyReturn = emptyMonthlyReturn.copy(
+        submissions = List(
+          Submission(
+            reference = testUploadReference,
+            status = SubmissionStatus.Created,
+            createdOn = testCreatedOn
+          )
+        ),
+        declaredOn = Some(testCreatedOn)
+      )
+
+      monthlyReturn.canStoreSubmission(testUploadReference) mustBe true
+    }
+
+    "must not allow a STORED submission" in {
+      val monthlyReturn = emptyMonthlyReturn.storeSubmission(testUploadReference, testCreatedOn, fileUploadDetails)
+
+      monthlyReturn.canStoreSubmission(testUploadReference) mustBe false
+    }
+
+    "must not allow a missing submission after declaration" in {
+      val monthlyReturn = emptyMonthlyReturn.copy(declaredOn = Some(testCreatedOn))
+
+      monthlyReturn.canStoreSubmission(testUploadReference) mustBe false
+    }
+
+    "must not allow a missing submission for a nil return" in {
+      val monthlyReturn = emptyMonthlyReturn.copy(nilReturn = true)
+
+      monthlyReturn.canStoreSubmission(testUploadReference) mustBe false
+    }
+  }
+
   "createPendingSubmissions" - {
 
     "must add distinct CREATED submissions and update lastUpdated" in {
