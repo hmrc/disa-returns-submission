@@ -167,7 +167,7 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
 
       val result = postJson(declarationPath, Json.obj("nilReturn" -> false))
 
-      result.status shouldBe UNPROCESSABLE_ENTITY
+      result.status shouldBe NOT_FOUND
     }
 
     "return 422 UnprocessableEntity when the monthly return is not for the previous monthly period" in {

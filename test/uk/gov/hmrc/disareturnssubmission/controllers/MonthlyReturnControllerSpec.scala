@@ -307,7 +307,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
         status(result) mustBe UNPROCESSABLE_ENTITY
       }
 
-      "must return UNPROCESSABLE_ENTITY with NO_SUBMISSION_DATA code when nilReturn is false but no monthly return data has been submitted" in {
+      "must return NOT_FOUND when no monthly return data has been submitted" in {
         when(
           mockMonthlyReturnService.declare(
             eqTo(testZReference),
@@ -323,8 +323,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           authorizedRequest("POST", declarationsPath).withBody(Json.obj("nilReturn" -> false))
         )
 
-        status(result) mustBe UNPROCESSABLE_ENTITY
-        (contentAsJson(result) \ "code").as[String] mustBe "NO_SUBMISSION_DATA"
+        status(result) mustBe NOT_FOUND
       }
 
       "must return UNPROCESSABLE_ENTITY when the declaration period is closed" in {
