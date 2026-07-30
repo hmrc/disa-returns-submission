@@ -25,7 +25,7 @@ import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.models.*
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.MongoUtils.DuplicateKey
-import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
+import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
 import java.time.{Clock, Instant}
@@ -34,17 +34,15 @@ import java.util.concurrent.TimeUnit
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
-private val declaredOnField                = "declaredOn"
-private val lastUpdatedField               = "lastUpdated"
-private val matchingSubmissionDetailsField = "submissions.$.submissionDetails"
-private val matchingSubmissionStatusField  = "submissions.$.status"
-private val monthField                     = "month"
-private val nilReturnField                 = "nilReturn"
-private val referenceField                 = "reference"
-private val statusField                    = "status"
-private val submissionsField               = "submissions"
-private val taxYearField                   = "taxYear"
-private val zReferenceField                = "zReference"
+private val declaredOnField  = "declaredOn"
+private val lastUpdatedField = "lastUpdated"
+private val monthField       = "month"
+private val nilReturnField   = "nilReturn"
+private val referenceField   = "reference"
+private val statusField      = "status"
+private val submissionsField = "submissions"
+private val taxYearField     = "taxYear"
+private val zReferenceField  = "zReference"
 
 @Singleton
 class MonthlyReturnRepository @Inject() (
@@ -115,29 +113,37 @@ class MonthlyReturnRepository @Inject() (
       submissionDetails = Some(submissionDetails)
     )
 
-    fulfilCreatedSubmissionIfPresent(zReference, taxYear, month, reference, submissionDetails, storedOn).flatMap {
-      case true =>
-        Future.successful(StoreSubmissionRepositoryResult.SubmissionStored)
+    val matchingCreatedSubmission = Filters.elemMatch(
+      submissionsField,
+      Filters.and(
+        Filters.equal(referenceField, reference),
+        Filters.equal(statusField, SubmissionStatus.Created.value)
+      )
+    )
+    val canCreateStoredSubmission = Filters.and(
+      Filters.exists(declaredOnField, exists = false),
+      Filters.equal(nilReturnField, false),
+      Filters.not(Filters.elemMatch(submissionsField, Filters.equal(referenceField, reference)))
+    )
 
-      case false =>
-        createStoredSubmission(zReference, taxYear, month, storedSubmission, storedOn).flatMap {
-          case true =>
-            Future.successful(StoreSubmissionRepositoryResult.SubmissionStored)
-
-          case false =>
-            // Redundant call to handle race where declaration is made between the first two operations
-            fulfilCreatedSubmissionIfPresent(zReference, taxYear, month, reference, submissionDetails, storedOn)
-              .flatMap {
-                case true  =>
-                  Future.successful(StoreSubmissionRepositoryResult.SubmissionStored)
-                case false =>
-                  get(zReference, taxYear, month).map {
-                    case Some(_) => StoreSubmissionRepositoryResult.SubmissionConflict
-                    case None    => StoreSubmissionRepositoryResult.MonthlyReturnNotFound
-                  }
-              }
-        }
-    }
+    collection
+      .updateOne(
+        filter = Filters.and(
+          byKey(zReference, taxYear, month),
+          Filters.or(matchingCreatedSubmission, canCreateStoredSubmission)
+        ),
+        update = storeSubmissionUpdatePipeline(storedSubmission, submissionDetails, storedOn)
+      )
+      .toFuture()
+      .flatMap {
+        case result if result.getModifiedCount == 1 =>
+          Future.successful(StoreSubmissionRepositoryResult.SubmissionStored)
+        case _                                      =>
+          get(zReference, taxYear, month).map {
+            case Some(_) => StoreSubmissionRepositoryResult.SubmissionConflict
+            case None    => StoreSubmissionRepositoryResult.MonthlyReturnNotFound
+          }
+      }
   }
 
   def declare(
@@ -214,68 +220,76 @@ class MonthlyReturnRepository @Inject() (
 
   private def now(): Instant = Instant.now(clock)
 
-  private def submissionBson(submission: Submission) =
-    Codecs.toBson(submission)(Submission.mongoFormat)
-
-  private def fulfilCreatedSubmissionIfPresent(
-    zReference: String,
-    taxYear: String,
-    month: Int,
-    reference: String,
+  private def storeSubmissionUpdatePipeline(
+    submission: Submission,
     submissionDetails: SubmissionDetails,
     storedOn: Instant
-  ): Future[Boolean] = {
-    val matchingCreatedSubmission = Filters.elemMatch(
-      submissionsField,
-      Filters.and(
-        Filters.equal(referenceField, reference),
-        Filters.equal(statusField, SubmissionStatus.Created.value)
+  ): Seq[Bson] = {
+
+    val existingSubmissionsExpression  =
+      Json.obj("$ifNull" -> Json.arr("$" + submissionsField, Json.arr()))
+    val referenceLiteral               = Json.obj("$literal" -> submission.reference)
+    val isMatchingCreatedExpression    = Json.obj(
+      "$and" -> Json.arr(
+        Json.obj("$eq" -> Json.arr("$$existingSubmission.reference", referenceLiteral)),
+        Json.obj("$eq" -> Json.arr("$$existingSubmission.status", SubmissionStatus.Created.value))
       )
     )
-
-    collection
-      .updateOne(
-        filter = Filters.and(
-          byKey(zReference, taxYear, month),
-          matchingCreatedSubmission
-        ),
-        update = Updates.combine(
-          Updates.set(matchingSubmissionStatusField, SubmissionStatus.Stored.value),
-          Updates.set(matchingSubmissionDetailsField, submissionDetailsBson(submissionDetails)),
-          Updates.set(lastUpdatedField, storedOn)
+    val hasMatchingCreatedExpression   = Json.obj(
+      "$anyElementTrue" -> Json.obj(
+        "$map" -> Json.obj(
+          "input" -> existingSubmissionsExpression,
+          "as"    -> "existingSubmission",
+          "in"    -> isMatchingCreatedExpression
         )
       )
-      .toFuture()
-      .map(_.getModifiedCount == 1)
-  }
-
-  private def createStoredSubmission(
-    zReference: String,
-    taxYear: String,
-    month: Int,
-    submission: Submission,
-    storedOn: Instant
-  ): Future[Boolean] = {
-    val isNotDeclared           = Filters.exists(declaredOnField, exists = false)
-    val isNotNilReturn          = Filters.equal(nilReturnField, false)
-    val hasNoMatchingSubmission =
-      Filters.not(Filters.elemMatch(submissionsField, Filters.equal(referenceField, submission.reference)))
-
-    collection
-      .updateOne(
-        filter = Filters.and(
-          byKey(zReference, taxYear, month),
-          isNotDeclared,
-          isNotNilReturn,
-          hasNoMatchingSubmission
-        ),
-        update = Updates.combine(
-          Updates.push(submissionsField, submissionBson(submission)),
-          Updates.set(lastUpdatedField, storedOn)
+    )
+    val storedFieldsLiteral            = Json.obj(
+      "$literal" -> Json.obj(
+        statusField         -> SubmissionStatus.Stored.value,
+        "submissionDetails" -> Json.toJson(submissionDetails)(SubmissionDetails.mongoFormat)
+      )
+    )
+    val fulfilledSubmissionsExpression = Json.obj(
+      "$map" -> Json.obj(
+        "input" -> existingSubmissionsExpression,
+        "as"    -> "existingSubmission",
+        "in"    -> Json.obj(
+          "$cond" -> Json.arr(
+            isMatchingCreatedExpression,
+            Json.obj("$mergeObjects" -> Json.arr("$$existingSubmission", storedFieldsLiteral)),
+            "$$existingSubmission"
+          )
         )
       )
-      .toFuture()
-      .map(_.getModifiedCount == 1)
+    )
+    val appendedSubmissionExpression   = Json.obj(
+      "$concatArrays" -> Json.arr(
+        existingSubmissionsExpression,
+        Json.obj("$literal" -> Json.arr(Json.toJson(submission)(Submission.mongoFormat)))
+      )
+    )
+    val submissionsExpression          = Json.obj(
+      "$cond" -> Json.arr(
+        hasMatchingCreatedExpression,
+        fulfilledSubmissionsExpression,
+        appendedSubmissionExpression
+      )
+    )
+    val storedOnJson                   = MongoJavatimeFormats.instantWrites.writes(storedOn)
+
+    Seq(
+      BsonDocument.parse(
+        Json.stringify(
+          Json.obj(
+            "$set" -> Json.obj(
+              submissionsField -> submissionsExpression,
+              lastUpdatedField -> storedOnJson
+            )
+          )
+        )
+      )
+    )
   }
 
   private def declarationUpdatePipeline(
@@ -336,9 +350,6 @@ class MonthlyReturnRepository @Inject() (
 
     Seq(BsonDocument.parse(Json.stringify(Json.obj("$set" -> setFields))))
   }
-
-  private def submissionDetailsBson(submissionDetails: SubmissionDetails) =
-    Codecs.toBson(submissionDetails)(SubmissionDetails.mongoFormat)
 
   private def toDeclareMonthlyReturnRepositoryResult(
     zReference: String,
