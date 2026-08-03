@@ -244,7 +244,7 @@ class MonthlyReturnService @Inject() (
           )
           Future.successful(SubmitReturnResult.SubmissionConflict)
 
-        case Some(monthlyReturn) if !monthlyReturn.canStoreSubmission(submissionId) =>
+        case Some(monthlyReturn) if !monthlyReturn.hasCreatedSubmission(submissionId) =>
           logger.warn(
             s"[MonthlyReturnService][storeSubmission] Monthly return cannot accept submission [$submissionId] for zReference [$zReference], taxYear [$taxYear], month [$month]"
           )

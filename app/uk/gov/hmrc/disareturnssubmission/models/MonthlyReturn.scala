@@ -50,7 +50,7 @@ final case class MonthlyReturn(
   def hasStoredSubmission(reference: String): Boolean =
     submissions.exists(submission => submission.reference == reference && submission.status == SubmissionStatus.Stored)
 
-  def canStoreSubmission(reference: String): Boolean =
+  def hasCreatedSubmission(reference: String): Boolean =
     !hasStoredSubmission(reference) &&
       (submissions.exists(submission =>
         submission.reference == reference && submission.status == SubmissionStatus.Created

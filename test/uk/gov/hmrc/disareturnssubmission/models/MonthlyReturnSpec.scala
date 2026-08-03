@@ -119,10 +119,10 @@ class MonthlyReturnSpec extends SpecBase {
     }
   }
 
-  "canStoreSubmission" - {
+  "hasCreatedSubmission" - {
 
     "must allow a missing submission before declaration" in {
-      emptyMonthlyReturn.canStoreSubmission(testUploadReference) mustBe true
+      emptyMonthlyReturn.hasCreatedSubmission(testUploadReference) mustBe true
     }
 
     "must allow a CREATED submission after declaration" in {
@@ -137,25 +137,25 @@ class MonthlyReturnSpec extends SpecBase {
         declaredOn = Some(testCreatedOn)
       )
 
-      monthlyReturn.canStoreSubmission(testUploadReference) mustBe true
+      monthlyReturn.hasCreatedSubmission(testUploadReference) mustBe true
     }
 
     "must not allow a STORED submission" in {
       val monthlyReturn = emptyMonthlyReturn.storeSubmission(testUploadReference, testCreatedOn, fileUploadDetails)
 
-      monthlyReturn.canStoreSubmission(testUploadReference) mustBe false
+      monthlyReturn.hasCreatedSubmission(testUploadReference) mustBe false
     }
 
     "must not allow a missing submission after declaration" in {
       val monthlyReturn = emptyMonthlyReturn.copy(declaredOn = Some(testCreatedOn))
 
-      monthlyReturn.canStoreSubmission(testUploadReference) mustBe false
+      monthlyReturn.hasCreatedSubmission(testUploadReference) mustBe false
     }
 
     "must not allow a missing submission for a nil return" in {
       val monthlyReturn = emptyMonthlyReturn.copy(nilReturn = true)
 
-      monthlyReturn.canStoreSubmission(testUploadReference) mustBe false
+      monthlyReturn.hasCreatedSubmission(testUploadReference) mustBe false
     }
   }
 
