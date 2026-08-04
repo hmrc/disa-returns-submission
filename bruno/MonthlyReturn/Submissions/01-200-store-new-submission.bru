@@ -1,0 +1,34 @@
+meta {
+  name: 01-200-store-new-submission
+  type: http
+  seq: 1
+}
+
+put {
+  url: {{baseUrl}}{{servicePath}}/monthly/{{zReference}}/{{taxYear}}/{{month}}/submissions/{{putSubmissionId}}
+  body: text
+  auth: none
+}
+
+headers {
+  Content-Type: application/x-ndjson
+}
+
+body:text {
+  {"id":"1","name":"first record"}
+  {"id":"2","name":"second record"}
+}
+
+assert {
+  res.status: eq 200
+}
+
+script:pre-request {
+  const createResponse = await bru.runRequest("MonthlyReturn/Create/01-201-create-nil-return-false");
+
+  if (createResponse.status !== 201) {
+    throw new Error(`Expected monthly return setup to respond with 201, got ${createResponse.status}`);
+  }
+
+  bru.setVar("putSubmissionId", `submission-${Date.now()}`);
+}

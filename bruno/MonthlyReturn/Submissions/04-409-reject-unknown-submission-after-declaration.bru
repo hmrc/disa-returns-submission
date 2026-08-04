@@ -1,0 +1,51 @@
+meta {
+  name: 04-409-reject-unknown-submission-after-declaration
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}{{servicePath}}/monthly/{{zReference}}/{{taxYear}}/{{month}}/submissions/{{putSubmissionId}}
+  body: text
+  auth: none
+}
+
+headers {
+  Content-Type: application/x-ndjson
+}
+
+body:text {
+  {"id":"1","name":"unknown declared record"}
+}
+
+assert {
+  res.status: eq 409
+}
+
+script:pre-request {
+  const createResponse = await bru.runRequest("MonthlyReturn/Create/01-201-create-nil-return-false");
+
+  if (createResponse.status !== 201) {
+    throw new Error(`Expected monthly return setup to respond with 201, got ${createResponse.status}`);
+  }
+
+  bru.setVar("putSubmissionId", `unknown-${Date.now()}`);
+
+  const declarationUrl = `${bru.getEnvVar("baseUrl")}${bru.getEnvVar("servicePath")}/monthly/${bru.getVar("zReference")}/${bru.getEnvVar("taxYear")}/${bru.getEnvVar("month")}/declarations`;
+  const declarationResponse = await bru.sendRequest({
+    method: "POST",
+    url: declarationUrl,
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": bru.getEnvVar("internalAuthToken")
+    },
+    data: {
+      nilReturn: false
+    },
+    timeout: 3000
+  });
+
+  if (declarationResponse.status !== 200) {
+    throw new Error(`Expected declaration setup to respond with 200, got ${declarationResponse.status}`);
+  }
+}

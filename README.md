@@ -58,6 +58,33 @@ Authorization: valid-internal-auth-token-disa-returns-backend
 That token must exist in local internal-auth with `READ` and `WRITE` permissions for `disa-returns-submission/*`.
 The test-only routes above remain unauthenticated.
 
+### Submission and declaration contract
+
+Declarations can register submissions whose data is still being transferred:
+
+```json
+{
+  "nilReturn": false,
+  "pendingSubmissionIds": [
+    "consumer-generated-submission-id"
+  ]
+}
+```
+
+`pendingSubmissionIds` is optional and defaults to an empty list. It cannot be supplied when `nilReturn` is `true`.
+Pending submissions are recorded with `CREATED` status.
+
+Submission data is transferred with:
+
+```text
+PUT /disa-returns-submission/monthly/:zReference/:taxYear/:month/submissions/:submissionId
+Content-Type: application/x-ndjson
+```
+
+A successful PUT updates an existing `CREATED` submission, or creates a missing submission before declaration, with
+`STORED` status. A `CREATED` submission remains uploadable after declaration. An already `STORED` submission, or an
+unknown submission after declaration, returns `409 Conflict`.
+
 Use `GET` to inspect the app clock:
 
 ```bash

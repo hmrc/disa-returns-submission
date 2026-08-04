@@ -22,6 +22,7 @@ import java.time.Instant
 
 final case class Submission(
   reference: String,
+  status: SubmissionStatus,
   createdOn: Instant,
   submissionDetails: Option[SubmissionDetails] = None
 )

@@ -47,6 +47,15 @@ final case class MonthlyReturn(
 ) {
   def hasDeclaration: Boolean = declaredOn.isDefined
 
+  def hasStoredSubmission(reference: String): Boolean =
+    submissions.exists(submission => submission.reference == reference && submission.status == SubmissionStatus.Stored)
+
+  def hasCreatedSubmission(reference: String): Boolean =
+    !hasStoredSubmission(reference) &&
+      (submissions.exists(submission =>
+        submission.reference == reference && submission.status == SubmissionStatus.Created
+      ) || (!hasDeclaration && !nilReturn))
+
   def declare(declaredOn: Instant): MonthlyReturn =
     if (hasDeclaration) {
       this
@@ -57,19 +66,60 @@ final case class MonthlyReturn(
       )
     }
 
-  def createFileUpload(reference: String, createdOn: Instant, submissionDetails: SubmissionDetails): MonthlyReturn =
-    if (nilReturn || submissions.exists(_.reference == reference)) {
+  def createPendingSubmissions(references: List[String], createdOn: Instant): MonthlyReturn = {
+    val existingReferences = submissions.map(_.reference).toSet
+    val pendingSubmissions = references.distinct
+      .filterNot(existingReferences)
+      .map(reference =>
+        Submission(
+          reference = reference,
+          status = SubmissionStatus.Created,
+          createdOn = createdOn
+        )
+      )
+
+    if (nilReturn || pendingSubmissions.isEmpty) {
       this
     } else {
       copy(
-        submissions = submissions :+ Submission(
-          reference = reference,
-          createdOn = createdOn,
-          submissionDetails = Some(submissionDetails)
-        ),
+        submissions = submissions ++ pendingSubmissions,
         lastUpdated = createdOn
       )
     }
+  }
+
+  def storeSubmission(reference: String, storedOn: Instant, submissionDetails: SubmissionDetails): MonthlyReturn = {
+    val matchingSubmission = submissions.find(_.reference == reference)
+
+    matchingSubmission match {
+      case Some(submission) if submission.status == SubmissionStatus.Created =>
+        copy(
+          submissions = submissions.map {
+            case existing if existing.reference == reference =>
+              existing.copy(
+                status = SubmissionStatus.Stored,
+                submissionDetails = Some(submissionDetails)
+              )
+            case existing                                    => existing
+          },
+          lastUpdated = storedOn
+        )
+
+      case None if !nilReturn && !hasDeclaration =>
+        copy(
+          submissions = submissions :+ Submission(
+            reference = reference,
+            status = SubmissionStatus.Stored,
+            createdOn = storedOn,
+            submissionDetails = Some(submissionDetails)
+          ),
+          lastUpdated = storedOn
+        )
+
+      case _ =>
+        this
+    }
+  }
 
   def updateNilReturn(nilReturn: Boolean, updatedOn: Instant): MonthlyReturn =
     if (nilReturn) {

@@ -20,7 +20,7 @@ import base.SpecBase
 import org.mongodb.scala.SingleObservableFuture
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.models.*
-import uk.gov.hmrc.disareturnssubmission.repositories.{DeclareMonthlyReturnRepositoryResult, MonthlyReturnRepository}
+import uk.gov.hmrc.disareturnssubmission.repositories.{DeclareMonthlyReturnRepositoryResult, MonthlyReturnRepository, StoreSubmissionRepositoryResult}
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
 
 import java.time.{Clock, Instant, ZoneOffset}
@@ -153,6 +153,36 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
         stored.lastUpdated mustBe fixedNow
       }
 
+      "must create missing pending submissions with CREATED status when declaring" in {
+        val storedReference  = "stored-reference"
+        val pendingReference = "$pending-reference"
+        insertMonthlyReturn(
+          buildMonthlyReturn(
+            submissions = List(storedSubmission(storedReference))
+          )
+        )
+
+        repository
+          .declare(
+            zReference,
+            taxYear,
+            month,
+            List(storedReference, pendingReference, pendingReference)
+          )
+          .futureValue mustBe DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared
+
+        val stored = repository.get(zReference, taxYear, month).futureValue.value
+        stored.submissions must contain theSameElementsInOrderAs List(
+          storedSubmission(storedReference),
+          Submission(
+            reference = pendingReference,
+            status = SubmissionStatus.Created,
+            createdOn = fixedNow
+          )
+        )
+        stored.declaredOn mustBe Some(fixedNow)
+      }
+
       "must return MonthlyReturnAlreadyDeclared when the MonthlyReturn has already been declared" in {
         insertMonthlyReturn(buildMonthlyReturn(declaredOn = Some(existingUpdated)))
 
@@ -187,7 +217,7 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
     "declareNilReturn" - {
 
       "must declare a MonthlyReturn as a nil return and clear submissions atomically" in {
-        insertMonthlyReturn(buildMonthlyReturn(submissions = List(createdFileUpload())))
+        insertMonthlyReturn(buildMonthlyReturn(submissions = List(storedSubmission())))
 
         repository.declareNilReturn(zReference, taxYear, month).futureValue mustBe
           DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared
@@ -212,40 +242,75 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
       }
     }
 
-    "createSubmission" - {
+    "storeSubmission" - {
 
-      "must append a new submission without replacing existing submissions" in {
+      "must append a missing submission with STORED status without replacing existing submissions" in {
         val existingReference = "existing-reference"
-        insertMonthlyReturn(buildMonthlyReturn(submissions = List(createdFileUpload(existingReference))))
+        insertMonthlyReturn(buildMonthlyReturn(submissions = List(storedSubmission(existingReference))))
 
         repository
-          .createSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
-          .futureValue mustBe true
+          .storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
+          .futureValue mustBe StoreSubmissionRepositoryResult.SubmissionStored
 
         val stored = repository.get(zReference, taxYear, month).futureValue.value
         stored.submissions.map(_.reference) must contain theSameElementsInOrderAs List(
           existingReference,
           uploadReference
         )
+        stored.submissions.last.status mustBe SubmissionStatus.Stored
+        stored.submissions.last.submissionDetails mustBe Some(fileUploadDetails)
         stored.lastUpdated mustBe fixedNow
       }
 
-      "must return false when the reference already exists" in {
-        insertMonthlyReturn(buildMonthlyReturn(submissions = List(createdFileUpload(uploadReference))))
+      "must update an existing CREATED submission to STORED after declaration" in {
+        insertMonthlyReturn(
+          buildMonthlyReturn(
+            submissions = List(createdSubmission(uploadReference)),
+            declaredOn = Some(existingUpdated)
+          )
+        )
 
         repository
-          .createSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
-          .futureValue mustBe false
+          .storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
+          .futureValue mustBe StoreSubmissionRepositoryResult.SubmissionStored
+
+        val submissions = repository.get(zReference, taxYear, month).futureValue.value.submissions
+        submissions.size mustBe 1
+        val submission  = submissions.head
+        submission mustBe storedSubmission(uploadReference)
+        submission.createdOn mustBe createdOn
+      }
+
+      "must return SubmissionConflict when the submission is already STORED" in {
+        insertMonthlyReturn(buildMonthlyReturn(submissions = List(storedSubmission(uploadReference))))
+
+        repository
+          .storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
+          .futureValue mustBe StoreSubmissionRepositoryResult.SubmissionConflict
 
         repository.get(zReference, taxYear, month).futureValue.value.submissions.size mustBe 1
       }
 
-      "must return false for nil returns" in {
+      "must return SubmissionConflict for a missing submission after declaration" in {
+        insertMonthlyReturn(buildMonthlyReturn(declaredOn = Some(existingUpdated)))
+
+        repository
+          .storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
+          .futureValue mustBe StoreSubmissionRepositoryResult.SubmissionConflict
+      }
+
+      "must return SubmissionConflict for a nil return" in {
         insertMonthlyReturn(buildMonthlyReturn(nilReturn = true))
 
         repository
-          .createSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
-          .futureValue mustBe false
+          .storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
+          .futureValue mustBe StoreSubmissionRepositoryResult.SubmissionConflict
+      }
+
+      "must return MonthlyReturnNotFound when the return does not exist" in {
+        repository
+          .storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
+          .futureValue mustBe StoreSubmissionRepositoryResult.MonthlyReturnNotFound
       }
 
       "must preserve concurrent submission creates for different references" in {
@@ -256,22 +321,51 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
         Future
           .sequence(
             Seq(
-              repository.createSubmission(zReference, taxYear, month, firstReference, fileUploadDetails),
-              repository.createSubmission(zReference, taxYear, month, secondReference, fileUploadDetails)
+              repository.storeSubmission(zReference, taxYear, month, firstReference, fileUploadDetails),
+              repository.storeSubmission(zReference, taxYear, month, secondReference, fileUploadDetails)
             )
           )
-          .futureValue must contain theSameElementsAs Seq(true, true)
+          .futureValue must contain theSameElementsAs Seq(
+          StoreSubmissionRepositoryResult.SubmissionStored,
+          StoreSubmissionRepositoryResult.SubmissionStored
+        )
 
         val stored = repository.get(zReference, taxYear, month).futureValue.value
         stored.submissions.map(_.reference) must contain theSameElementsAs Seq(firstReference, secondReference)
       }
 
-      "must allow submissions after declaration" in {
-        insertMonthlyReturn(buildMonthlyReturn(declaredOn = Some(existingUpdated)))
+      "must only store one concurrent submission for the same reference" in {
+        insertMonthlyReturn(buildMonthlyReturn())
 
-        repository
-          .createSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
-          .futureValue mustBe true
+        val results = Future
+          .sequence(
+            Seq(
+              repository.storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails),
+              repository.storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
+            )
+          )
+          .futureValue
+
+        results.count(_ == StoreSubmissionRepositoryResult.SubmissionStored) mustBe 1
+        results.count(_ == StoreSubmissionRepositoryResult.SubmissionConflict) mustBe 1
+        repository.get(zReference, taxYear, month).futureValue.value.submissions.size mustBe 1
+      }
+
+      "must store a submission concurrently registered as pending by declaration" in {
+        insertMonthlyReturn(buildMonthlyReturn())
+
+        val declaration =
+          repository.declare(zReference, taxYear, month, pendingSubmissionIds = List(uploadReference))
+        val storage     =
+          repository.storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
+
+        declaration.futureValue mustBe DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared
+        storage.futureValue mustBe StoreSubmissionRepositoryResult.SubmissionStored
+
+        val stored = repository.get(zReference, taxYear, month).futureValue.value
+        stored.declaredOn mustBe Some(fixedNow)
+        stored.submissions.size mustBe 1
+        stored.submissions.head.status mustBe SubmissionStatus.Stored
       }
     }
 
@@ -298,11 +392,21 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
       lastUpdated = lastUpdated
     )
 
-  private def createdFileUpload(
+  private def createdSubmission(
     reference: String = uploadReference
   ): Submission =
     Submission(
       reference = reference,
+      status = SubmissionStatus.Created,
+      createdOn = createdOn
+    )
+
+  private def storedSubmission(
+    reference: String = uploadReference
+  ): Submission =
+    Submission(
+      reference = reference,
+      status = SubmissionStatus.Stored,
       createdOn = createdOn,
       submissionDetails = Some(fileUploadDetails)
     )

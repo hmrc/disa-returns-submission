@@ -1,0 +1,36 @@
+meta {
+  name: 03-404-monthly-return-not-found
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}{{servicePath}}/monthly/{{missingZReference}}/{{taxYear}}/{{month}}/declarations
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "nilReturn": false
+  }
+}
+
+assert {
+  res.status: eq 404
+}
+
+script:pre-request {
+  const clockResponse = await bru.runRequest("TestOnly/Clock/02-200-set-clock-inside-declaration-period");
+
+  if (clockResponse.status !== 200) {
+    throw new Error(`Expected clock setup to respond with 200, got ${clockResponse.status}`);
+  }
+
+  const value = (Date.now() + Math.floor(Math.random() * 1000)) % 10000;
+  bru.setVar("missingZReference", `Z${value.toString().padStart(4, "0")}`);
+}

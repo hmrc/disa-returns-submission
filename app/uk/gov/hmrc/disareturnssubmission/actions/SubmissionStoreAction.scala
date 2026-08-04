@@ -20,9 +20,9 @@ import org.apache.pekko.actor.ActorSystem
 import play.api.Logging
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.models.{MonthlyReturn, SubmissionDetails}
-import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository
+import uk.gov.hmrc.disareturnssubmission.repositories.{MonthlyReturnRepository, StoreSubmissionRepositoryResult}
 import uk.gov.hmrc.disareturnssubmission.services.{ObjectStoreService, SubmitReturnResult}
-import uk.gov.hmrc.disareturnssubmission.utils.{Md5Base64, UuidGenerator}
+import uk.gov.hmrc.disareturnssubmission.utils.Md5Base64
 
 import java.nio.file.{Files, Path}
 import javax.inject.Inject
@@ -31,7 +31,6 @@ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future, blo
 class SubmissionStoreAction @Inject() (
   monthlyReturnRepository: MonthlyReturnRepository,
   objectStoreService: ObjectStoreService,
-  uuidGenerator: UuidGenerator,
   appConfig: AppConfig,
   val actorSystem: ActorSystem
 )(implicit ec: ExecutionContext)
@@ -43,10 +42,9 @@ class SubmissionStoreAction @Inject() (
 
   def store(
     bodyPath: Path,
-    monthlyReturn: MonthlyReturn
+    monthlyReturn: MonthlyReturn,
+    submissionId: String
   ): Future[SubmitReturnResult] = {
-    val fileNameOrReference = uuidGenerator.randomUuid()
-
     val someMd5 = Future {
       blocking {
         val length = Files.size(bodyPath)
@@ -60,10 +58,10 @@ class SubmissionStoreAction @Inject() (
     someMd5.flatMap {
       case Some(md5, length) =>
         objectStoreService
-          .uploadFileToObjectStore(fileNameOrReference.toString, bodyPath, appConfig.contentType, md5, length)
+          .uploadFileToObjectStore(submissionId, bodyPath, appConfig.contentType, md5, length)
           .flatMap { fileLocation =>
             storeSubmission(
-              fileNameOrReference.toString,
+              submissionId,
               fileLocation,
               md5.toString,
               monthlyReturn,
@@ -90,16 +88,20 @@ class SubmissionStoreAction @Inject() (
     )
 
     monthlyReturnRepository
-      .createSubmission(
+      .storeSubmission(
         zReference = monthlyReturn.zReference,
         taxYear = monthlyReturn.taxYear,
         month = monthlyReturn.month,
         reference = fileNameRef,
         submissionDetails = fileUploadDetails
       )
-      .flatMap {
-        case true  => Future.successful(SubmitReturnResult.UpdateSuccessful)
-        case false => Future.successful(SubmitReturnResult.NotUpdatedInRepository)
+      .map {
+        case StoreSubmissionRepositoryResult.SubmissionStored      =>
+          SubmitReturnResult.UpdateSuccessful
+        case StoreSubmissionRepositoryResult.SubmissionConflict    =>
+          SubmitReturnResult.SubmissionConflict
+        case StoreSubmissionRepositoryResult.MonthlyReturnNotFound =>
+          SubmitReturnResult.MonthlyReturnNotFound
       }
 
   }

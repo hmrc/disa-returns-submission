@@ -111,8 +111,19 @@ class MonthlyReturnService @Inject() (
         Future.failed(exception)
       }
 
-  def declare(zReference: String, taxYear: String, month: Int, nilReturn: Boolean): Future[DeclareMonthlyReturnResult] =
-    if (!isWithinDeclarationPeriod(taxYear, month)) {
+  def declare(
+    zReference: String,
+    taxYear: String,
+    month: Int,
+    nilReturn: Boolean,
+    pendingSubmissionIds: List[String] = Nil
+  ): Future[DeclareMonthlyReturnResult] =
+    if (nilReturn && pendingSubmissionIds.nonEmpty) {
+      logger.warn(
+        s"[MonthlyReturnService][declare] Pending submissions cannot be supplied for a nil return for zReference [$zReference], taxYear [$taxYear], month [$month]"
+      )
+      Future.successful(DeclareMonthlyReturnResult.PendingSubmissionsForNilReturn)
+    } else if (!isWithinDeclarationPeriod(taxYear, month)) {
       logger.warn(
         s"[MonthlyReturnService][declare] Declaration period is closed for zReference [$zReference], taxYear [$taxYear], month [$month]"
       )
@@ -120,7 +131,7 @@ class MonthlyReturnService @Inject() (
     } else if (nilReturn) {
       declareNilReturn(zReference, taxYear, month)
     } else {
-      declareExistingReturn(zReference, taxYear, month)
+      declareExistingReturn(zReference, taxYear, month, pendingSubmissionIds)
     }
 
   private def declareNilReturn(zReference: String, taxYear: String, month: Int): Future[DeclareMonthlyReturnResult] =
@@ -148,7 +159,7 @@ class MonthlyReturnService @Inject() (
             .create(zReference, taxYear, month, uuidGenerator.randomUuid(), nilReturn = true)
             .flatMap {
               case Some(_) =>
-                monthlyReturnRepository.declare(zReference, taxYear, month).map {
+                monthlyReturnRepository.declare(zReference, taxYear, month, pendingSubmissionIds = Nil).map {
                   case DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared =>
                     logger.info(
                       s"[MonthlyReturnService][declareNilReturn] Created and declared nil return for zReference [$zReference], taxYear [$taxYear], month [$month]"
@@ -185,10 +196,11 @@ class MonthlyReturnService @Inject() (
   private def declareExistingReturn(
     zReference: String,
     taxYear: String,
-    month: Int
+    month: Int,
+    pendingSubmissionIds: List[String]
   ): Future[DeclareMonthlyReturnResult] =
     monthlyReturnRepository
-      .declare(zReference, taxYear, month)
+      .declare(zReference, taxYear, month, pendingSubmissionIds)
       .map {
         case DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared =>
           logger.info(
@@ -216,23 +228,41 @@ class MonthlyReturnService @Inject() (
         Future.failed(exception)
       }
 
-  def storeSubmission(zReference: String, taxYear: String, month: Int, bodyPath: Path): Future[SubmitReturnResult] =
+  def storeSubmission(
+    zReference: String,
+    taxYear: String,
+    month: Int,
+    submissionId: String,
+    bodyPath: Path
+  ): Future[SubmitReturnResult] =
 
     get(zReference, taxYear, month)
       .flatMap {
+        case Some(monthlyReturn) if monthlyReturn.hasStoredSubmission(submissionId) =>
+          logger.warn(
+            s"[MonthlyReturnService][storeSubmission] Submission [$submissionId] is already stored for zReference [$zReference], taxYear [$taxYear], month [$month]"
+          )
+          Future.successful(SubmitReturnResult.SubmissionConflict)
+
+        case Some(monthlyReturn) if !monthlyReturn.hasCreatedSubmission(submissionId) =>
+          logger.warn(
+            s"[MonthlyReturnService][storeSubmission] Monthly return cannot accept submission [$submissionId] for zReference [$zReference], taxYear [$taxYear], month [$month]"
+          )
+          Future.successful(SubmitReturnResult.SubmissionConflict)
+
         case Some(monthlyReturn) =>
-          submissionStoreAction.store(bodyPath, monthlyReturn).map {
+          submissionStoreAction.store(bodyPath, monthlyReturn, submissionId).map {
             case SubmitReturnResult.UpdateSuccessful =>
               logger.info(
-                s"[MonthlyReturnService][storeSubmission] Stored submission for zReference [$zReference], taxYear [$taxYear], month [$month]"
+                s"[MonthlyReturnService][storeSubmission] Stored submission [$submissionId] for zReference [$zReference], taxYear [$taxYear], month [$month]"
               )
               SubmitReturnResult.UpdateSuccessful
 
-            case SubmitReturnResult.NotUpdatedInRepository =>
+            case SubmitReturnResult.SubmissionConflict =>
               logger.warn(
-                s"[MonthlyReturnService][storeSubmission] Submission was not updated in repository for zReference [$zReference], taxYear [$taxYear], month [$month]"
+                s"[MonthlyReturnService][storeSubmission] Submission [$submissionId] conflicted with the current monthly return state for zReference [$zReference], taxYear [$taxYear], month [$month]"
               )
-              SubmitReturnResult.NotUpdatedInRepository
+              SubmitReturnResult.SubmissionConflict
 
             case SubmitReturnResult.NoBody =>
               logger.warn(
@@ -255,7 +285,7 @@ class MonthlyReturnService @Inject() (
       }
       .recoverWith { case NonFatal(exception) =>
         logger.error(
-          s"[MonthlyReturnService][storeSubmission] Failed to store submission for zReference [$zReference], taxYear [$taxYear], month [$month]",
+          s"[MonthlyReturnService][storeSubmission] Failed to store submission [$submissionId] for zReference [$zReference], taxYear [$taxYear], month [$month]",
           exception
         )
         Future.failed(exception)
@@ -296,6 +326,7 @@ object DeclareMonthlyReturnResult {
   case object AlreadyDeclared extends DeclareMonthlyReturnResult
   case object MonthlyReturnNotFound extends DeclareMonthlyReturnResult
   case object OutsideDeclarationPeriod extends DeclareMonthlyReturnResult
+  case object PendingSubmissionsForNilReturn extends DeclareMonthlyReturnResult
 }
 
 sealed trait UpdateNilReturnResult
@@ -311,6 +342,6 @@ sealed trait SubmitReturnResult
 object SubmitReturnResult {
   case object UpdateSuccessful extends SubmitReturnResult
   case object MonthlyReturnNotFound extends SubmitReturnResult
-  case object NotUpdatedInRepository extends SubmitReturnResult
+  case object SubmissionConflict extends SubmitReturnResult
   case object NoBody extends SubmitReturnResult
 }

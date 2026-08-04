@@ -241,7 +241,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
     "declare with nilReturn false" - {
 
       "must return Declared when the repository declares the MonthlyReturn" in {
-        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo(taxYear), eqTo(month), eqTo(List.empty)))
           .thenReturn(
             Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared)
           )
@@ -250,11 +250,33 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
           .declare(zReference, taxYear, month, nilReturn = false)
           .futureValue mustBe DeclareMonthlyReturnResult.Declared
 
-        verify(mockMonthlyReturnRepository).declare(eqTo(zReference), eqTo(taxYear), eqTo(month))
+        verify(mockMonthlyReturnRepository).declare(eqTo(zReference), eqTo(taxYear), eqTo(month), eqTo(List.empty))
+      }
+
+      "must pass pending submission IDs to the repository" in {
+        val pendingSubmissionIds = List(testUploadReference, "second-reference")
+        when(
+          mockMonthlyReturnRepository.declare(
+            eqTo(zReference),
+            eqTo(taxYear),
+            eqTo(month),
+            eqTo(pendingSubmissionIds)
+          )
+        ).thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared))
+
+        service
+          .declare(
+            zReference,
+            taxYear,
+            month,
+            nilReturn = false,
+            pendingSubmissionIds = pendingSubmissionIds
+          )
+          .futureValue mustBe DeclareMonthlyReturnResult.Declared
       }
 
       "must return AlreadyDeclared when the repository rejects a duplicate declaration" in {
-        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo(taxYear), eqTo(month), eqTo(List.empty)))
           .thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnAlreadyDeclared))
 
         service
@@ -263,7 +285,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
       }
 
       "must return MonthlyReturnNotFound when the repository cannot find the MonthlyReturn" in {
-        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo(taxYear), eqTo(month), eqTo(List.empty)))
           .thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnNotFound))
 
         service
@@ -274,7 +296,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
       "must allow declarations from the configured start day" in {
         val startOfDeclarationPeriod = Instant.parse("2026-06-06T00:00:00Z")
         val startDayService          = buildService(startOfDeclarationPeriod)
-        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo(taxYear), eqTo(month), eqTo(List.empty)))
           .thenReturn(
             Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared)
           )
@@ -295,7 +317,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
       "must allow declarations until the end of the configured end day" in {
         val endOfDeclarationPeriod = Instant.parse("2026-06-19T23:59:59Z")
         val endDayService          = buildService(endOfDeclarationPeriod)
-        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo(taxYear), eqTo(month), eqTo(List.empty)))
           .thenReturn(
             Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared)
           )
@@ -324,7 +346,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
 
       "must allow declaring on April 2026 for March 2026 in the 2025-26 tax year" in {
         val startDate = buildService(Instant.parse(s"2026-04-0${appConfig.declarationPeriodStart}T00:00:00Z"))
-        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo("2025-26"), eqTo(3)))
+        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo("2025-26"), eqTo(3), eqTo(List.empty)))
           .thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared))
 
         startDate.declare(zReference, "2025-26", 3, nilReturn = false).futureValue mustBe
@@ -353,7 +375,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
 
       "must allow declaring on July 2026 for June 2026" in {
         val startDate = buildService(Instant.parse(s"2026-07-0${appConfig.declarationPeriodStart}T00:00:00Z"))
-        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo("2026-27"), eqTo(6)))
+        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo("2026-27"), eqTo(6), eqTo(List.empty)))
           .thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared))
 
         startDate
@@ -363,12 +385,12 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
     }
 
     "submitReturn" - {
-      "must return UpdateSuccessful" in {
+      "must return UpdateSuccessful for a missing submission before declaration" in {
 
         when(mockMonthlyReturnRepository.get(any(), any(), any()))
           .thenReturn(Future.successful(Some(monthlyReturn)))
 
-        when(mockSubStoreAction.store(any(), any()))
+        when(mockSubStoreAction.store(any(), any(), eqTo(testUploadReference)))
           .thenReturn(Future.successful(SubmitReturnResult.UpdateSuccessful))
 
         service
@@ -376,29 +398,74 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
             zReference,
             taxYear,
             month,
+            testUploadReference,
             testTempFile
           )
           .futureValue mustBe SubmitReturnResult.UpdateSuccessful
-
       }
 
-      "must return NotUpdatedInRepository if repository fails to update" in {
-
+      "must allow an existing CREATED submission after declaration" in {
+        val declaredReturn = monthlyReturn.copy(
+          submissions = List(
+            Submission(
+              reference = testUploadReference,
+              status = SubmissionStatus.Created,
+              createdOn = testCreatedOn
+            )
+          ),
+          declaredOn = Some(testCreatedOn)
+        )
         when(mockMonthlyReturnRepository.get(any(), any(), any()))
-          .thenReturn(Future.successful(Some(monthlyReturn)))
-
-        when(mockSubStoreAction.store(any(), any()))
-          .thenReturn(Future.successful(SubmitReturnResult.NotUpdatedInRepository))
+          .thenReturn(Future.successful(Some(declaredReturn)))
+        when(mockSubStoreAction.store(any(), eqTo(declaredReturn), eqTo(testUploadReference)))
+          .thenReturn(Future.successful(SubmitReturnResult.UpdateSuccessful))
 
         service
-          .storeSubmission(
-            zReference,
-            taxYear,
-            month,
-            testTempFile
-          )
-          .futureValue mustBe SubmitReturnResult.NotUpdatedInRepository
+          .storeSubmission(zReference, taxYear, month, testUploadReference, testTempFile)
+          .futureValue mustBe SubmitReturnResult.UpdateSuccessful
+      }
 
+      "must return SubmissionConflict without storing when the submission is already STORED" in {
+        val monthlyReturnWithStoredSubmission = monthlyReturn.copy(
+          submissions = List(
+            Submission(
+              reference = testUploadReference,
+              status = SubmissionStatus.Stored,
+              createdOn = testCreatedOn,
+              submissionDetails = Some(fileUploadDetails)
+            )
+          )
+        )
+        when(mockMonthlyReturnRepository.get(any(), any(), any()))
+          .thenReturn(Future.successful(Some(monthlyReturnWithStoredSubmission)))
+
+        service
+          .storeSubmission(zReference, taxYear, month, testUploadReference, testTempFile)
+          .futureValue mustBe SubmitReturnResult.SubmissionConflict
+
+        verifyNoInteractions(mockSubStoreAction)
+      }
+
+      "must return SubmissionConflict for a missing submission after declaration" in {
+        when(mockMonthlyReturnRepository.get(any(), any(), any()))
+          .thenReturn(Future.successful(Some(monthlyReturn.copy(declaredOn = Some(testCreatedOn)))))
+
+        service
+          .storeSubmission(zReference, taxYear, month, testUploadReference, testTempFile)
+          .futureValue mustBe SubmitReturnResult.SubmissionConflict
+
+        verifyNoInteractions(mockSubStoreAction)
+      }
+
+      "must return SubmissionConflict if the state changes while storing" in {
+        when(mockMonthlyReturnRepository.get(any(), any(), any()))
+          .thenReturn(Future.successful(Some(monthlyReturn)))
+        when(mockSubStoreAction.store(any(), any(), eqTo(testUploadReference)))
+          .thenReturn(Future.successful(SubmitReturnResult.SubmissionConflict))
+
+        service
+          .storeSubmission(zReference, taxYear, month, testUploadReference, testTempFile)
+          .futureValue mustBe SubmitReturnResult.SubmissionConflict
       }
 
       "must return MonthlyReturnNotFound if a Monthly return hasn't been created yet" in {
@@ -411,6 +478,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
             zReference,
             taxYear,
             month,
+            testUploadReference,
             testTempFile
           )
           .futureValue mustBe SubmitReturnResult.MonthlyReturnNotFound
@@ -423,7 +491,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
         when(mockMonthlyReturnRepository.get(any(), any(), any()))
           .thenReturn(Future.successful(Some(monthlyReturn)))
 
-        when(mockSubStoreAction.store(any(), any()))
+        when(mockSubStoreAction.store(any(), any(), eqTo(testUploadReference)))
           .thenReturn(Future.failed(new RuntimeException(testMongoDownMessage)))
 
         service
@@ -431,6 +499,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
             zReference,
             taxYear,
             month,
+            testUploadReference,
             testTempFile
           )
           .failed
@@ -439,6 +508,20 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
     }
 
     "declare with nilReturn true" - {
+
+      "must reject pending submission IDs without calling the repository" in {
+        service
+          .declare(
+            zReference,
+            taxYear,
+            month,
+            nilReturn = true,
+            pendingSubmissionIds = List(testUploadReference)
+          )
+          .futureValue mustBe DeclareMonthlyReturnResult.PendingSubmissionsForNilReturn
+
+        verifyNoInteractions(mockMonthlyReturnRepository)
+      }
 
       "must return Declared when no monthly return exists and one is created" in {
         when(mockMonthlyReturnRepository.declareNilReturn(eqTo(zReference), eqTo(taxYear), eqTo(month)))
@@ -454,7 +537,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
           )
         )
           .thenReturn(Future.successful(Some(monthlyReturn.copy(nilReturn = true))))
-        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo(taxYear), eqTo(month), eqTo(List.empty)))
           .thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared))
 
         service
@@ -462,7 +545,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
           .futureValue mustBe DeclareMonthlyReturnResult.Declared
 
         verify(mockUuidGenerator).randomUuid()
-        verify(mockMonthlyReturnRepository).declare(eqTo(zReference), eqTo(taxYear), eqTo(month))
+        verify(mockMonthlyReturnRepository).declare(eqTo(zReference), eqTo(taxYear), eqTo(month), eqTo(List.empty))
       }
 
       "must return AlreadyDeclared when created nil return is already declared before fallback declaration completes" in {
@@ -479,7 +562,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
           )
         )
           .thenReturn(Future.successful(Some(monthlyReturn.copy(nilReturn = true))))
-        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo(taxYear), eqTo(month), eqTo(List.empty)))
           .thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnAlreadyDeclared))
 
         service
@@ -501,7 +584,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
           )
         )
           .thenReturn(Future.successful(Some(monthlyReturn.copy(nilReturn = true))))
-        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo(taxYear), eqTo(month)))
+        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo(taxYear), eqTo(month), eqTo(List.empty)))
           .thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnNotFound))
 
         service
@@ -520,7 +603,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
         verify(mockMonthlyReturnRepository).declareNilReturn(eqTo(zReference), eqTo(taxYear), eqTo(month))
         verify(mockUuidGenerator, never()).randomUuid()
         verify(mockMonthlyReturnRepository, never()).create(any(), any(), any(), any(), any())
-        verify(mockMonthlyReturnRepository, never()).declare(any(), any(), any())
+        verify(mockMonthlyReturnRepository, never()).declare(any(), any(), any(), any())
       }
 
       "must return AlreadyDeclared when existing monthly return is already declared" in {
@@ -533,7 +616,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
 
         verify(mockUuidGenerator, never()).randomUuid()
         verify(mockMonthlyReturnRepository, never()).create(any(), any(), any(), any(), any())
-        verify(mockMonthlyReturnRepository, never()).declare(any(), any(), any())
+        verify(mockMonthlyReturnRepository, never()).declare(any(), any(), any(), any())
       }
 
       "must return OutsideDeclarationPeriod when outside declaration period" in {

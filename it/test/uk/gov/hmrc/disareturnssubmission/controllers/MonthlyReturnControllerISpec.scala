@@ -17,7 +17,7 @@
 package uk.gov.hmrc.disareturnssubmission.controllers
 
 import play.api.http.Status.{BAD_REQUEST, CONFLICT, CREATED, FORBIDDEN, NOT_FOUND, OK, SERVICE_UNAVAILABLE, UNAUTHORIZED, UNPROCESSABLE_ENTITY}
-import play.api.libs.json.Json
+import play.api.libs.json.{JsValue, Json}
 import uk.gov.hmrc.disareturnssubmission.BaseIntegrationSpec
 import uk.gov.hmrc.disareturnssubmission.utils.ObjectStoreWireMockStubs
 
@@ -29,7 +29,7 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
   private val currentMonthPath = s"$testServicePath/monthly/$testZReference/$testTaxYear/6"
 
   private val declarationPath = monthlyPath ++ "/declarations"
-  private val submissionPath  = monthlyPath ++ "/submissions"
+  private val submissionPath  = monthlyPath ++ s"/submissions/$testUploadReference"
   private val currentMonthDeclarationPath = currentMonthPath ++ "/declarations"
 
 
@@ -124,6 +124,37 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
       result.status shouldBe OK
     }
 
+    "create pending submissions with CREATED status when declaring" in {
+      postJson(monthlyPath, nilReturnFalseRequest).status shouldBe CREATED
+
+      val result = postJson(
+        declarationPath,
+        Json.obj(
+          "nilReturn"            -> false,
+          "pendingSubmissionIds" -> Json.arr(testUploadReference)
+        )
+      )
+
+      result.status shouldBe OK
+      val submissions = (get(monthlyPath).json \ "submissions").as[Seq[JsValue]]
+      submissions.size shouldBe 1
+      (submissions.head \ "reference").as[String] shouldBe testUploadReference
+      (submissions.head \ "status").as[String] shouldBe "CREATED"
+      (submissions.head \ "submissionDetails").toOption shouldBe None
+    }
+
+    "return 400 BadRequest when pending submission IDs are supplied for a nil return" in {
+      val result = postJson(
+        declarationPath,
+        Json.obj(
+          "nilReturn"            -> true,
+          "pendingSubmissionIds" -> Json.arr(testUploadReference)
+        )
+      )
+
+      result.status shouldBe BAD_REQUEST
+    }
+
     "return 422 UnprocessableEntity when the monthly return was already declared" in {
       postJson(monthlyPath, nilReturnFalseRequest).status shouldBe CREATED
       postJson(declarationPath,Json.obj("nilReturn" -> false)).status shouldBe OK
@@ -136,7 +167,7 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
 
       val result = postJson(declarationPath, Json.obj("nilReturn" -> false))
 
-      result.status shouldBe UNPROCESSABLE_ENTITY
+      result.status shouldBe NOT_FOUND
     }
 
     "return 422 UnprocessableEntity when the monthly return is not for the previous monthly period" in {
@@ -164,17 +195,61 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
     }
   }
 
-  "POST /monthly/:zReference/:taxYear/:month/submissions" should {
+  "PUT /monthly/:zReference/:taxYear/:month/submissions/:submissionId" should {
 
-    "return 200 Ok when the monthly return is submitted successfully" in {
+    "create a missing submission with STORED status" in {
 
       postJson(monthlyPath, nilReturnFalseRequest)
 
       stubObjectStorePut()
 
-      val result = postJson(submissionPath, ndjsonContent, "application/x-ndjson")
+      val result = putString(submissionPath, ndjsonContent, "application/x-ndjson")
 
       result.status shouldBe OK
+      val submissions = (get(monthlyPath).json \ "submissions").as[Seq[JsValue]]
+      submissions.size shouldBe 1
+      (submissions.head \ "reference").as[String] shouldBe testUploadReference
+      (submissions.head \ "status").as[String] shouldBe "STORED"
+      (submissions.head \ "submissionDetails" \ "objectStoreFileLocation").as[String] should not be empty
+    }
+
+    "update an existing CREATED submission to STORED after declaration" in {
+      postJson(monthlyPath, nilReturnFalseRequest).status shouldBe CREATED
+      postJson(
+        declarationPath,
+        Json.obj(
+          "nilReturn"            -> false,
+          "pendingSubmissionIds" -> Json.arr(testUploadReference)
+        )
+      ).status shouldBe OK
+      stubObjectStorePut()
+
+      val result = putString(submissionPath, ndjsonContent, "application/x-ndjson")
+
+      result.status shouldBe OK
+      val submission = (get(monthlyPath).json \ "submissions").as[Seq[JsValue]].head
+      (submission \ "status").as[String] shouldBe "STORED"
+      (submission \ "submissionDetails").toOption should not be empty
+    }
+
+    "return 409 Conflict when the submission is already STORED" in {
+      postJson(monthlyPath, nilReturnFalseRequest).status shouldBe CREATED
+      stubObjectStorePut()
+      putString(submissionPath, ndjsonContent, "application/x-ndjson").status shouldBe OK
+
+      val result = putString(submissionPath, ndjsonContent, "application/x-ndjson")
+
+      result.status shouldBe CONFLICT
+    }
+
+    "return 409 Conflict for an unknown submission after declaration" in {
+      postJson(monthlyPath, nilReturnFalseRequest).status shouldBe CREATED
+      postJson(declarationPath, Json.obj("nilReturn" -> false)).status shouldBe OK
+      stubObjectStorePut()
+
+      val result = putString(submissionPath, ndjsonContent, "application/x-ndjson")
+
+      result.status shouldBe CONFLICT
     }
 
     "return 503 ServiceUnavailable when the object-store upload fails" in {
@@ -183,7 +258,7 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
 
       stubObjectStorePutInternalServerError()
 
-      val result = postJson(submissionPath, ndjsonContent, "application/x-ndjson")
+      val result = putString(submissionPath, ndjsonContent, "application/x-ndjson")
 
       result.status shouldBe SERVICE_UNAVAILABLE
     }
@@ -192,7 +267,7 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
 
       stubObjectStorePut()
 
-      val result = postJson(submissionPath, ndjsonContent, "application/x-ndjson")
+      val result = putString(submissionPath, ndjsonContent, "application/x-ndjson")
 
       result.status shouldBe NOT_FOUND
     }
@@ -203,25 +278,27 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
 
       stubObjectStorePut()
 
-      val result = postJson(submissionPath, "", "application/x-ndjson")
+      val result = putString(submissionPath, "", "application/x-ndjson")
 
       result.status shouldBe BAD_REQUEST
     }
 
     "return 401 Unauthorized when no internal auth token is provided" in {
-      val result = postJsonWithoutAuthorization(submissionPath, ndjsonContent, "application/x-ndjson")
+      val result = putStringWithoutAuthorization(submissionPath, ndjsonContent, "application/x-ndjson")
 
       result.status shouldBe UNAUTHORIZED
     }
 
     "return 401 Unauthorized when the internal auth token is invalid" in {
-      val result = postJsonWithAuthorization(submissionPath, ndjsonContent, "application/x-ndjson", invalidInternalAuthToken)
+      val result =
+        putStringWithAuthorization(submissionPath, ndjsonContent, "application/x-ndjson", invalidInternalAuthToken)
 
       result.status shouldBe UNAUTHORIZED
     }
 
     "return 403 Forbidden when the internal auth token does not have permission" in {
-      val result = postJsonWithAuthorization(submissionPath, ndjsonContent, "application/x-ndjson", forbiddenInternalAuthToken)
+      val result =
+        putStringWithAuthorization(submissionPath, ndjsonContent, "application/x-ndjson", forbiddenInternalAuthToken)
 
       result.status shouldBe FORBIDDEN
     }

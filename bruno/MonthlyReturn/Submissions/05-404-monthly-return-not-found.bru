@@ -1,0 +1,29 @@
+meta {
+  name: 05-404-monthly-return-not-found
+  type: http
+  seq: 5
+}
+
+put {
+  url: {{baseUrl}}{{servicePath}}/monthly/{{missingZReference}}/{{taxYear}}/{{month}}/submissions/{{putSubmissionId}}
+  body: text
+  auth: none
+}
+
+headers {
+  Content-Type: application/x-ndjson
+}
+
+body:text {
+  {"id":"1","name":"missing return record"}
+}
+
+assert {
+  res.status: eq 404
+}
+
+script:pre-request {
+  const value = (Date.now() + Math.floor(Math.random() * 1000)) % 10000;
+  bru.setVar("missingZReference", `Z${value.toString().padStart(4, "0")}`);
+  bru.setVar("putSubmissionId", `missing-${Date.now()}`);
+}
