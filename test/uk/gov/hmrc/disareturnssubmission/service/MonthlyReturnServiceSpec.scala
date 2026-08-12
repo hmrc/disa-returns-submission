@@ -24,7 +24,7 @@ import uk.gov.hmrc.disareturnssubmission.actions.SubmissionStoreAction
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.models.*
 import uk.gov.hmrc.disareturnssubmission.repositories.{DeclareMonthlyReturnRepositoryResult, MonthlyReturnRepository}
-import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, MonthlyReturnService, SubmitReturnResult}
+import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, MonthlyReturnService, ReportingWindowService, SubmitReturnResult}
 import uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator
 
 import java.time.{Clock, Instant, ZoneOffset}
@@ -656,12 +656,14 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
     }
   }
 
-  private def buildService(now: Instant): MonthlyReturnService =
+  private def buildService(now: Instant): MonthlyReturnService = {
+    val clock = Clock.fixed(now, ZoneOffset.UTC)
     new MonthlyReturnService(
       monthlyReturnRepository = mockMonthlyReturnRepository,
       mockSubStoreAction,
-      appConfig = appConfig,
-      clock = Clock.fixed(now, ZoneOffset.UTC),
+      reportingWindowService = new ReportingWindowService(appConfig, clock),
+      clock = clock,
       uuidGenerator = mockUuidGenerator
     )
+  }
 }
