@@ -1,5 +1,8 @@
 # microservice specific routes
 
+# reporting window
+GET    /reporting-window/status                                            uk.gov.hmrc.disareturnssubmission.controllers.ReportingWindowController.status
+
 # monthly returns
 POST   /monthly/:zReference/:taxYear/:month                                uk.gov.hmrc.disareturnssubmission.controllers.MonthlyReturnController.create(zReference: String, taxYear: String, month: Int)
 GET    /monthly/:zReference/:taxYear/:month                                uk.gov.hmrc.disareturnssubmission.controllers.MonthlyReturnController.get(zReference: String, taxYear: String, month: Int)
