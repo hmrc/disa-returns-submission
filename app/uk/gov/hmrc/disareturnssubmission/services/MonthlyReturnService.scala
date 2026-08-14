@@ -18,7 +18,6 @@ package uk.gov.hmrc.disareturnssubmission.services
 
 import play.api.Logging
 import uk.gov.hmrc.disareturnssubmission.actions.SubmissionStoreAction
-import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.models.MonthlyReturn
 import uk.gov.hmrc.disareturnssubmission.repositories.{DeclareMonthlyReturnRepositoryResult, MonthlyReturnRepository}
 import uk.gov.hmrc.disareturnssubmission.services.CreateMonthlyReturnResult.*
@@ -35,7 +34,7 @@ import scala.util.control.NonFatal
 class MonthlyReturnService @Inject() (
   monthlyReturnRepository: MonthlyReturnRepository,
   submissionStoreAction: SubmissionStoreAction,
-  appConfig: AppConfig,
+  reportingWindowService: ReportingWindowService,
   clock: Clock,
   uuidGenerator: UuidGenerator
 )(implicit ec: ExecutionContext)
@@ -293,16 +292,12 @@ class MonthlyReturnService @Inject() (
 
   private def isWithinDeclarationPeriod(taxYear: String, month: Int): Boolean = {
     val today               = LocalDate.now(clock)
-    val dayOfMonth          = today.getDayOfMonth
     val previousMonthPeriod = YearMonth.from(today).minusMonths(1)
-
-    val isDayWithinDeclarationPeriod =
-      dayOfMonth >= appConfig.declarationPeriodStart && dayOfMonth <= appConfig.declarationPeriodEnd
 
     val isPreviousMonth   = previousMonthPeriod.getMonthValue == month
     val isPreviousTaxYear = taxYearFor(previousMonthPeriod) == taxYear
 
-    isDayWithinDeclarationPeriod && isPreviousMonth && isPreviousTaxYear
+    reportingWindowService.isOpen && isPreviousMonth && isPreviousTaxYear
   }
 
   private def taxYearFor(period: YearMonth): String = {
