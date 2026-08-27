@@ -56,7 +56,7 @@ class ReportingWindowOverrideRepositorySpec
       val ttl     = indexes.find(_.getString("name") == "expiresAtTtlIdx").value
 
       ttl.get("key").value.asDocument().getInt32("expiresAt").getValue mustBe 1
-      ttl.get("expireAfterSeconds").value.asNumber().longValue         mustBe 0
+      ttl.get("expireAfterSeconds").value.asNumber().longValue mustBe 0
     }
 
     "must upsert and isolate overrides by Z-reference" in {
@@ -68,7 +68,7 @@ class ReportingWindowOverrideRepositorySpec
         .futureValue
 
       repository.getActive(testZReference).futureValue.value.endDate mustBe now.plusSeconds(60)
-      repository.getActive("Z5678").futureValue.value.endDate        mustBe now.plusSeconds(120)
+      repository.getActive("Z5678").futureValue.value.endDate mustBe now.plusSeconds(120)
     }
 
     "must store expiry timestamps as BSON dates" in {
@@ -87,7 +87,7 @@ class ReportingWindowOverrideRepositorySpec
       repository.delete(testZReference).futureValue
 
       repository.getActive(testZReference).futureValue mustBe None
-      repository.getActive("Z5678").futureValue        must not be empty
+      repository.getActive("Z5678").futureValue must not be empty
     }
   }
 }

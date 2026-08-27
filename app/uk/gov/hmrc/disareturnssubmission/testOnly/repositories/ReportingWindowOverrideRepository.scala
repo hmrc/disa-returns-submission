@@ -50,8 +50,8 @@ class ReportingWindowOverrideRepository @Inject() (
     ) {
 
   def set(zReference: String, request: ReportingWindowOverrideRequest): Future[Unit] = {
-    val now       = Instant.now(clock)
-    val expiresAt = Instant.now().plus(appConfig.reportingWindowOverrideTtlHours.toLong, ChronoUnit.HOURS)
+    val now              = Instant.now(clock)
+    val expiresAt        = Instant.now().plus(appConfig.reportingWindowOverrideTtlHours.toLong, ChronoUnit.HOURS)
     val overrideDocument = ReportingWindowOverride(
       _id = zReference,
       startDate = request.startDate,

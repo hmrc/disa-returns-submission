@@ -38,9 +38,7 @@ class ModuleSpec extends SpecBase {
         val service = immutableApp.injector.instanceOf[ReportingWindowService]
 
         service.getClass mustBe classOf[ReportingWindowService]
-      } finally {
-        await(immutableApp.stop())
-      }
+      } finally await(immutableApp.stop())
     }
   }
 }
