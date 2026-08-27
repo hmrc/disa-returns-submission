@@ -19,6 +19,8 @@ package uk.gov.hmrc.disareturnssubmission
 import config.{InternalAuthTokenInitialiser, InternalAuthTokenInitialiserImpl, NoOpInternalAuthTokenInitialiser}
 import play.api.{Configuration, Environment}
 import play.api.inject.{Binding, Module as AppModule, bind as binding}
+import services.ReportingWindowService
+import testOnly.services.MutableReportingWindowService
 import uk.gov.hmrc.disareturnssubmission.testOnly.MutableClock
 
 import java.time.{Clock, ZoneOffset}
@@ -55,7 +57,15 @@ class Module extends AppModule:
         )
       }
 
+    val reportingWindowServiceBinding: Binding[?] =
+      if (configuration.get[Boolean]("features.useMutableReportingWindow")) {
+        binding[ReportingWindowService].to[MutableReportingWindowService]
+      } else {
+        binding[ReportingWindowService].toSelf
+      }
+
     Seq(
-      binding[AppInitialiser].toSelf.eagerly()
+      binding[AppInitialiser].toSelf.eagerly(),
+      reportingWindowServiceBinding
     ) ++ clockBindings ++ authTokenInitialiserBindings
   }

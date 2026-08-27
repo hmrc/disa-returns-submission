@@ -19,26 +19,34 @@ package uk.gov.hmrc.disareturnssubmission.controllers
 import play.api.Logging
 import play.api.libs.json.Json
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
-import uk.gov.hmrc.disareturnssubmission.models.ReportingWindowStatus
+import uk.gov.hmrc.disareturnssubmission.models.{ReportingWindowStatus, ZReference}
 import uk.gov.hmrc.disareturnssubmission.services.ReportingWindowService
 import uk.gov.hmrc.internalauth.client.{BackendAuthComponents, IAAction, Predicate, Resource, ResourceLocation, ResourceType}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
 import javax.inject.Inject
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 class ReportingWindowController @Inject() (
   cc: ControllerComponents,
   reportingWindowService: ReportingWindowService,
   auth: BackendAuthComponents
-) extends BackendController(cc)
+)(implicit ec: ExecutionContext)
+    extends BackendController(cc)
     with Logging {
 
-  def status: Action[AnyContent] =
+  def status(zReference: String): Action[AnyContent] =
     auth.authorizedAction(readPermission).async {
-      val reportingWindowOpen = reportingWindowService.isOpen
-      logger.info(s"[ReportingWindowController][status] Reporting window open: [$reportingWindowOpen]")
-      Future.successful(Ok(Json.toJson(ReportingWindowStatus(reportingWindowOpen))))
+      ZReference.normalize(zReference) match {
+        case Some(normalizedZReference) =>
+          reportingWindowService.isOpen(normalizedZReference).map { reportingWindowOpen =>
+            logger.info(
+              s"[ReportingWindowController][status] Reporting window open for Z-reference [$normalizedZReference]: [$reportingWindowOpen]"
+            )
+            Ok(Json.toJson(ReportingWindowStatus(reportingWindowOpen)))
+          }
+        case None                       => Future.successful(BadRequest(Json.obj("error" -> "Invalid zReference")))
+      }
     }
 
   private val readPermission: Predicate =

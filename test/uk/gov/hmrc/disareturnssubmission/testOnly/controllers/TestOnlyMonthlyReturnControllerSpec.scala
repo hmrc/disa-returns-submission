@@ -17,7 +17,7 @@
 package uk.gov.hmrc.disareturnssubmission.testOnly.controllers
 
 import base.SpecBase
-import org.mockito.Mockito.{reset, when}
+import org.mockito.Mockito.{reset, verify, when}
 import play.api.test.FakeRequest
 import play.api.test.Helpers.*
 import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository
@@ -30,6 +30,26 @@ class TestOnlyMonthlyReturnControllerSpec extends SpecBase {
   private val controller                  = new TestOnlyMonthlyReturnController(stubControllerComponents(), mockMonthlyReturnRepository)
 
   "TestOnlyMonthlyReturnController" - {
+
+    "must delete monthly returns for a normalized Z-reference" in {
+      reset(mockMonthlyReturnRepository)
+      when(mockMonthlyReturnRepository.deleteByZReference(testZReference)).thenReturn(Future.successful(1L))
+
+      val result = controller.deleteByZReference(testZReference.toLowerCase)(
+        FakeRequest("DELETE", s"/test-only/monthly-returns/${testZReference.toLowerCase}")
+      )
+
+      status(result) mustBe NO_CONTENT
+      verify(mockMonthlyReturnRepository).deleteByZReference(testZReference)
+    }
+
+    "must reject an invalid Z-reference" in {
+      val result = controller.deleteByZReference("invalid")(
+        FakeRequest("DELETE", "/test-only/monthly-returns/invalid")
+      )
+
+      status(result) mustBe BAD_REQUEST
+    }
 
     "must delete all monthly returns" in {
       reset(mockMonthlyReturnRepository)

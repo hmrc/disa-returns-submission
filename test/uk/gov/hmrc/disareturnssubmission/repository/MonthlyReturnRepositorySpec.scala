@@ -51,6 +51,20 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
 
   "MonthlyReturnRepository" - {
 
+    "deleteByZReference" - {
+
+      "must delete only monthly returns for the supplied Z-reference" in {
+        val otherZReference = "Z5678"
+        insertMonthlyReturn(buildMonthlyReturn())
+        insertMonthlyReturn(buildMonthlyReturn().copy(zReference = otherZReference))
+
+        repository.deleteByZReference(zReference).futureValue mustBe 1L
+
+        repository.get(zReference, taxYear, month).futureValue mustBe None
+        repository.get(otherZReference, taxYear, month).futureValue must not be empty
+      }
+    }
+
     "get" - {
 
       "must return None when a MonthlyReturn does not exist" in {

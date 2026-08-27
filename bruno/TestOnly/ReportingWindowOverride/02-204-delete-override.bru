@@ -1,0 +1,15 @@
+meta {
+  name: 02-204-delete-override
+  type: http
+  seq: 2
+}
+
+delete {
+  url: {{baseUrl}}{{servicePath}}/test-only/reporting-window-override/{{overrideZReference}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 204
+}

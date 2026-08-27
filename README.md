@@ -48,6 +48,9 @@ Test-only clock routes are available only with that router:
 - `PUT /disa-returns-submission/test-only/clock/yyyy-MM-dd`
 - `DELETE /disa-returns-submission/test-only/clock`
 - `DELETE /disa-returns-submission/test-only/monthly-returns`
+- `DELETE /disa-returns-submission/test-only/monthly-returns/:zReference`
+- `PUT /disa-returns-submission/test-only/reporting-window-override/:zReference`
+- `DELETE /disa-returns-submission/test-only/reporting-window-override/:zReference`
 
 Production monthly return routes require an internal-auth token. Local Bruno requests use:
 
@@ -57,6 +60,21 @@ Authorization: valid-internal-auth-token-disa-returns-backend
 
 That token must exist in local internal-auth with `READ` and `WRITE` permissions for `disa-returns-submission/*`.
 The test-only routes above remain unauthenticated.
+
+`features.useMutableReportingWindow` controls the reporting-window implementation. When enabled, a Z-reference-specific
+override stored through the test-only endpoint takes precedence over the configured declaration period. When disabled,
+the service uses only `declarationPeriodStart` and `declarationPeriodEnd`.
+
+The override request has the same body as the stubs endpoint:
+
+```json
+{
+  "startDate": "2026-05-16T23:59:00Z",
+  "endDate": "2026-05-17T00:01:00Z"
+}
+```
+
+Overrides are keyed by normalized Z-reference in MongoDB and expire after `reportingWindowOverrideTtlHours`.
 
 ### Submission and declaration contract
 
@@ -147,6 +165,9 @@ Otherwise the routes will not be available.
 | `PUT /disa-returns-submission/test-only/clock/:date` | `bruno/TestOnly/Clock` | Set the app date in `yyyy-MM-dd` format for declaration-period testing. |
 | `DELETE /disa-returns-submission/test-only/clock` | `bruno/TestOnly/Clock` | Reset the app clock back to the system UTC clock. |
 | `DELETE /disa-returns-submission/test-only/monthly-returns` | `bruno/TestOnly/MonthlyReturns` | Clear all monthly returns from the submission service local database. |
+| `DELETE /disa-returns-submission/test-only/monthly-returns/:zReference` | `bruno/TestOnly/MonthlyReturns`, performance tests | Clear monthly returns only for the normalized Z-reference. This must not run concurrently with return creation for that Z-reference. |
+| `PUT /disa-returns-submission/test-only/reporting-window-override/:zReference` | `bruno/TestOnly/ReportingWindowOverride`, test automation | Store a temporary reporting-window override for one normalized Z-reference. |
+| `DELETE /disa-returns-submission/test-only/reporting-window-override/:zReference` | `bruno/TestOnly/ReportingWindowOverride`, performance tests | Remove the reporting-window override for one normalized Z-reference. |
 
 ### Before you commit
 
@@ -155,8 +176,8 @@ This service leverages scalaFmt to ensure that the code is formatted correctly.
 Before you commit, please run the following commands to check that the code is formatted correctly:
 
 ```bash
-# runs a scala format check, runs unit tests, runs integration tests and produces a coverage report.
-sbt runAllChecks
+# formats all source files, runs unit and integration tests, and produces a coverage report
+sbt precommit
 
 # checks all source and sbt files are correctly formatted
 sbt prePrChecks

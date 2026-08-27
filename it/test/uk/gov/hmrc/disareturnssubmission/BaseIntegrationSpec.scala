@@ -45,7 +45,7 @@ import scala.concurrent.ExecutionContext
 import scala.reflect.ClassTag
 
 trait BaseIntegrationSpec
-  extends AnyWordSpec
+    extends AnyWordSpec
     with Matchers
     with MockitoSugar
     with GuiceOneServerPerSuite
@@ -70,9 +70,9 @@ trait BaseIntegrationSpec
 
   def config: Map[String, Any] =
     Map(
-      "auditing.enabled"                    -> false,
-      "create-internal-auth-token-on-start" -> false,
-      "mongodb.uri"                         -> "mongodb://localhost:27017/disa-returns-submission-it",
+      "auditing.enabled"                                       -> false,
+      "create-internal-auth-token-on-start"                    -> false,
+      "mongodb.uri"                                            -> "mongodb://localhost:27017/disa-returns-submission-it",
       "microservice.services.disa-returns-submission.protocol" -> "http",
       "microservice.services.disa-returns-submission.host"     -> "localhost",
       "microservice.services.disa-returns-submission.port"     -> wireMockPort,
@@ -130,9 +130,9 @@ trait BaseIntegrationSpec
   }
 
   protected def stubReturnsSubmissionCreateMonthlyReturn(
-                                                          status: Int = CREATED,
-                                                          submissionId: String = testSubmissionId.toString
-                                                        ): Unit =
+    status: Int = CREATED,
+    submissionId: String = testSubmissionId.toString
+  ): Unit =
     stubFor(
       post(urlPathMatching("/disa-returns-submission/monthly/[^/]+/[^/]+/[^/]+"))
         .willReturn(
@@ -151,13 +151,14 @@ trait BaseIntegrationSpec
   def clearMongoCollections(): Unit = {
     val database = inject[MongoComponent].database
 
-    Seq(monthlyReturnsCollectionName, monthlyReturnFileUploadWorkItemsCollectionName).foreach { collectionName =>
-      await(
-        database
-          .getCollection(collectionName)
-          .deleteMany(Filters.empty())
-          .toFuture()
-      )
-    }
+    Seq(monthlyReturnsCollectionName, monthlyReturnFileUploadWorkItemsCollectionName, "reportingWindowOverrides")
+      .foreach { collectionName =>
+        await(
+          database
+            .getCollection(collectionName)
+            .deleteMany(Filters.empty())
+            .toFuture()
+        )
+      }
   }
 }

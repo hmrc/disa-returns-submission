@@ -1,0 +1,26 @@
+meta {
+  name: 03-400-reject-invalid-interval
+  type: http
+  seq: 3
+}
+
+put {
+  url: {{baseUrl}}{{servicePath}}/test-only/reporting-window-override/{{overrideZReference}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "startDate": "{{reportingWindowOverrideEnd}}",
+    "endDate": "{{reportingWindowOverrideStart}}"
+  }
+}
+
+assert {
+  res.status: eq 400
+}

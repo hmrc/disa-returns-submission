@@ -1,0 +1,26 @@
+meta {
+  name: 01-204-set-override
+  type: http
+  seq: 1
+}
+
+put {
+  url: {{baseUrl}}{{servicePath}}/test-only/reporting-window-override/{{overrideZReference}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "startDate": "{{reportingWindowOverrideStart}}",
+    "endDate": "{{reportingWindowOverrideEnd}}"
+  }
+}
+
+assert {
+  res.status: eq 204
+}

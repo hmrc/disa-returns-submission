@@ -71,6 +71,12 @@ class MonthlyReturnRepository @Inject() (
       replaceIndexes = true
     ) {
 
+  def deleteByZReference(zReference: String): Future[Long] =
+    collection
+      .deleteMany(Filters.eq(zReferenceField, zReference))
+      .toFuture()
+      .map(_.getDeletedCount)
+
   def create(
     zReference: String,
     taxYear: String,

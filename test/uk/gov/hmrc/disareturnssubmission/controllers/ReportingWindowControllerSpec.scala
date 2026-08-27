@@ -28,6 +28,8 @@ import play.api.test.Helpers.*
 import uk.gov.hmrc.disareturnssubmission.models.ReportingWindowStatus
 import uk.gov.hmrc.disareturnssubmission.services.ReportingWindowService
 
+import scala.concurrent.Future
+
 class ReportingWindowControllerSpec extends SpecBase with BeforeAndAfterEach {
 
   private val mockReportingWindowService = mock[ReportingWindowService]
@@ -40,7 +42,7 @@ class ReportingWindowControllerSpec extends SpecBase with BeforeAndAfterEach {
 
   private lazy val controller = inject[ReportingWindowController]
 
-  private val path                   = "/reporting-window/status"
+  private val path                   = s"/reporting-window/status/$testZReference"
   private val validInternalAuthToken = "valid-internal-auth-token-disa-returns-backend"
 
   private def authorizedRequest(method: String, path: String) =
@@ -56,21 +58,35 @@ class ReportingWindowControllerSpec extends SpecBase with BeforeAndAfterEach {
     "status" - {
 
       "must return OK with reportingWindowOpen true when the reporting window is open" in {
-        when(mockReportingWindowService.isOpen).thenReturn(true)
+        when(mockReportingWindowService.isOpen(testZReference)).thenReturn(Future.successful(true))
 
-        val result = controller.status(authorizedRequest("GET", path))
+        val result = controller.status(testZReference)(authorizedRequest("GET", path))
 
         status(result) mustBe OK
         contentAsJson(result) mustBe Json.toJson(ReportingWindowStatus(reportingWindowOpen = true))
       }
 
       "must return OK with reportingWindowOpen false when the reporting window is closed" in {
-        when(mockReportingWindowService.isOpen).thenReturn(false)
+        when(mockReportingWindowService.isOpen(testZReference)).thenReturn(Future.successful(false))
 
-        val result = controller.status(authorizedRequest("GET", path))
+        val result = controller.status(testZReference)(authorizedRequest("GET", path))
 
         status(result) mustBe OK
         contentAsJson(result) mustBe Json.toJson(ReportingWindowStatus(reportingWindowOpen = false))
+      }
+
+      "must normalize the Z-reference" in {
+        when(mockReportingWindowService.isOpen(testZReference)).thenReturn(Future.successful(true))
+
+        val result = controller.status(testZReference.toLowerCase)(authorizedRequest("GET", path))
+
+        status(result) mustBe OK
+      }
+
+      "must reject an invalid Z-reference" in {
+        val result = controller.status("invalid")(authorizedRequest("GET", path))
+
+        status(result) mustBe BAD_REQUEST
       }
     }
   }

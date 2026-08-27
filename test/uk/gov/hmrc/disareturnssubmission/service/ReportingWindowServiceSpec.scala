@@ -37,23 +37,27 @@ class ReportingWindowServiceSpec extends SpecBase {
     "isOpen" - {
 
       "must return true when today's day of month is the declarationPeriodStart" in {
-        buildService(Instant.parse(s"2026-04-0${appConfig.declarationPeriodStart}T00:00:00Z")).isOpen mustBe true
+        buildService(Instant.parse(s"2026-04-0${appConfig.declarationPeriodStart}T00:00:00Z"))
+          .isOpen(testZReference)
+          .futureValue mustBe true
       }
 
       "must return true when today's day of month is the declarationPeriodEnd" in {
-        buildService(Instant.parse(s"2026-04-${appConfig.declarationPeriodEnd}T00:00:00Z")).isOpen mustBe true
+        buildService(Instant.parse(s"2026-04-${appConfig.declarationPeriodEnd}T00:00:00Z"))
+          .isOpen(testZReference)
+          .futureValue mustBe true
       }
 
       "must return true when today's day of month is between declarationPeriodStart and declarationPeriodEnd" in {
-        buildService(Instant.parse("2026-04-12T00:00:00Z")).isOpen mustBe true
+        buildService(Instant.parse("2026-04-12T00:00:00Z")).isOpen(testZReference).futureValue mustBe true
       }
 
       "must return false when today's day of month is before declarationPeriodStart" in {
-        buildService(Instant.parse("2026-04-01T00:00:00Z")).isOpen mustBe false
+        buildService(Instant.parse("2026-04-01T00:00:00Z")).isOpen(testZReference).futureValue mustBe false
       }
 
       "must return false when today's day of month is after declarationPeriodEnd" in {
-        buildService(Instant.parse("2026-04-25T00:00:00Z")).isOpen mustBe false
+        buildService(Instant.parse("2026-04-25T00:00:00Z")).isOpen(testZReference).futureValue mustBe false
       }
     }
   }

@@ -19,7 +19,6 @@ package uk.gov.hmrc.disareturnssubmission.utils
 import com.github.tomakehurst.wiremock.client.WireMock.*
 import play.api.http.Status.INTERNAL_SERVER_ERROR
 
-
 trait ObjectStoreWireMockStubs {
 
   private val objectStorePath = "/object-store/object/disa-returns-submission/[^/]+"

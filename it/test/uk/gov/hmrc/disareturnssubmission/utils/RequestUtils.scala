@@ -57,16 +57,23 @@ trait RequestUtils extends DefaultAwaitTimeout {
   protected def postJson(path: String, body: String, withContent: String): WSResponse =
     postJsonWithAuthorization(path, body, withContent, validInternalAuthToken)
 
-  protected def postJsonWithAuthorization(path: String, body: String, withContent: String, authorization: String): WSResponse =
+  protected def postJsonWithAuthorization(
+    path: String,
+    body: String,
+    withContent: String,
+    authorization: String
+  ): WSResponse =
     await(
-      ws.url(serviceUrl(path)).withHttpHeaders("Content-Type" -> withContent)
+      ws.url(serviceUrl(path))
+        .withHttpHeaders("Content-Type" -> withContent)
         .withHttpHeaders(AUTHORIZATION -> authorization)
         .post(body)
     )
 
   protected def postJsonWithoutAuthorization(path: String, body: String, withContent: String): WSResponse =
     await(
-      ws.url(serviceUrl(path)).withHttpHeaders("Content-Type" -> withContent)
+      ws.url(serviceUrl(path))
+        .withHttpHeaders("Content-Type" -> withContent)
         .post(body)
     )
 

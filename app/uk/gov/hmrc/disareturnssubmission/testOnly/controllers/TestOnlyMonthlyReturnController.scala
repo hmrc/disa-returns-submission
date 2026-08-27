@@ -19,10 +19,11 @@ package uk.gov.hmrc.disareturnssubmission.testOnly.controllers
 import play.api.Logging
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository
+import uk.gov.hmrc.disareturnssubmission.models.ZReference
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
 
 @Singleton
@@ -32,6 +33,29 @@ class TestOnlyMonthlyReturnController @Inject() (
 )(implicit ec: ExecutionContext)
     extends BackendController(cc)
     with Logging {
+
+  def deleteByZReference(zReference: String): Action[AnyContent] = Action.async {
+    ZReference.normalize(zReference) match {
+      case None                       =>
+        Future.successful(BadRequest)
+      case Some(normalizedZReference) =>
+        monthlyReturnRepository
+          .deleteByZReference(normalizedZReference)
+          .map { deletedCount =>
+            logger.info(
+              s"[TestOnlyMonthlyReturnController][deleteByZReference] Deleted [$deletedCount] monthly returns for zReference [$normalizedZReference]"
+            )
+            NoContent
+          }
+          .recover { case NonFatal(exception) =>
+            logger.error(
+              s"[TestOnlyMonthlyReturnController][deleteByZReference] Failed to delete monthly returns for zReference [$normalizedZReference]",
+              exception
+            )
+            ServiceUnavailable
+          }
+    }
+  }
 
   def deleteAll(): Action[AnyContent] = Action.async {
     monthlyReturnRepository

@@ -31,7 +31,8 @@ class AppConfig @Inject() (
   val internalAuthService: String = servicesConfig.baseUrl("internal-auth")
   val internalAuthToken: String   = config.get[String]("internal-auth.token")
 
-  val monthlyReturnTimeToLiveInDays: Long = config.get[Long]("mongodb.monthlyReturnTimeToLiveInDays")
+  val monthlyReturnTimeToLiveInDays: Long  = config.get[Long]("mongodb.monthlyReturnTimeToLiveInDays")
+  val reportingWindowOverrideTtlHours: Int = config.get[Int]("reportingWindowOverrideTtlHours")
 
   val declarationPeriodStart: Int = config.get[Int]("declarationPeriodStart")
   val declarationPeriodEnd: Int   = config.get[Int]("declarationPeriodEnd")
