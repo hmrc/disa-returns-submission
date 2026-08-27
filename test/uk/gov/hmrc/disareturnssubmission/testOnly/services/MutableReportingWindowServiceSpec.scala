@@ -67,5 +67,14 @@ class MutableReportingWindowServiceSpec extends SpecBase {
 
       verify(repository).set(testZReference, request)
     }
+
+    "must delete overrides for the Z-references" in {
+      val zReferences = Seq(testZReference, "Z5678")
+      when(repository.delete(zReferences)).thenReturn(Future.successful(()))
+
+      service.delete(zReferences).futureValue
+
+      verify(repository).delete(zReferences)
+    }
   }
 }

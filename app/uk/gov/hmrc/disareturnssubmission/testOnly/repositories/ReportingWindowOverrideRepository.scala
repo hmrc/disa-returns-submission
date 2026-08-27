@@ -77,9 +77,9 @@ class ReportingWindowOverrideRepository @Inject() (
       .toFutureOption()
       .map(_.filter(_.expiresAt.isAfter(Instant.now(clock))))
 
-  def delete(zReference: String): Future[Unit] =
+  def delete(zReferences: Seq[String]): Future[Unit] =
     collection
-      .deleteOne(Filters.eq("_id", zReference))
+      .deleteMany(Filters.in("_id", zReferences: _*))
       .toFuture()
       .map(_ => ())
 }

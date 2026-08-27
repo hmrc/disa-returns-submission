@@ -44,6 +44,6 @@ class MutableReportingWindowService @Inject() (
   def set(zReference: String, request: ReportingWindowOverrideRequest): Future[Unit] =
     repository.set(zReference, request)
 
-  def delete(zReference: String): Future[Unit] =
-    repository.delete(zReference)
+  def delete(zReferences: Seq[String]): Future[Unit] =
+    repository.delete(zReferences)
 }

@@ -17,7 +17,7 @@
 package uk.gov.hmrc.disareturnssubmission.testOnly.controllers
 
 import play.api.libs.json.{JsValue, Json}
-import play.api.mvc.{Action, AnyContent, ControllerComponents}
+import play.api.mvc.{Action, ControllerComponents}
 import uk.gov.hmrc.disareturnssubmission.models.ZReference
 import uk.gov.hmrc.disareturnssubmission.testOnly.models.ReportingWindowOverrideRequest
 import uk.gov.hmrc.disareturnssubmission.testOnly.services.MutableReportingWindowService
@@ -33,10 +33,18 @@ class TestOnlyReportingWindowOverrideController @Inject() (
 )(implicit ec: ExecutionContext)
     extends BackendController(cc) {
 
-  def delete(zReference: String): Action[AnyContent] = Action.async {
-    ZReference.normalize(zReference) match {
-      case None                       => Future.successful(BadRequest)
-      case Some(normalizedZReference) => reportingWindowService.delete(normalizedZReference).map(_ => NoContent)
+  def delete(): Action[JsValue] = Action.async(parse.json) { request =>
+    (request.body \ "zReferences").validate[Seq[String]].asOpt match {
+      case Some(zReferences) if zReferences.nonEmpty =>
+        val normalized = zReferences.map(ZReference.normalize)
+
+        if (normalized.exists(_.isEmpty)) {
+          Future.successful(BadRequest)
+        } else {
+          reportingWindowService.delete(normalized.flatten.distinct).map(_ => NoContent)
+        }
+
+      case _ => Future.successful(BadRequest)
     }
   }
 

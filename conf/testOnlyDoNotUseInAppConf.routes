@@ -10,14 +10,5 @@
 # Failing to follow this rule may result in test routes deployed in production.
 
 # Add all the application routes to the prod.routes file
-->         /                          prod.Routes
-
-GET        /disa-returns-submission/test-only/clock          uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyClockController.getClock
-PUT        /disa-returns-submission/test-only/clock/:date    uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyClockController.setDate(date: String)
-DELETE     /disa-returns-submission/test-only/clock          uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyClockController.resetClock
-
-DELETE     /disa-returns-submission/test-only/monthly-returns uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyMonthlyReturnController.deleteAll()
-DELETE     /disa-returns-submission/test-only/monthly-returns/:zReference uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyMonthlyReturnController.deleteByZReference(zReference: String)
-
-PUT        /disa-returns-submission/test-only/reporting-window-override/:zReference uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyReportingWindowOverrideController.set(zReference: String)
-DELETE     /disa-returns-submission/test-only/reporting-window-override/:zReference uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyReportingWindowOverrideController.delete(zReference: String)
+->         /                                          prod.Routes
+->         /disa-returns-submission/test-only         test.Routes

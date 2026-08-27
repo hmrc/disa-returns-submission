@@ -17,9 +17,10 @@
 package uk.gov.hmrc.disareturnssubmission.testOnly.controllers
 
 import play.api.Logging
-import play.api.mvc.{Action, AnyContent, ControllerComponents}
-import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository
+import play.api.libs.json.JsValue
+import play.api.mvc.{Action, ControllerComponents}
 import uk.gov.hmrc.disareturnssubmission.models.ZReference
+import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
 import javax.inject.{Inject, Singleton}
@@ -34,39 +35,35 @@ class TestOnlyMonthlyReturnController @Inject() (
     extends BackendController(cc)
     with Logging {
 
-  def deleteByZReference(zReference: String): Action[AnyContent] = Action.async {
-    ZReference.normalize(zReference) match {
-      case None                       =>
-        Future.successful(BadRequest)
-      case Some(normalizedZReference) =>
-        monthlyReturnRepository
-          .deleteByZReference(normalizedZReference)
-          .map { deletedCount =>
-            logger.info(
-              s"[TestOnlyMonthlyReturnController][deleteByZReference] Deleted [$deletedCount] monthly returns for zReference [$normalizedZReference]"
-            )
-            NoContent
-          }
-          .recover { case NonFatal(exception) =>
-            logger.error(
-              s"[TestOnlyMonthlyReturnController][deleteByZReference] Failed to delete monthly returns for zReference [$normalizedZReference]",
-              exception
-            )
-            ServiceUnavailable
-          }
+  def delete(): Action[JsValue] = Action.async(parse.json) { request =>
+    (request.body \ "zReferences").validate[Seq[String]].asOpt match {
+      case Some(zReferences) if zReferences.nonEmpty =>
+        val normalized = zReferences.map(ZReference.normalize)
+
+        if (normalized.exists(_.isEmpty)) {
+          Future.successful(BadRequest)
+        } else {
+          val normalizedZReferences = normalized.flatten.distinct
+
+          monthlyReturnRepository
+            .deleteByZReferences(normalizedZReferences)
+            .map { deletedCount =>
+              logger.info(
+                s"[TestOnlyMonthlyReturnController][delete] Deleted [$deletedCount] monthly returns for [${normalizedZReferences.size}] Z-references"
+              )
+              NoContent
+            }
+            .recover { case NonFatal(exception) =>
+              logger.error(
+                s"[TestOnlyMonthlyReturnController][delete] Failed to delete monthly returns for [${normalizedZReferences.size}] Z-references",
+                exception
+              )
+              ServiceUnavailable
+            }
+        }
+
+      case _ => Future.successful(BadRequest)
     }
   }
 
-  def deleteAll(): Action[AnyContent] = Action.async {
-    monthlyReturnRepository
-      .deleteAll()
-      .map { deletedCount =>
-        logger.info(s"[TestOnlyMonthlyReturnController][deleteAll] Deleted [$deletedCount] monthly returns")
-        NoContent
-      }
-      .recover { case NonFatal(exception) =>
-        logger.error("[TestOnlyMonthlyReturnController][deleteAll] Failed to delete monthly returns", exception)
-        ServiceUnavailable
-      }
-  }
 }

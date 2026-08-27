@@ -17,7 +17,7 @@
 package uk.gov.hmrc.disareturnssubmission.testOnly.controllers
 
 import base.SpecBase
-import org.mockito.Mockito.{verify, when}
+import org.mockito.Mockito.{reset, verify, verifyNoInteractions, when}
 import play.api.http.HeaderNames.CONTENT_TYPE
 import play.api.http.MimeTypes.JSON
 import play.api.libs.json.Json
@@ -38,15 +38,43 @@ class TestOnlyReportingWindowOverrideControllerSpec extends SpecBase {
 
   "TestOnlyReportingWindowOverrideController" - {
 
-    "must delete an override for a normalized Z-reference" in {
-      when(service.delete(testZReference)).thenReturn(Future.successful(()))
+    "must delete overrides for normalized Z-references" in {
+      reset(service)
+      val otherZReference = "Z5678"
+      when(service.delete(Seq(testZReference, otherZReference))).thenReturn(Future.successful(()))
 
-      val result = controller.delete(testZReference.toLowerCase)(
-        FakeRequest(DELETE, s"/test-only/reporting-window-override/${testZReference.toLowerCase}")
+      val result = controller.delete()(
+        FakeRequest(DELETE, "/test-only/reporting-window-override")
+          .withHeaders(CONTENT_TYPE -> JSON)
+          .withBody(Json.obj("zReferences" -> Seq(testZReference.toLowerCase, otherZReference, testZReference)))
       )
 
       status(result) mustBe NO_CONTENT
-      verify(service).delete(testZReference)
+      verify(service).delete(Seq(testZReference, otherZReference))
+    }
+
+    "must reject a delete request containing an invalid Z-reference" in {
+      reset(service)
+      val result = controller.delete()(
+        FakeRequest(DELETE, "/test-only/reporting-window-override")
+          .withHeaders(CONTENT_TYPE -> JSON)
+          .withBody(Json.obj("zReferences" -> Seq(testZReference, "invalid")))
+      )
+
+      status(result) mustBe BAD_REQUEST
+      verifyNoInteractions(service)
+    }
+
+    "must reject an empty sequence of Z-references" in {
+      reset(service)
+      val result = controller.delete()(
+        FakeRequest(DELETE, "/test-only/reporting-window-override")
+          .withHeaders(CONTENT_TYPE -> JSON)
+          .withBody(Json.obj("zReferences" -> Seq.empty[String]))
+      )
+
+      status(result) mustBe BAD_REQUEST
+      verifyNoInteractions(service)
     }
 
     "must normalize and store a valid override" in {

@@ -42,17 +42,16 @@ If starting through service-manager, pass the same JVM parameter in the local se
 -Dapplication.router=testOnlyDoNotUseInAppConf.Routes
 ```
 
-Test-only clock routes are available only with that router:
+The following test-only routes are available only with that router:
 
 - `GET /disa-returns-submission/test-only/clock`
 - `PUT /disa-returns-submission/test-only/clock/yyyy-MM-dd`
 - `DELETE /disa-returns-submission/test-only/clock`
-- `DELETE /disa-returns-submission/test-only/monthly-returns`
-- `DELETE /disa-returns-submission/test-only/monthly-returns/:zReference`
+- `POST /disa-returns-submission/test-only/monthly-returns`
 - `PUT /disa-returns-submission/test-only/reporting-window-override/:zReference`
-- `DELETE /disa-returns-submission/test-only/reporting-window-override/:zReference`
+- `DELETE /disa-returns-submission/test-only/reporting-window-override`
 
-Production monthly return routes require an internal-auth token. Local Bruno requests use:
+Production monthly-return and reporting-window routes require an internal-auth token. Local Bruno requests use:
 
 ```text
 Authorization: valid-internal-auth-token-disa-returns-backend
@@ -60,6 +59,27 @@ Authorization: valid-internal-auth-token-disa-returns-backend
 
 That token must exist in local internal-auth with `READ` and `WRITE` permissions for `disa-returns-submission/*`.
 The test-only routes above remain unauthenticated.
+
+The production reporting-window route returns whether the window is open for a normalized Z-reference:
+
+```text
+GET /disa-returns-submission/reporting-window/status/:zReference
+```
+
+It requires the `READ` permission, returns `200 OK` with a `reportingWindowOpen` boolean for a valid Z-reference, and
+returns `400 Bad Request` for an invalid Z-reference.
+
+Monthly-return and reporting-window override deletion accept `Content-Type: application/json` with a non-empty sequence
+of Z-references:
+
+```json
+{
+  "zReferences": ["Z1234", "Z5678"]
+}
+```
+
+Both endpoints normalize case, remove duplicate Z-references, and return `204 No Content` after deleting only the
+supplied records. A missing, empty, or invalid `zReferences` value returns `400 Bad Request`.
 
 `features.useMutableReportingWindow` controls the reporting-window implementation. When enabled, a Z-reference-specific
 override stored through the test-only endpoint takes precedence over the configured declaration period. When disabled,
@@ -123,10 +143,13 @@ curl -X DELETE http://localhost:12103/disa-returns-submission/test-only/clock
 
 For example, set the clock to `2026-05-17` to create and declare May 2026 monthly returns inside the configured declaration period, or `2026-05-20` to test declaration attempts outside the configured declaration period.
 
-Use `DELETE` to clear all monthly returns from the submission service local database:
+Use `POST` to clear monthly returns for specific Z-references from the submission service local database:
 
 ```bash
-curl -X DELETE http://localhost:12103/disa-returns-submission/test-only/monthly-returns
+curl -X POST \
+  -H 'Content-Type: application/json' \
+  -d '{"zReferences":["Z1234","Z5678"]}' \
+  http://localhost:12103/disa-returns-submission/test-only/monthly-returns
 ```
 
 You can then query the app to ensure it is working with the following command:
@@ -164,10 +187,9 @@ Otherwise the routes will not be available.
 | `GET /disa-returns-submission/test-only/clock` | `bruno/TestOnly/Clock` | Inspect the app clock used by declaration-period logic. |
 | `PUT /disa-returns-submission/test-only/clock/:date` | `bruno/TestOnly/Clock` | Set the app date in `yyyy-MM-dd` format for declaration-period testing. |
 | `DELETE /disa-returns-submission/test-only/clock` | `bruno/TestOnly/Clock` | Reset the app clock back to the system UTC clock. |
-| `DELETE /disa-returns-submission/test-only/monthly-returns` | `bruno/TestOnly/MonthlyReturns` | Clear all monthly returns from the submission service local database. |
-| `DELETE /disa-returns-submission/test-only/monthly-returns/:zReference` | `bruno/TestOnly/MonthlyReturns`, performance tests | Clear monthly returns only for the normalized Z-reference. This must not run concurrently with return creation for that Z-reference. |
+| `POST /disa-returns-submission/test-only/monthly-returns` | `bruno/TestOnly/MonthlyReturns`, performance tests | Clear monthly returns for the supplied normalized Z-references. This must not run concurrently with return creation for those Z-references. |
 | `PUT /disa-returns-submission/test-only/reporting-window-override/:zReference` | `bruno/TestOnly/ReportingWindowOverride`, test automation | Store a temporary reporting-window override for one normalized Z-reference. |
-| `DELETE /disa-returns-submission/test-only/reporting-window-override/:zReference` | `bruno/TestOnly/ReportingWindowOverride`, performance tests | Remove the reporting-window override for one normalized Z-reference. |
+| `DELETE /disa-returns-submission/test-only/reporting-window-override` | `bruno/TestOnly/ReportingWindowOverride`, performance tests, API tests | Remove reporting-window overrides for the supplied normalized Z-references. |
 
 ### Before you commit
 

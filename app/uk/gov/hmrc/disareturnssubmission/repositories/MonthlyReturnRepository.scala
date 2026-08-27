@@ -71,9 +71,9 @@ class MonthlyReturnRepository @Inject() (
       replaceIndexes = true
     ) {
 
-  def deleteByZReference(zReference: String): Future[Long] =
+  def deleteByZReferences(zReferences: Seq[String]): Future[Long] =
     collection
-      .deleteMany(Filters.eq(zReferenceField, zReference))
+      .deleteMany(Filters.in(zReferenceField, zReferences: _*))
       .toFuture()
       .map(_.getDeletedCount)
 
@@ -205,12 +205,6 @@ class MonthlyReturnRepository @Inject() (
       .toFuture()
       .flatMap(toDeclareMonthlyReturnRepositoryResult(zReference, taxYear, month))
   }
-
-  def deleteAll(): Future[Long] =
-    collection
-      .deleteMany(Filters.empty())
-      .toFuture()
-      .map(_.getDeletedCount)
 
   def get(zReference: String, taxYear: String, month: Int): Future[Option[MonthlyReturn]] =
     collection

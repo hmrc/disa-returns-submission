@@ -5,9 +5,19 @@ meta {
 }
 
 delete {
-  url: {{baseUrl}}{{servicePath}}/test-only/reporting-window-override/{{overrideZReference}}
-  body: none
+  url: {{baseUrl}}{{servicePath}}/test-only/reporting-window-override
+  body: json
   auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "zReferences": ["{{overrideZReference}}"]
+  }
 }
 
 assert {

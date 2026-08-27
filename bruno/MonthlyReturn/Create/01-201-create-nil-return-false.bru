@@ -42,6 +42,19 @@ script:pre-request {
   bru.setVar("zReference", zRef(0));
   bru.setVar("nilZReference", zRef(1));
   bru.setVar("outsidePeriodZReference", zRef(2));
+
+  const cleanupUrl = `${bru.getEnvVar("baseUrl")}${bru.getEnvVar("servicePath")}/test-only/monthly-returns`;
+  const cleanupResponse = await bru.sendRequest({
+    method: "POST",
+    url: cleanupUrl,
+    headers: { "Content-Type": "application/json" },
+    data: { zReferences: [zRef(0), zRef(1), zRef(2)] },
+    timeout: 3000
+  });
+
+  if (cleanupResponse.status !== 204) {
+    throw new Error(`Expected monthly return cleanup to respond with 204, got ${cleanupResponse.status}`);
+  }
 }
 
 script:post-response {

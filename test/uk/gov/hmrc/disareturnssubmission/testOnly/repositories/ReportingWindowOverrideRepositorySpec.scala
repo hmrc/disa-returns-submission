@@ -80,14 +80,16 @@ class ReportingWindowOverrideRepositorySpec
       document.toBsonDocument.get("updatedAt").getBsonType mustBe BsonType.DATE_TIME
     }
 
-    "must delete only the specified override" in {
+    "must delete only the specified overrides" in {
       repository.set(testZReference, ReportingWindowOverrideRequest(now, now.plusSeconds(60))).futureValue
       repository.set("Z5678", ReportingWindowOverrideRequest(now, now.plusSeconds(60))).futureValue
+      repository.set("Z9012", ReportingWindowOverrideRequest(now, now.plusSeconds(60))).futureValue
 
-      repository.delete(testZReference).futureValue
+      repository.delete(Seq(testZReference, "Z5678")).futureValue
 
       repository.getActive(testZReference).futureValue mustBe None
-      repository.getActive("Z5678").futureValue must not be empty
+      repository.getActive("Z5678").futureValue mustBe None
+      repository.getActive("Z9012").futureValue must not be empty
     }
   }
 }

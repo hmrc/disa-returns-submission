@@ -1,7 +1,7 @@
 meta {
-  name: 01-204-clear-monthly-returns
+  name: 02-400-reject-invalid-z-reference
   type: http
-  seq: 1
+  seq: 2
 }
 
 post {
@@ -16,10 +16,10 @@ headers {
 
 body:json {
   {
-    "zReferences": ["{{zReference}}"]
+    "zReferences": ["{{invalidZReference}}"]
   }
 }
 
 assert {
-  res.status: eq 204
+  res.status: eq 400
 }

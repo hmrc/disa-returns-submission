@@ -1,0 +1,8 @@
+GET        /clock                                        uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyClockController.getClock
+PUT        /clock/:date                                  uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyClockController.setDate(date: String)
+DELETE     /clock                                        uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyClockController.resetClock
+
+POST       /monthly-returns                              uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyMonthlyReturnController.delete()
+
+PUT        /reporting-window-override/:zReference        uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyReportingWindowOverrideController.set(zReference: String)
+DELETE     /reporting-window-override                    uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyReportingWindowOverrideController.delete()

@@ -31,9 +31,12 @@ class ReportingWindowOverrideISpec extends BaseIntegrationSpec {
     .overrides(bind[DatastreamMetrics].toInstance(DatastreamMetrics.disabled))
     .build()
 
-  private val clockPath    = s"$testServicePath/test-only/clock"
-  private val overridePath = s"$testServicePath/test-only/reporting-window-override/$testZReference"
-  private val statusPath   = s"$testServicePath/reporting-window/status/$testZReference"
+  private val clockPath         = s"$testServicePath/test-only/clock"
+  private val overridePath      = s"$testServicePath/test-only/reporting-window-override"
+  private val testOverridePath  = s"$overridePath/$testZReference"
+  private val statusPath        = s"$testServicePath/reporting-window/status/$testZReference"
+  private val otherZReference   = "Z5678"
+  private val otherOverridePath = s"$overridePath/$otherZReference"
 
   "reporting window override journey" should {
 
@@ -41,7 +44,7 @@ class ReportingWindowOverrideISpec extends BaseIntegrationSpec {
       putString(s"$clockPath/2026-06-20").status shouldBe OK
 
       val overrideResult = putJson(
-        overridePath.toLowerCase,
+        testOverridePath.toLowerCase,
         Json.obj(
           "startDate" -> "2026-06-19T23:59:00Z",
           "endDate"   -> "2026-06-20T00:01:00Z"
@@ -50,12 +53,29 @@ class ReportingWindowOverrideISpec extends BaseIntegrationSpec {
 
       overrideResult.status                                     shouldBe NO_CONTENT
       (get(statusPath).json \ "reportingWindowOpen").as[Boolean] shouldBe true
-      (get(s"$testServicePath/reporting-window/status/Z5678").json \ "reportingWindowOpen").as[Boolean] shouldBe false
+      (get(s"$testServicePath/reporting-window/status/$otherZReference").json \ "reportingWindowOpen").as[Boolean] shouldBe false
+    }
+
+    "delete overrides for the supplied Z-references" in {
+      putString(s"$clockPath/2026-06-20").status shouldBe OK
+
+      val request = Json.obj(
+        "startDate" -> "2026-06-19T23:59:00Z",
+        "endDate"   -> "2026-06-20T00:01:00Z"
+      )
+
+      putJson(testOverridePath, request).status  shouldBe NO_CONTENT
+      putJson(otherOverridePath, request).status shouldBe NO_CONTENT
+
+      deleteJson(overridePath, Json.obj("zReferences" -> Seq(testZReference, otherZReference))).status shouldBe NO_CONTENT
+
+      (get(statusPath).json \ "reportingWindowOpen").as[Boolean] shouldBe false
+      (get(s"$testServicePath/reporting-window/status/$otherZReference").json \ "reportingWindowOpen").as[Boolean] shouldBe false
     }
 
     "reject invalid override requests" in {
       val result = putJson(
-        overridePath,
+        testOverridePath,
         Json.obj(
           "startDate" -> "2026-06-20T00:01:00Z",
           "endDate"   -> "2026-06-19T23:59:00Z"
