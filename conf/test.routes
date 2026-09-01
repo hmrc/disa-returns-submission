@@ -1,6 +1,6 @@
-GET        /clock                                        uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyClockController.getClock
-PUT        /clock/:date                                  uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyClockController.setDate(date: String)
-DELETE     /clock                                        uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyClockController.resetClock
+GET        /clock/:zReference                            uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyClockController.getClock(zReference: String)
+PUT        /clock/:zReference/:date                      uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyClockController.setDate(zReference: String, date: String)
+DELETE     /clock/:zReference                            uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyClockController.resetClock(zReference: String)
 
 POST       /monthly-returns                              uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyMonthlyReturnController.delete()
 

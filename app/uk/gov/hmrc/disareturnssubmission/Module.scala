@@ -19,9 +19,9 @@ package uk.gov.hmrc.disareturnssubmission
 import config.{InternalAuthTokenInitialiser, InternalAuthTokenInitialiserImpl, NoOpInternalAuthTokenInitialiser}
 import play.api.{Configuration, Environment}
 import play.api.inject.{Binding, Module as AppModule, bind as binding}
-import services.ReportingWindowService
+import services.{ReportingWindowService, SystemClock, TimeSource}
 import testOnly.services.MutableReportingWindowService
-import uk.gov.hmrc.disareturnssubmission.testOnly.MutableClock
+import uk.gov.hmrc.disareturnssubmission.testOnly.OverridableClock
 
 import java.time.{Clock, ZoneOffset}
 
@@ -45,27 +45,25 @@ class Module extends AppModule:
         )
       }
 
-    val clockBindings: Seq[Binding[?]] =
-      if (configuration.getOptional[String]("application.router").contains("testOnlyDoNotUseInAppConf.Routes")) {
-        Seq(
-          binding[MutableClock].toSelf,
-          binding[Clock].to[MutableClock]
-        )
-      } else {
-        Seq(
-          binding[Clock].to(Clock.systemDefaultZone.withZone(ZoneOffset.UTC))
-        )
-      }
+    val testOnlyRoutesEnabled =
+      configuration.getOptional[String]("application.router").contains("testOnlyDoNotUseInAppConf.Routes")
 
-    val reportingWindowServiceBinding: Binding[?] =
-      if (configuration.get[Boolean]("features.useMutableReportingWindow")) {
-        binding[ReportingWindowService].to[MutableReportingWindowService]
+    val overrideBindings: Seq[Binding[?]] =
+      if (testOnlyRoutesEnabled) {
+        Seq(
+          binding[OverridableClock].toSelf,
+          binding[TimeSource].to[OverridableClock],
+          binding[ReportingWindowService].to[MutableReportingWindowService]
+        )
       } else {
-        binding[ReportingWindowService].toSelf
+        Seq(
+          binding[TimeSource].to[SystemClock],
+          binding[ReportingWindowService].toSelf
+        )
       }
 
     Seq(
       binding[AppInitialiser].toSelf.eagerly(),
-      reportingWindowServiceBinding
-    ) ++ clockBindings ++ authTokenInitialiserBindings
+      binding[Clock].to(Clock.systemDefaultZone.withZone(ZoneOffset.UTC))
+    ) ++ overrideBindings ++ authTokenInitialiserBindings
   }

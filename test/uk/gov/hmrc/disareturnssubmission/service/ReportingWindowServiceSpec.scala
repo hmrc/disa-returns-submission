@@ -18,9 +18,10 @@ package uk.gov.hmrc.disareturnssubmission.service
 
 import base.SpecBase
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
-import uk.gov.hmrc.disareturnssubmission.services.ReportingWindowService
+import uk.gov.hmrc.disareturnssubmission.services.{ReportingWindowService, TimeSource}
 
-import java.time.{Clock, Instant, ZoneOffset}
+import java.time.Instant
+import scala.concurrent.Future
 
 class ReportingWindowServiceSpec extends SpecBase {
 
@@ -29,7 +30,7 @@ class ReportingWindowServiceSpec extends SpecBase {
   private def buildService(now: Instant): ReportingWindowService =
     new ReportingWindowService(
       appConfig = appConfig,
-      clock = Clock.fixed(now, ZoneOffset.UTC)
+      timeSource = (_: String) => Future.successful(now)
     )
 
   "ReportingWindowService" - {

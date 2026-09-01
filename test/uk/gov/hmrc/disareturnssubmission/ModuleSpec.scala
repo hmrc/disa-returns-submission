@@ -18,27 +18,28 @@ package uk.gov.hmrc.disareturnssubmission
 
 import base.SpecBase
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
-import uk.gov.hmrc.disareturnssubmission.services.ReportingWindowService
+import uk.gov.hmrc.disareturnssubmission.services.{ReportingWindowService, SystemClock, TimeSource}
+import uk.gov.hmrc.disareturnssubmission.testOnly.OverridableClock
 import uk.gov.hmrc.disareturnssubmission.testOnly.services.MutableReportingWindowService
 
 class ModuleSpec extends SpecBase {
 
   "Module" - {
 
-    "must bind MutableReportingWindowService when the feature is enabled" in {
-      inject[ReportingWindowService] mustBe a[MutableReportingWindowService]
+    "must bind production services when test-only routes are disabled" in {
+      inject[ReportingWindowService].getClass mustBe classOf[ReportingWindowService]
+      inject[TimeSource] mustBe a[SystemClock]
     }
 
-    "must bind ReportingWindowService when the feature is disabled" in {
-      val immutableApp = applicationBuilder()
-        .configure("features.useMutableReportingWindow" -> false)
+    "must bind override services when test-only routes are enabled" in {
+      val overrideApp = applicationBuilder()
+        .configure("application.router" -> "testOnlyDoNotUseInAppConf.Routes")
         .build()
 
       try {
-        val service = immutableApp.injector.instanceOf[ReportingWindowService]
-
-        service.getClass mustBe classOf[ReportingWindowService]
-      } finally await(immutableApp.stop())
+        overrideApp.injector.instanceOf[ReportingWindowService] mustBe a[MutableReportingWindowService]
+        overrideApp.injector.instanceOf[TimeSource] mustBe a[OverridableClock]
+      } finally await(overrideApp.stop())
     }
   }
 }

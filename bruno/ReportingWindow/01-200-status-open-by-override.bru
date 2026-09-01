@@ -16,6 +16,7 @@ assert {
 }
 
 script:pre-request {
+  bru.setVar("clockZReference", bru.getEnvVar("overrideZReference"));
   const clockResponse = await bru.runRequest("TestOnly/Clock/03-200-set-clock-outside-declaration-period");
   
   if (clockResponse.status !== 200) {

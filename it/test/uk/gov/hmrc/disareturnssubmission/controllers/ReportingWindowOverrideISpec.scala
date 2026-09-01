@@ -41,7 +41,8 @@ class ReportingWindowOverrideISpec extends BaseIntegrationSpec {
   "reporting window override journey" should {
 
     "store and apply an override only to the normalized Z-reference" in {
-      putString(s"$clockPath/2026-06-20").status shouldBe OK
+      putString(s"$clockPath/$testZReference/2026-06-20").status shouldBe OK
+      putString(s"$clockPath/$otherZReference/2026-06-20").status shouldBe OK
 
       val overrideResult = putJson(
         testOverridePath.toLowerCase,
@@ -57,7 +58,8 @@ class ReportingWindowOverrideISpec extends BaseIntegrationSpec {
     }
 
     "delete overrides for the supplied Z-references" in {
-      putString(s"$clockPath/2026-06-20").status shouldBe OK
+      putString(s"$clockPath/$testZReference/2026-06-20").status shouldBe OK
+      putString(s"$clockPath/$otherZReference/2026-06-20").status shouldBe OK
 
       val request = Json.obj(
         "startDate" -> "2026-06-19T23:59:00Z",

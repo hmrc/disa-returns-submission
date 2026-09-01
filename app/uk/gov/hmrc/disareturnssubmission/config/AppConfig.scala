@@ -33,6 +33,7 @@ class AppConfig @Inject() (
 
   val monthlyReturnTimeToLiveInDays: Long  = config.get[Long]("mongodb.monthlyReturnTimeToLiveInDays")
   val reportingWindowOverrideTtlHours: Int = config.get[Int]("reportingWindowOverrideTtlHours")
+  val clockOverrideTtlHours: Int           = config.get[Int]("clockOverrideTtlHours")
 
   val declarationPeriodStart: Int = config.get[Int]("declarationPeriodStart")
   val declarationPeriodEnd: Int   = config.get[Int]("declarationPeriodEnd")

@@ -35,13 +35,14 @@ import play.api.libs.json.{JsObject, Json}
 import play.api.libs.ws.WSClient
 import play.api.test.DefaultAwaitTimeout
 import play.api.test.Helpers.await
+import uk.gov.hmrc.disareturnssubmission.services.TimeSource
 import uk.gov.hmrc.disareturnssubmission.utils.RequestUtils
 import uk.gov.hmrc.http.test.WireMockSupport
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.play.audit.http.connector.DatastreamMetrics
 
 import java.time.{Clock, Instant, ZoneOffset}
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.reflect.ClassTag
 
 trait BaseIntegrationSpec
@@ -64,6 +65,7 @@ trait BaseIntegrationSpec
     .configure(config)
     .overrides(
       bind[Clock].toInstance(Clock.fixed(integrationTestNow, ZoneOffset.UTC)),
+      bind[TimeSource].toInstance((_: String) => Future.successful(integrationTestNow)),
       bind[DatastreamMetrics].toInstance(DatastreamMetrics.disabled)
     )
     .build()
@@ -151,7 +153,12 @@ trait BaseIntegrationSpec
   def clearMongoCollections(): Unit = {
     val database = inject[MongoComponent].database
 
-    Seq(monthlyReturnsCollectionName, monthlyReturnFileUploadWorkItemsCollectionName, "reportingWindowOverrides")
+    Seq(
+      monthlyReturnsCollectionName,
+      monthlyReturnFileUploadWorkItemsCollectionName,
+      "reportingWindowOverrides",
+      "clockOverrides"
+    )
       .foreach { collectionName =>
         await(
           database

@@ -16,21 +16,11 @@
 
 package uk.gov.hmrc.disareturnssubmission.services
 
-import uk.gov.hmrc.disareturnssubmission.config.AppConfig
-
-import java.time.{LocalDate, ZoneOffset}
+import java.time.Instant
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 
 @Singleton
-class ReportingWindowService @Inject() (appConfig: AppConfig, timeSource: TimeSource)(implicit ec: ExecutionContext) {
-
-  def isOpen(zReference: String): Future[Boolean] =
-    isDefaultReportingWindowOpen(zReference)
-
-  protected def isDefaultReportingWindowOpen(zReference: String): Future[Boolean] =
-    timeSource.instant(zReference).map { instant =>
-      val dayOfMonth = LocalDate.ofInstant(instant, ZoneOffset.UTC).getDayOfMonth
-      dayOfMonth >= appConfig.declarationPeriodStart && dayOfMonth <= appConfig.declarationPeriodEnd
-    }
+class SystemClock @Inject() () extends TimeSource {
+  override def instant(zReference: String): Future[Instant] = Future.successful(Instant.now())
 }

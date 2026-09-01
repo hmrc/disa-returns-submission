@@ -24,7 +24,7 @@ import uk.gov.hmrc.disareturnssubmission.services.CreateMonthlyReturnResult.*
 import uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator
 
 import java.nio.file.Path
-import java.time.{Clock, LocalDate, YearMonth}
+import java.time.{LocalDate, YearMonth, ZoneOffset}
 import java.util.UUID
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -35,7 +35,7 @@ class MonthlyReturnService @Inject() (
   monthlyReturnRepository: MonthlyReturnRepository,
   submissionStoreAction: SubmissionStoreAction,
   reportingWindowService: ReportingWindowService,
-  clock: Clock,
+  timeSource: TimeSource,
   uuidGenerator: UuidGenerator
 )(implicit ec: ExecutionContext)
     extends Logging {
@@ -298,15 +298,16 @@ class MonthlyReturnService @Inject() (
         Future.failed(exception)
       }
 
-  private def isWithinDeclarationPeriod(zReference: String, taxYear: String, month: Int): Future[Boolean] = {
-    val today               = LocalDate.now(clock)
-    val previousMonthPeriod = YearMonth.from(today).minusMonths(1)
+  private def isWithinDeclarationPeriod(zReference: String, taxYear: String, month: Int): Future[Boolean] =
+    timeSource.instant(zReference).flatMap { instant =>
+      val today               = LocalDate.ofInstant(instant, ZoneOffset.UTC)
+      val previousMonthPeriod = YearMonth.from(today).minusMonths(1)
 
-    val isPreviousMonth   = previousMonthPeriod.getMonthValue == month
-    val isPreviousTaxYear = taxYearFor(previousMonthPeriod) == taxYear
+      val isPreviousMonth   = previousMonthPeriod.getMonthValue == month
+      val isPreviousTaxYear = taxYearFor(previousMonthPeriod) == taxYear
 
-    reportingWindowService.isOpen(zReference).map(_ && isPreviousMonth && isPreviousTaxYear)
-  }
+      reportingWindowService.isOpen(zReference).map(_ && isPreviousMonth && isPreviousTaxYear)
+    }
 
   private def taxYearFor(period: YearMonth): String = {
     val startYear = if (period.getMonthValue >= 4) period.getYear else period.getYear - 1

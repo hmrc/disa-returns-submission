@@ -25,15 +25,16 @@ assert {
 }
 
 script:pre-request {
+  const value = (Date.now() + Math.floor(Math.random() * 1000)) % 10000;
+  const missingZReference = `Z${value.toString().padStart(4, "0")}`;
+  bru.setVar("missingZReference", missingZReference);
+  bru.setVar("clockZReference", missingZReference);
+
   const clockResponse = await bru.runRequest("TestOnly/Clock/02-200-set-clock-inside-declaration-period");
 
   if (clockResponse.status !== 200) {
     throw new Error(`Expected clock setup to respond with 200, got ${clockResponse.status}`);
   }
-
-  const value = (Date.now() + Math.floor(Math.random() * 1000)) % 10000;
-  const missingZReference = `Z${value.toString().padStart(4, "0")}`;
-  bru.setVar("missingZReference", missingZReference);
 
   const cleanupUrl = `${bru.getEnvVar("baseUrl")}${bru.getEnvVar("servicePath")}/test-only/monthly-returns`;
   const cleanupResponse = await bru.sendRequest({

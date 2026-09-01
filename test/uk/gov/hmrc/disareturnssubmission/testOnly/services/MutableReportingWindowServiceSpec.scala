@@ -19,19 +19,20 @@ package uk.gov.hmrc.disareturnssubmission.testOnly.services
 import base.SpecBase
 import org.mockito.Mockito.{verify, when}
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
+import uk.gov.hmrc.disareturnssubmission.services.TimeSource
 import uk.gov.hmrc.disareturnssubmission.testOnly.models.{ReportingWindowOverride, ReportingWindowOverrideRequest}
 import uk.gov.hmrc.disareturnssubmission.testOnly.repositories.ReportingWindowOverrideRepository
 
-import java.time.{Clock, Instant, ZoneOffset}
+import java.time.Instant
 import scala.concurrent.Future
 
 class MutableReportingWindowServiceSpec extends SpecBase {
 
-  private val now        = Instant.parse("2026-04-01T12:00:00Z")
-  private val clock      = Clock.fixed(now, ZoneOffset.UTC)
-  private val appConfig  = inject[AppConfig]
-  private val repository = mock[ReportingWindowOverrideRepository]
-  private val service    = new MutableReportingWindowService(appConfig, clock, repository)
+  private val now                    = Instant.parse("2026-04-01T12:00:00Z")
+  private val timeSource: TimeSource = (_: String) => Future.successful(now)
+  private val appConfig              = inject[AppConfig]
+  private val repository             = mock[ReportingWindowOverrideRepository]
+  private val service                = new MutableReportingWindowService(appConfig, timeSource, repository)
 
   "MutableReportingWindowService" - {
 

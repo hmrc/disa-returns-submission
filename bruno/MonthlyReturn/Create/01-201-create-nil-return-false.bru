@@ -26,12 +26,6 @@ assert {
 }
 
 script:pre-request {
-  const clockResponse = await bru.runRequest("TestOnly/Clock/02-200-set-clock-inside-declaration-period");
-  
-  if (clockResponse.status !== 200) {
-    throw new Error(`Expected clock setup to respond with 200, got ${clockResponse.status}`);
-  }
-  
   const base = (Date.now() + Math.floor(Math.random() * 1000)) % 10000;
   
   function zRef(offset) {
@@ -42,6 +36,15 @@ script:pre-request {
   bru.setVar("zReference", zRef(0));
   bru.setVar("nilZReference", zRef(1));
   bru.setVar("outsidePeriodZReference", zRef(2));
+
+  for (const clockZReference of [zRef(0), zRef(1)]) {
+    bru.setVar("clockZReference", clockZReference);
+    const clockResponse = await bru.runRequest("TestOnly/Clock/02-200-set-clock-inside-declaration-period");
+
+    if (clockResponse.status !== 200) {
+      throw new Error(`Expected clock setup for ${clockZReference} to respond with 200, got ${clockResponse.status}`);
+    }
+  }
 
   const cleanupUrl = `${bru.getEnvVar("baseUrl")}${bru.getEnvVar("servicePath")}/test-only/monthly-returns`;
   const cleanupResponse = await bru.sendRequest({

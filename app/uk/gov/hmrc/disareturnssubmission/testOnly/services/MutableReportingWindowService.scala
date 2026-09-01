@@ -17,28 +17,28 @@
 package uk.gov.hmrc.disareturnssubmission.testOnly.services
 
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
-import uk.gov.hmrc.disareturnssubmission.services.ReportingWindowService
+import uk.gov.hmrc.disareturnssubmission.services.{ReportingWindowService, TimeSource}
 import uk.gov.hmrc.disareturnssubmission.testOnly.models.ReportingWindowOverrideRequest
 import uk.gov.hmrc.disareturnssubmission.testOnly.repositories.ReportingWindowOverrideRepository
 
-import java.time.{Clock, Instant}
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class MutableReportingWindowService @Inject() (
   appConfig: AppConfig,
-  clock: Clock,
+  timeSource: TimeSource,
   repository: ReportingWindowOverrideRepository
 )(implicit ec: ExecutionContext)
-    extends ReportingWindowService(appConfig, clock) {
+    extends ReportingWindowService(appConfig, timeSource) {
 
   override def isOpen(zReference: String): Future[Boolean] =
-    repository.getActive(zReference).map {
+    repository.getActive(zReference).flatMap {
       case Some(overrideWindow) =>
-        val now = Instant.now(clock)
-        !now.isBefore(overrideWindow.startDate) && !now.isAfter(overrideWindow.endDate)
-      case None                 => isDefaultReportingWindowOpen
+        timeSource.instant(zReference).map { now =>
+          !now.isBefore(overrideWindow.startDate) && !now.isAfter(overrideWindow.endDate)
+        }
+      case None                 => isDefaultReportingWindowOpen(zReference)
     }
 
   def set(zReference: String, request: ReportingWindowOverrideRequest): Future[Unit] =
