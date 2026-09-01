@@ -50,8 +50,8 @@ class ClockOverrideRepository @Inject() (
     ) {
 
   def set(zReference: String, instant: Instant): Future[Unit] = {
-    val now       = Instant.now(clock)
-    val expiresAt = now.plus(appConfig.clockOverrideTtlHours.toLong, ChronoUnit.HOURS)
+    val now              = Instant.now(clock)
+    val expiresAt        = now.plus(appConfig.clockOverrideTtlHours.toLong, ChronoUnit.HOURS)
     val overrideDocument = ClockOverride(
       _id = zReference,
       instant = instant,

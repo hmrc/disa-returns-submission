@@ -29,6 +29,6 @@ final case class ClockOverride(
 )
 
 object ClockOverride {
-  implicit val instantFormat: Format[Instant]     = MongoJavatimeFormats.instantFormat
+  implicit val instantFormat: Format[Instant] = MongoJavatimeFormats.instantFormat
   implicit val format: OFormat[ClockOverride] = Json.format[ClockOverride]
 }
