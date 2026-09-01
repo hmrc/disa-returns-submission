@@ -24,10 +24,10 @@ import uk.gov.hmrc.disareturnssubmission.actions.SubmissionStoreAction
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.models.*
 import uk.gov.hmrc.disareturnssubmission.repositories.{DeclareMonthlyReturnRepositoryResult, MonthlyReturnRepository}
-import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, MonthlyReturnService, ReportingWindowService, SubmitReturnResult}
+import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, MonthlyReturnService, ReportingWindowService, SubmitReturnResult, TimeSource}
 import uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator
 
-import java.time.{Clock, Instant, ZoneOffset}
+import java.time.Instant
 import java.util.UUID
 import scala.concurrent.Future
 class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
@@ -657,12 +657,12 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
   }
 
   private def buildService(now: Instant): MonthlyReturnService = {
-    val clock = Clock.fixed(now, ZoneOffset.UTC)
+    val timeSource: TimeSource = (_: String) => Future.successful(now)
     new MonthlyReturnService(
       monthlyReturnRepository = mockMonthlyReturnRepository,
       mockSubStoreAction,
-      reportingWindowService = new ReportingWindowService(appConfig, clock),
-      clock = clock,
+      reportingWindowService = new ReportingWindowService(appConfig, timeSource),
+      timeSource = timeSource,
       uuidGenerator = mockUuidGenerator
     )
   }

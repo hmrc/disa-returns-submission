@@ -54,19 +54,33 @@ trait RequestUtils extends DefaultAwaitTimeout {
         .delete()
     )
 
+  protected def deleteJson(path: String, body: JsValue): WSResponse =
+    await(
+      ws.url(serviceUrl(path))
+        .withBody(body)
+        .execute("DELETE")
+    )
+
   protected def postJson(path: String, body: String, withContent: String): WSResponse =
     postJsonWithAuthorization(path, body, withContent, validInternalAuthToken)
 
-  protected def postJsonWithAuthorization(path: String, body: String, withContent: String, authorization: String): WSResponse =
+  protected def postJsonWithAuthorization(
+    path: String,
+    body: String,
+    withContent: String,
+    authorization: String
+  ): WSResponse =
     await(
-      ws.url(serviceUrl(path)).withHttpHeaders("Content-Type" -> withContent)
+      ws.url(serviceUrl(path))
+        .withHttpHeaders("Content-Type" -> withContent)
         .withHttpHeaders(AUTHORIZATION -> authorization)
         .post(body)
     )
 
   protected def postJsonWithoutAuthorization(path: String, body: String, withContent: String): WSResponse =
     await(
-      ws.url(serviceUrl(path)).withHttpHeaders("Content-Type" -> withContent)
+      ws.url(serviceUrl(path))
+        .withHttpHeaders("Content-Type" -> withContent)
         .post(body)
     )
 

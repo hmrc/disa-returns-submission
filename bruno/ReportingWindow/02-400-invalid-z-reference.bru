@@ -1,0 +1,15 @@
+meta {
+  name: 02-400-invalid-z-reference
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}{{servicePath}}/reporting-window/status/{{invalidZReference}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 400
+}

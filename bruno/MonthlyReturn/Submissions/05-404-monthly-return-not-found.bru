@@ -24,6 +24,20 @@ assert {
 
 script:pre-request {
   const value = (Date.now() + Math.floor(Math.random() * 1000)) % 10000;
-  bru.setVar("missingZReference", `Z${value.toString().padStart(4, "0")}`);
+  const missingZReference = `Z${value.toString().padStart(4, "0")}`;
+  bru.setVar("missingZReference", missingZReference);
   bru.setVar("putSubmissionId", `missing-${Date.now()}`);
+
+  const cleanupUrl = `${bru.getEnvVar("baseUrl")}${bru.getEnvVar("servicePath")}/test-only/monthly-returns`;
+  const cleanupResponse = await bru.sendRequest({
+    method: "POST",
+    url: cleanupUrl,
+    headers: { "Content-Type": "application/json" },
+    data: { zReferences: [missingZReference] },
+    timeout: 3000
+  });
+
+  if (cleanupResponse.status !== 204) {
+    throw new Error(`Expected monthly return cleanup to respond with 204, got ${cleanupResponse.status}`);
+  }
 }

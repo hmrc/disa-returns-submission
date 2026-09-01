@@ -24,7 +24,7 @@ import uk.gov.hmrc.disareturnssubmission.services.CreateMonthlyReturnResult.*
 import uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator
 
 import java.nio.file.Path
-import java.time.{Clock, LocalDate, YearMonth}
+import java.time.{LocalDate, YearMonth, ZoneOffset}
 import java.util.UUID
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -35,7 +35,7 @@ class MonthlyReturnService @Inject() (
   monthlyReturnRepository: MonthlyReturnRepository,
   submissionStoreAction: SubmissionStoreAction,
   reportingWindowService: ReportingWindowService,
-  clock: Clock,
+  timeSource: TimeSource,
   uuidGenerator: UuidGenerator
 )(implicit ec: ExecutionContext)
     extends Logging {
@@ -46,43 +46,46 @@ class MonthlyReturnService @Inject() (
     month: Int,
     nilReturn: Boolean
   ): Future[CreateMonthlyReturnResult] =
-    if (!isWithinDeclarationPeriod(taxYear, month)) {
-      logger.warn(
-        s"[MonthlyReturnService][create] Monthly return is outside Declaration period for zReference [$zReference], taxYear [$taxYear], month [$month]"
-      )
-      Future.successful(CreateMonthlyReturnResult.OutsideDeclarationPeriod)
-    } else {
-      val submissionId = uuidGenerator.randomUuid()
-
-      monthlyReturnRepository
-        .create(zReference, taxYear, month, submissionId, nilReturn)
-        .flatMap {
-          case Some(monthlyReturn) =>
-            logger.info(
-              s"[MonthlyReturnService][create] Created monthly return for zReference [$zReference], taxYear [$taxYear], month [$month], submissionId [$submissionId], nilReturn [$nilReturn]"
-            )
-            Future.successful(Created(monthlyReturn.submissionId))
-
-          case None =>
-            logger.warn(
-              s"[MonthlyReturnService][create] Monthly return already exists for zReference [$zReference], taxYear [$taxYear], month [$month]"
-            )
-            monthlyReturnRepository.get(zReference, taxYear, month).map {
-              case Some(monthlyReturn) => AlreadyExists(monthlyReturn.submissionId)
-              case None                =>
-                throw new IllegalStateException(
-                  s"Monthly return duplicate reported but no record found for zReference [$zReference], taxYear [$taxYear], month [$month]"
-                )
-            }
-        }
-        .recoverWith { case NonFatal(exception) =>
-          logger.error(
-            s"[MonthlyReturnService][create] Failed to create monthly return for zReference [$zReference], taxYear [$taxYear], month [$month], submissionId [$submissionId], nilReturn [$nilReturn]",
-            exception
+    isWithinDeclarationPeriod(zReference, taxYear, month)
+      .flatMap {
+        case false =>
+          logger.warn(
+            s"[MonthlyReturnService][create] Monthly return is outside Declaration period for zReference [$zReference], taxYear [$taxYear], month [$month]"
           )
-          Future.failed(exception)
-        }
-    }
+          Future.successful(CreateMonthlyReturnResult.OutsideDeclarationPeriod)
+
+        case true =>
+          val submissionId = uuidGenerator.randomUuid()
+
+          monthlyReturnRepository
+            .create(zReference, taxYear, month, submissionId, nilReturn)
+            .flatMap {
+              case Some(monthlyReturn) =>
+                logger.info(
+                  s"[MonthlyReturnService][create] Created monthly return for zReference [$zReference], taxYear [$taxYear], month [$month], submissionId [$submissionId], nilReturn [$nilReturn]"
+                )
+                Future.successful(Created(monthlyReturn.submissionId))
+
+              case None =>
+                logger.warn(
+                  s"[MonthlyReturnService][create] Monthly return already exists for zReference [$zReference], taxYear [$taxYear], month [$month]"
+                )
+                monthlyReturnRepository.get(zReference, taxYear, month).map {
+                  case Some(monthlyReturn) => AlreadyExists(monthlyReturn.submissionId)
+                  case None                =>
+                    throw new IllegalStateException(
+                      s"Monthly return duplicate reported but no record found for zReference [$zReference], taxYear [$taxYear], month [$month]"
+                    )
+                }
+            }
+      }
+      .recoverWith { case NonFatal(exception) =>
+        logger.error(
+          s"[MonthlyReturnService][create] Failed to create monthly return for zReference [$zReference], taxYear [$taxYear], month [$month], nilReturn [$nilReturn]",
+          exception
+        )
+        Future.failed(exception)
+      }
 
   def get(zReference: String, taxYear: String, month: Int): Future[Option[MonthlyReturn]] =
 
@@ -122,15 +125,20 @@ class MonthlyReturnService @Inject() (
         s"[MonthlyReturnService][declare] Pending submissions cannot be supplied for a nil return for zReference [$zReference], taxYear [$taxYear], month [$month]"
       )
       Future.successful(DeclareMonthlyReturnResult.PendingSubmissionsForNilReturn)
-    } else if (!isWithinDeclarationPeriod(taxYear, month)) {
-      logger.warn(
-        s"[MonthlyReturnService][declare] Declaration period is closed for zReference [$zReference], taxYear [$taxYear], month [$month]"
-      )
-      Future.successful(DeclareMonthlyReturnResult.OutsideDeclarationPeriod)
-    } else if (nilReturn) {
-      declareNilReturn(zReference, taxYear, month)
     } else {
-      declareExistingReturn(zReference, taxYear, month, pendingSubmissionIds)
+      isWithinDeclarationPeriod(zReference, taxYear, month).flatMap {
+        case false =>
+          logger.warn(
+            s"[MonthlyReturnService][declare] Declaration period is closed for zReference [$zReference], taxYear [$taxYear], month [$month]"
+          )
+          Future.successful(DeclareMonthlyReturnResult.OutsideDeclarationPeriod)
+        case true  =>
+          if (nilReturn) {
+            declareNilReturn(zReference, taxYear, month)
+          } else {
+            declareExistingReturn(zReference, taxYear, month, pendingSubmissionIds)
+          }
+      }
     }
 
   private def declareNilReturn(zReference: String, taxYear: String, month: Int): Future[DeclareMonthlyReturnResult] =
@@ -290,15 +298,16 @@ class MonthlyReturnService @Inject() (
         Future.failed(exception)
       }
 
-  private def isWithinDeclarationPeriod(taxYear: String, month: Int): Boolean = {
-    val today               = LocalDate.now(clock)
-    val previousMonthPeriod = YearMonth.from(today).minusMonths(1)
+  private def isWithinDeclarationPeriod(zReference: String, taxYear: String, month: Int): Future[Boolean] =
+    timeSource.instant(zReference).flatMap { instant =>
+      val today               = LocalDate.ofInstant(instant, ZoneOffset.UTC)
+      val previousMonthPeriod = YearMonth.from(today).minusMonths(1)
 
-    val isPreviousMonth   = previousMonthPeriod.getMonthValue == month
-    val isPreviousTaxYear = taxYearFor(previousMonthPeriod) == taxYear
+      val isPreviousMonth   = previousMonthPeriod.getMonthValue == month
+      val isPreviousTaxYear = taxYearFor(previousMonthPeriod) == taxYear
 
-    reportingWindowService.isOpen && isPreviousMonth && isPreviousTaxYear
-  }
+      reportingWindowService.isOpen(zReference).map(_ && isPreviousMonth && isPreviousTaxYear)
+    }
 
   private def taxYearFor(period: YearMonth): String = {
     val startYear = if (period.getMonthValue >= 4) period.getYear else period.getYear - 1

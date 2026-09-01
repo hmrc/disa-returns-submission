@@ -4,10 +4,20 @@ meta {
   seq: 1
 }
 
-delete {
+post {
   url: {{baseUrl}}{{servicePath}}/test-only/monthly-returns
-  body: none
+  body: json
   auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "zReferences": ["{{zReference}}"]
+  }
 }
 
 assert {

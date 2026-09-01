@@ -25,14 +25,16 @@ assert {
 }
 
 script:pre-request {
+  const value = (Date.now() + Math.floor(Math.random() * 1000)) % 10000;
+  const outsidePeriodZReference = `Z${value.toString().padStart(4, "0")}`;
+  bru.setVar("outsidePeriodZReference", outsidePeriodZReference);
+  bru.setVar("clockZReference", outsidePeriodZReference);
+
   const clockResponse = await bru.runRequest("TestOnly/Clock/03-200-set-clock-outside-declaration-period");
   
   if (clockResponse.status !== 200) {
     throw new Error(`Expected clock setup to respond with 200, got ${clockResponse.status}`);
   }
-  
-  const value = (Date.now() + Math.floor(Math.random() * 1000)) % 10000;
-  bru.setVar("outsidePeriodZReference", `Z${value.toString().padStart(4, "0")}`);
 }
 
 tests {

@@ -17,40 +17,57 @@
 package uk.gov.hmrc.disareturnssubmission.testOnly.controllers
 
 import play.api.libs.json.Json
-import play.api.mvc.{Action, AnyContent, ControllerComponents}
-import uk.gov.hmrc.disareturnssubmission.testOnly.MutableClock
+import play.api.mvc.{Action, AnyContent, ControllerComponents, Result}
+import uk.gov.hmrc.disareturnssubmission.models.ZReference
+import uk.gov.hmrc.disareturnssubmission.testOnly.OverridableClock
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
-import java.time.{DateTimeException, LocalDate}
+import java.time.{DateTimeException, LocalDate, ZoneOffset}
 import javax.inject.{Inject, Singleton}
+import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class TestOnlyClockController @Inject() (
   cc: ControllerComponents,
-  mutableClock: MutableClock
-) extends BackendController(cc) {
+  clock: OverridableClock
+)(implicit ec: ExecutionContext)
+    extends BackendController(cc) {
 
-  def getClock: Action[AnyContent] = Action {
-    Ok(clockJson)
+  def getClock(zReference: String): Action[AnyContent] = Action.async {
+    withZReference(zReference)(clockJson)
   }
 
-  def setDate(date: String): Action[AnyContent] = Action {
-    try {
-      mutableClock.setDate(LocalDate.parse(date))
-      Ok(clockJson)
-    } catch {
-      case _: DateTimeException => BadRequest(Json.obj("message" -> "date must be in yyyy-MM-dd format"))
+  def setDate(zReference: String, date: String): Action[AnyContent] = Action.async {
+    try
+      withZReference(zReference) { normalized =>
+        clock.setDate(normalized, LocalDate.parse(date)).flatMap(_ => clockJson(normalized))
+      }
+    catch {
+      case _: DateTimeException =>
+        Future.successful(BadRequest(Json.obj("message" -> "date must be in yyyy-MM-dd format")))
     }
   }
 
-  def resetClock: Action[AnyContent] = Action {
-    mutableClock.reset()
-    Ok(clockJson)
+  def resetClock(zReference: String): Action[AnyContent] = Action.async {
+    withZReference(zReference) { normalized =>
+      clock.reset(normalized).flatMap(_ => clockJson(normalized))
+    }
   }
 
-  private def clockJson =
-    Json.obj(
-      "date"    -> LocalDate.now(mutableClock).toString,
-      "instant" -> mutableClock.instant().toString
-    )
+  private def withZReference(zReference: String)(f: String => Future[Result]): Future[Result] =
+    ZReference
+      .normalize(zReference)
+      .map(f)
+      .getOrElse(Future.successful(BadRequest(Json.obj("message" -> "invalid zReference"))))
+
+  private def clockJson(zReference: String): Future[Result] =
+    clock.instant(zReference).map { instant =>
+      Ok(
+        Json.obj(
+          "zReference" -> zReference,
+          "date"       -> LocalDate.ofInstant(instant, ZoneOffset.UTC).toString,
+          "instant"    -> instant.toString
+        )
+      )
+    }
 }

@@ -18,14 +18,19 @@ package uk.gov.hmrc.disareturnssubmission.services
 
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 
-import java.time.{Clock, LocalDate}
+import java.time.{LocalDate, ZoneOffset}
 import javax.inject.{Inject, Singleton}
+import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
-class ReportingWindowService @Inject() (appConfig: AppConfig, clock: Clock) {
+class ReportingWindowService @Inject() (appConfig: AppConfig, timeSource: TimeSource)(implicit ec: ExecutionContext) {
 
-  def isOpen: Boolean = {
-    val dayOfMonth = LocalDate.now(clock).getDayOfMonth
-    dayOfMonth >= appConfig.declarationPeriodStart && dayOfMonth <= appConfig.declarationPeriodEnd
-  }
+  def isOpen(zReference: String): Future[Boolean] =
+    isDefaultReportingWindowOpen(zReference)
+
+  protected def isDefaultReportingWindowOpen(zReference: String): Future[Boolean] =
+    timeSource.instant(zReference).map { instant =>
+      val dayOfMonth = LocalDate.ofInstant(instant, ZoneOffset.UTC).getDayOfMonth
+      dayOfMonth >= appConfig.declarationPeriodStart && dayOfMonth <= appConfig.declarationPeriodEnd
+    }
 }

@@ -17,7 +17,8 @@
 package uk.gov.hmrc.disareturnssubmission.testOnly.controllers
 
 import base.SpecBase
-import org.mockito.Mockito.{reset, when}
+import org.mockito.Mockito.{reset, verify, verifyNoInteractions, when}
+import play.api.libs.json.Json
 import play.api.test.FakeRequest
 import play.api.test.Helpers.*
 import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository
@@ -31,22 +32,75 @@ class TestOnlyMonthlyReturnControllerSpec extends SpecBase {
 
   "TestOnlyMonthlyReturnController" - {
 
-    "must delete all monthly returns" in {
+    "must delete monthly returns for normalized Z-references" in {
       reset(mockMonthlyReturnRepository)
-      when(mockMonthlyReturnRepository.deleteAll()).thenReturn(Future.successful(2L))
+      val otherZReference = "Z5678"
+      when(mockMonthlyReturnRepository.deleteByZReferences(Seq(testZReference, otherZReference)))
+        .thenReturn(Future.successful(2L))
 
-      val result = controller.deleteAll()(FakeRequest("DELETE", "/test-only/monthly-returns"))
+      val result = controller.delete()(
+        FakeRequest("POST", "/test-only/monthly-returns")
+          .withHeaders("Content-Type" -> "application/json")
+          .withBody(
+            Json.obj(
+              "zReferences" -> Seq(testZReference.toLowerCase, otherZReference)
+            )
+          )
+      )
 
       status(result) mustBe NO_CONTENT
+      verify(mockMonthlyReturnRepository).deleteByZReferences(Seq(testZReference, otherZReference))
     }
 
-    "must return ServiceUnavailable when deletion fails" in {
+    "must reject a request containing an invalid Z-reference" in {
       reset(mockMonthlyReturnRepository)
-      when(mockMonthlyReturnRepository.deleteAll()).thenReturn(Future.failed(new RuntimeException("boom")))
+      val result = controller.delete()(
+        FakeRequest("POST", "/test-only/monthly-returns")
+          .withHeaders("Content-Type" -> "application/json")
+          .withBody(
+            Json.obj(
+              "zReferences" -> Seq(testZReference, "invalid")
+            )
+          )
+      )
 
-      val result = controller.deleteAll()(FakeRequest("DELETE", "/test-only/monthly-returns"))
+      status(result) mustBe BAD_REQUEST
+      verifyNoInteractions(mockMonthlyReturnRepository)
+    }
+
+    "must reject an empty sequence of Z-references" in {
+      reset(mockMonthlyReturnRepository)
+      val result = controller.delete()(
+        FakeRequest("POST", "/test-only/monthly-returns")
+          .withHeaders("Content-Type" -> "application/json")
+          .withBody(
+            Json.obj(
+              "zReferences" -> Seq.empty[String]
+            )
+          )
+      )
+
+      status(result) mustBe BAD_REQUEST
+      verifyNoInteractions(mockMonthlyReturnRepository)
+    }
+
+    "must return ServiceUnavailable when scoped deletion fails" in {
+      reset(mockMonthlyReturnRepository)
+      when(mockMonthlyReturnRepository.deleteByZReferences(Seq(testZReference)))
+        .thenReturn(Future.failed(new RuntimeException("boom")))
+
+      val result = controller.delete()(
+        FakeRequest("POST", "/test-only/monthly-returns")
+          .withHeaders("Content-Type" -> "application/json")
+          .withBody(
+            Json.obj(
+              "zReferences" -> Seq(testZReference)
+            )
+          )
+      )
 
       status(result) mustBe SERVICE_UNAVAILABLE
     }
+
   }
 }

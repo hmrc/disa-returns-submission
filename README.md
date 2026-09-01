@@ -42,14 +42,16 @@ If starting through service-manager, pass the same JVM parameter in the local se
 -Dapplication.router=testOnlyDoNotUseInAppConf.Routes
 ```
 
-Test-only clock routes are available only with that router:
+The following test-only routes are available only with that router:
 
-- `GET /disa-returns-submission/test-only/clock`
-- `PUT /disa-returns-submission/test-only/clock/yyyy-MM-dd`
-- `DELETE /disa-returns-submission/test-only/clock`
-- `DELETE /disa-returns-submission/test-only/monthly-returns`
+- `GET /disa-returns-submission/test-only/clock/:zReference`
+- `PUT /disa-returns-submission/test-only/clock/:zReference/yyyy-MM-dd`
+- `DELETE /disa-returns-submission/test-only/clock/:zReference`
+- `POST /disa-returns-submission/test-only/monthly-returns`
+- `PUT /disa-returns-submission/test-only/reporting-window-override/:zReference`
+- `DELETE /disa-returns-submission/test-only/reporting-window-override`
 
-Production monthly return routes require an internal-auth token. Local Bruno requests use:
+Production monthly-return and reporting-window routes require an internal-auth token. Local Bruno requests use:
 
 ```text
 Authorization: valid-internal-auth-token-disa-returns-backend
@@ -57,6 +59,42 @@ Authorization: valid-internal-auth-token-disa-returns-backend
 
 That token must exist in local internal-auth with `READ` and `WRITE` permissions for `disa-returns-submission/*`.
 The test-only routes above remain unauthenticated.
+
+The production reporting-window route returns whether the window is open for a normalized Z-reference:
+
+```text
+GET /disa-returns-submission/reporting-window/status/:zReference
+```
+
+It requires the `READ` permission, returns `200 OK` with a `reportingWindowOpen` boolean for a valid Z-reference, and
+returns `400 Bad Request` for an invalid Z-reference.
+
+Monthly-return and reporting-window override deletion accept `Content-Type: application/json` with a non-empty sequence
+of Z-references:
+
+```json
+{
+  "zReferences": ["Z1234", "Z5678"]
+}
+```
+
+Both endpoints normalize case, remove duplicate Z-references, and return `204 No Content` after deleting only the
+supplied records. A missing, empty, or invalid `zReferences` value returns `400 Bad Request`.
+
+When test-only routes are enabled, a Z-reference-specific override stored through the test-only endpoint takes
+precedence over the configured declaration period. Without the test-only router, the service uses only
+`declarationPeriodStart` and `declarationPeriodEnd`.
+
+The override request has the same body as the stubs endpoint:
+
+```json
+{
+  "startDate": "2026-05-16T23:59:00Z",
+  "endDate": "2026-05-17T00:01:00Z"
+}
+```
+
+Overrides are keyed by normalized Z-reference in MongoDB and expire after `reportingWindowOverrideTtlHours`.
 
 ### Submission and declaration contract
 
@@ -88,27 +126,32 @@ unknown submission after declaration, returns `409 Conflict`.
 Use `GET` to inspect the app clock:
 
 ```bash
-curl http://localhost:12103/disa-returns-submission/test-only/clock
+curl http://localhost:12103/disa-returns-submission/test-only/clock/Z1234
 ```
 
-Use `PUT` to set the app date for declaration-period testing. The date must be in `yyyy-MM-dd` format and is applied at `00:00:00Z`:
+Use `PUT` to set the app date for one Z-reference during declaration-period testing. The date must be in `yyyy-MM-dd` format and is applied at `00:00:00Z`:
 
 ```bash
-curl -X PUT http://localhost:12103/disa-returns-submission/test-only/clock/2026-05-17
+curl -X PUT http://localhost:12103/disa-returns-submission/test-only/clock/Z1234/2026-05-17
 ```
+
+Clock overrides are stored in MongoDB so they apply across service instances and expire after `clockOverrideTtlHours`.
 
 Use `DELETE` to reset back to the system UTC clock:
 
 ```bash
-curl -X DELETE http://localhost:12103/disa-returns-submission/test-only/clock
+curl -X DELETE http://localhost:12103/disa-returns-submission/test-only/clock/Z1234
 ```
 
 For example, set the clock to `2026-05-17` to create and declare May 2026 monthly returns inside the configured declaration period, or `2026-05-20` to test declaration attempts outside the configured declaration period.
 
-Use `DELETE` to clear all monthly returns from the submission service local database:
+Use `POST` to clear monthly returns for specific Z-references from the submission service local database:
 
 ```bash
-curl -X DELETE http://localhost:12103/disa-returns-submission/test-only/monthly-returns
+curl -X POST \
+  -H 'Content-Type: application/json' \
+  -d '{"zReferences":["Z1234","Z5678"]}' \
+  http://localhost:12103/disa-returns-submission/test-only/monthly-returns
 ```
 
 You can then query the app to ensure it is working with the following command:
@@ -143,10 +186,12 @@ Otherwise the routes will not be available.
 
 | Endpoint | Used by | Purpose |
 | --- | --- | --- |
-| `GET /disa-returns-submission/test-only/clock` | `bruno/TestOnly/Clock` | Inspect the app clock used by declaration-period logic. |
-| `PUT /disa-returns-submission/test-only/clock/:date` | `bruno/TestOnly/Clock` | Set the app date in `yyyy-MM-dd` format for declaration-period testing. |
-| `DELETE /disa-returns-submission/test-only/clock` | `bruno/TestOnly/Clock` | Reset the app clock back to the system UTC clock. |
-| `DELETE /disa-returns-submission/test-only/monthly-returns` | `bruno/TestOnly/MonthlyReturns` | Clear all monthly returns from the submission service local database. |
+| `GET /disa-returns-submission/test-only/clock/:zReference` | `bruno/TestOnly/Clock` | Inspect the time source used for one Z-reference. |
+| `PUT /disa-returns-submission/test-only/clock/:zReference/:date` | `bruno/TestOnly/Clock` | Set the date for one Z-reference in `yyyy-MM-dd` format. |
+| `DELETE /disa-returns-submission/test-only/clock/:zReference` | `bruno/TestOnly/Clock` | Reset one Z-reference back to the system UTC clock. |
+| `POST /disa-returns-submission/test-only/monthly-returns` | `bruno/TestOnly/MonthlyReturns`, performance tests | Clear monthly returns for the supplied normalized Z-references. This must not run concurrently with return creation for those Z-references. |
+| `PUT /disa-returns-submission/test-only/reporting-window-override/:zReference` | `bruno/TestOnly/ReportingWindowOverride`, test automation | Store a temporary reporting-window override for one normalized Z-reference. |
+| `DELETE /disa-returns-submission/test-only/reporting-window-override` | `bruno/TestOnly/ReportingWindowOverride`, performance tests, API tests | Remove reporting-window overrides for the supplied normalized Z-references. |
 
 ### Before you commit
 
@@ -155,8 +200,8 @@ This service leverages scalaFmt to ensure that the code is formatted correctly.
 Before you commit, please run the following commands to check that the code is formatted correctly:
 
 ```bash
-# runs a scala format check, runs unit tests, runs integration tests and produces a coverage report.
-sbt runAllChecks
+# formats all source files, runs unit and integration tests, and produces a coverage report
+sbt precommit
 
 # checks all source and sbt files are correctly formatted
 sbt prePrChecks

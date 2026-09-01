@@ -1,0 +1,39 @@
+meta {
+  name: 01-200-status-open-by-override
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}{{servicePath}}/reporting-window/status/{{overrideZReference}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.reportingWindowOpen: eq true
+}
+
+script:pre-request {
+  bru.setVar("clockZReference", bru.getEnvVar("overrideZReference"));
+  const clockResponse = await bru.runRequest("TestOnly/Clock/03-200-set-clock-outside-declaration-period");
+  
+  if (clockResponse.status !== 200) {
+    throw new Error(`Expected clock setup to respond with 200, got ${clockResponse.status}`);
+  }
+  
+  const overrideResponse = await bru.runRequest("TestOnly/ReportingWindowOverride/01-204-set-override");
+  
+  if (overrideResponse.status !== 204) {
+    throw new Error(`Expected override setup to respond with 204, got ${overrideResponse.status}`);
+  }
+}
+
+script:post-response {
+  const deleteResponse = await bru.runRequest("TestOnly/ReportingWindowOverride/02-204-delete-override");
+  
+  if (deleteResponse.status !== 204) {
+    throw new Error(`Expected override cleanup to respond with 204, got ${deleteResponse.status}`);
+  }
+}

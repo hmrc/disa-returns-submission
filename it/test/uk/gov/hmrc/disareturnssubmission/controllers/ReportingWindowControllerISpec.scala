@@ -21,14 +21,14 @@ import uk.gov.hmrc.disareturnssubmission.BaseIntegrationSpec
 
 class ReportingWindowControllerISpec extends BaseIntegrationSpec {
 
-  private val reportingWindowStatusPath = s"$testServicePath/reporting-window/status"
+  private val reportingWindowStatusPath = s"$testServicePath/reporting-window/status/$testZReference"
 
-  "GET /reporting-window/status" should {
+  "GET /reporting-window/status/:zReference" should {
 
     "return 200 OK with reportingWindowOpen true when today falls within the declaration period" in {
       val result = get(reportingWindowStatusPath)
 
-      result.status shouldBe OK
+      result.status                                     shouldBe OK
       (result.json \ "reportingWindowOpen").as[Boolean] shouldBe true
     }
 

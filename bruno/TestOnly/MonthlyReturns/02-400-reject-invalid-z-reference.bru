@@ -1,0 +1,25 @@
+meta {
+  name: 02-400-reject-invalid-z-reference
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}{{servicePath}}/test-only/monthly-returns
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "zReferences": ["{{invalidZReference}}"]
+  }
+}
+
+assert {
+  res.status: eq 400
+}

@@ -35,17 +35,18 @@ import play.api.libs.json.{JsObject, Json}
 import play.api.libs.ws.WSClient
 import play.api.test.DefaultAwaitTimeout
 import play.api.test.Helpers.await
+import uk.gov.hmrc.disareturnssubmission.services.TimeSource
 import uk.gov.hmrc.disareturnssubmission.utils.RequestUtils
 import uk.gov.hmrc.http.test.WireMockSupport
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.play.audit.http.connector.DatastreamMetrics
 
 import java.time.{Clock, Instant, ZoneOffset}
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.reflect.ClassTag
 
 trait BaseIntegrationSpec
-  extends AnyWordSpec
+    extends AnyWordSpec
     with Matchers
     with MockitoSugar
     with GuiceOneServerPerSuite
@@ -64,15 +65,16 @@ trait BaseIntegrationSpec
     .configure(config)
     .overrides(
       bind[Clock].toInstance(Clock.fixed(integrationTestNow, ZoneOffset.UTC)),
+      bind[TimeSource].toInstance((_: String) => Future.successful(integrationTestNow)),
       bind[DatastreamMetrics].toInstance(DatastreamMetrics.disabled)
     )
     .build()
 
   def config: Map[String, Any] =
     Map(
-      "auditing.enabled"                    -> false,
-      "create-internal-auth-token-on-start" -> false,
-      "mongodb.uri"                         -> "mongodb://localhost:27017/disa-returns-submission-it",
+      "auditing.enabled"                                       -> false,
+      "create-internal-auth-token-on-start"                    -> false,
+      "mongodb.uri"                                            -> "mongodb://localhost:27017/disa-returns-submission-it",
       "microservice.services.disa-returns-submission.protocol" -> "http",
       "microservice.services.disa-returns-submission.host"     -> "localhost",
       "microservice.services.disa-returns-submission.port"     -> wireMockPort,
@@ -130,9 +132,9 @@ trait BaseIntegrationSpec
   }
 
   protected def stubReturnsSubmissionCreateMonthlyReturn(
-                                                          status: Int = CREATED,
-                                                          submissionId: String = testSubmissionId.toString
-                                                        ): Unit =
+    status: Int = CREATED,
+    submissionId: String = testSubmissionId.toString
+  ): Unit =
     stubFor(
       post(urlPathMatching("/disa-returns-submission/monthly/[^/]+/[^/]+/[^/]+"))
         .willReturn(
@@ -151,13 +153,19 @@ trait BaseIntegrationSpec
   def clearMongoCollections(): Unit = {
     val database = inject[MongoComponent].database
 
-    Seq(monthlyReturnsCollectionName, monthlyReturnFileUploadWorkItemsCollectionName).foreach { collectionName =>
-      await(
-        database
-          .getCollection(collectionName)
-          .deleteMany(Filters.empty())
-          .toFuture()
-      )
-    }
+    Seq(
+      monthlyReturnsCollectionName,
+      monthlyReturnFileUploadWorkItemsCollectionName,
+      "reportingWindowOverrides",
+      "clockOverrides"
+    )
+      .foreach { collectionName =>
+        await(
+          database
+            .getCollection(collectionName)
+            .deleteMany(Filters.empty())
+            .toFuture()
+        )
+      }
   }
 }
