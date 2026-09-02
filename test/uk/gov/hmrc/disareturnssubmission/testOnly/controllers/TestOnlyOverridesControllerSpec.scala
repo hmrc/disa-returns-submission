@@ -30,9 +30,9 @@ import scala.concurrent.Future
 
 class TestOnlyOverridesControllerSpec extends SpecBase {
 
-  private val service    = mock[TestOverrideService]
-  private val controller = new TestOnlyOverridesController(stubControllerComponents(), service)
-  private val instant    = Instant.parse("2026-05-17T00:00:00Z")
+  private val service      = mock[TestOverrideService]
+  private val controller   = new TestOnlyOverridesController(stubControllerComponents(), service)
+  private val instant      = Instant.parse("2026-05-17T00:00:00Z")
   private val testOverride = TestOverride(
     testZReference,
     Some(ClockOverride(LocalDate.parse("2026-05-17"))),
@@ -55,15 +55,17 @@ class TestOnlyOverridesControllerSpec extends SpecBase {
       when(service.replace(eqTo(testZReference), eqTo(request))).thenReturn(Future.successful(testOverride))
 
       val result = controller.put(testZReference)(
-        FakeRequest(PUT, s"/overrides/$testZReference").withHeaders("Content-Type" -> "application/json").withBody(
-          Json.obj(
-            "clock" -> Json.obj("date" -> "2026-05-17"),
-            "reportingWindow" -> Json.obj(
-              "startDate" -> "2026-05-16T23:59:00Z",
-              "endDate"   -> "2026-05-17T00:01:00Z"
+        FakeRequest(PUT, s"/overrides/$testZReference")
+          .withHeaders("Content-Type" -> "application/json")
+          .withBody(
+            Json.obj(
+              "clock"           -> Json.obj("date" -> "2026-05-17"),
+              "reportingWindow" -> Json.obj(
+                "startDate" -> "2026-05-16T23:59:00Z",
+                "endDate"   -> "2026-05-17T00:01:00Z"
+              )
             )
           )
-        )
       )
 
       status(result) mustBe OK
@@ -72,7 +74,8 @@ class TestOnlyOverridesControllerSpec extends SpecBase {
 
     "must treat omitted fields as cleared" in {
       val request = TestOverrideRequest(None, None)
-      when(service.replace(testZReference, request)).thenReturn(Future.successful(testOverride.copy(clock = None, reportingWindow = None)))
+      when(service.replace(testZReference, request))
+        .thenReturn(Future.successful(testOverride.copy(clock = None, reportingWindow = None)))
 
       val result = controller.put(testZReference)(
         FakeRequest(PUT, s"/overrides/$testZReference")
@@ -86,14 +89,16 @@ class TestOnlyOverridesControllerSpec extends SpecBase {
 
     "must reject an invalid reporting window" in {
       val result = controller.put(testZReference)(
-        FakeRequest(PUT, s"/overrides/$testZReference").withHeaders("Content-Type" -> "application/json").withBody(
-          Json.obj(
-            "reportingWindow" -> Json.obj(
-              "startDate" -> "2026-05-17T00:01:00Z",
-              "endDate"   -> "2026-05-16T23:59:00Z"
+        FakeRequest(PUT, s"/overrides/$testZReference")
+          .withHeaders("Content-Type" -> "application/json")
+          .withBody(
+            Json.obj(
+              "reportingWindow" -> Json.obj(
+                "startDate" -> "2026-05-17T00:01:00Z",
+                "endDate"   -> "2026-05-16T23:59:00Z"
+              )
             )
           )
-        )
       )
 
       status(result) mustBe BAD_REQUEST

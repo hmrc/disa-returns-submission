@@ -29,15 +29,15 @@ import scala.concurrent.Future
 
 class OverrideReportingWindowServiceSpec extends SpecBase {
 
-  private val now                    = Instant.parse("2026-04-01T12:00:00Z")
-  private val timeSource             = mock[OverrideTimeSource]
-  private val repository             = mock[TestOverrideRepository]
-  private val service = new OverrideReportingWindowService(inject[AppConfig], timeSource, repository)
+  private val now        = Instant.parse("2026-04-01T12:00:00Z")
+  private val timeSource = mock[OverrideTimeSource]
+  private val repository = mock[TestOverrideRepository]
+  private val service    = new OverrideReportingWindowService(inject[AppConfig], timeSource, repository)
 
   "OverrideReportingWindowService" - {
 
     "must evaluate clock and window from one aggregate snapshot" in {
-      val supplied = now.plusSeconds(120)
+      val supplied  = now.plusSeconds(120)
       val aggregate = Some(
         TestOverrideDocument(
           testZReference,

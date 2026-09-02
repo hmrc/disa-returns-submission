@@ -26,14 +26,14 @@ import scala.concurrent.Future
 
 class TestOverrideServiceSpec extends SpecBase {
 
-  private val repository = mock[TestOverrideRepository]
-  private val service    = new TestOverrideService(repository)
-  private val systemInstant          = Instant.parse("2026-06-17T12:00:00Z")
+  private val repository    = mock[TestOverrideRepository]
+  private val service       = new TestOverrideService(repository)
+  private val systemInstant = Instant.parse("2026-06-17T12:00:00Z")
 
   "TestOverrideService" - {
 
     "must return the public model after replacement" in {
-      val request = TestOverrideRequest(
+      val request   = TestOverrideRequest(
         Some(ClockOverride(LocalDate.parse("2026-06-20"))),
         Some(
           ReportingWindowOverride(

@@ -32,13 +32,13 @@ object ClockOverride {
     },
     Writes(date => JsString(date.toString))
   )
-  implicit val format: OFormat[ClockOverride] = Json.format[ClockOverride]
+  implicit val format: OFormat[ClockOverride]     = Json.format[ClockOverride]
 }
 
 final case class ReportingWindowOverride(startDate: Instant, endDate: Instant)
 
 object ReportingWindowOverride {
-  implicit val instantFormat: Format[Instant] = Format(
+  implicit val instantFormat: Format[Instant]           = Format(
     Reads {
       case JsString(value) => Try(Instant.parse(value)).fold(_ => JsError("invalid instant"), JsSuccess(_))
       case _               => JsError("instant must be a string")
@@ -94,6 +94,6 @@ final case class TestOverrideDocument(
 )
 
 object TestOverrideDocument {
-  implicit val instantFormat: Format[Instant]                 = MongoJavatimeFormats.instantFormat
-  implicit val format: OFormat[TestOverrideDocument]         = Json.format[TestOverrideDocument]
+  implicit val instantFormat: Format[Instant]        = MongoJavatimeFormats.instantFormat
+  implicit val format: OFormat[TestOverrideDocument] = Json.format[TestOverrideDocument]
 }
