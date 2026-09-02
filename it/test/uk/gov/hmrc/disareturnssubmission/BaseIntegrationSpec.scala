@@ -156,8 +156,7 @@ trait BaseIntegrationSpec
     Seq(
       monthlyReturnsCollectionName,
       monthlyReturnFileUploadWorkItemsCollectionName,
-      "reportingWindowOverrides",
-      "clockOverrides"
+      "testOverrides"
     )
       .foreach { collectionName =>
         await(

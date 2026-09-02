@@ -20,8 +20,8 @@ import config.{InternalAuthTokenInitialiser, InternalAuthTokenInitialiserImpl, N
 import play.api.{Configuration, Environment}
 import play.api.inject.{Binding, Module as AppModule, bind as binding}
 import services.{ReportingWindowService, SystemClock, TimeSource}
-import testOnly.services.MutableReportingWindowService
-import uk.gov.hmrc.disareturnssubmission.testOnly.OverridableClock
+import testOnly.services.OverrideReportingWindowService
+import uk.gov.hmrc.disareturnssubmission.testOnly.OverrideTimeSource
 
 import java.time.{Clock, ZoneOffset}
 
@@ -51,9 +51,9 @@ class Module extends AppModule:
     val overrideBindings: Seq[Binding[?]] =
       if (testOnlyRoutesEnabled) {
         Seq(
-          binding[OverridableClock].toSelf,
-          binding[TimeSource].to[OverridableClock],
-          binding[ReportingWindowService].to[MutableReportingWindowService]
+          binding[OverrideTimeSource].toSelf,
+          binding[TimeSource].to[OverrideTimeSource],
+          binding[ReportingWindowService].to[OverrideReportingWindowService]
         )
       } else {
         Seq(

@@ -1,0 +1,28 @@
+meta {
+  name: 07-200-set-clock-outside-declaration-period
+  type: http
+  seq: 7
+}
+
+put {
+  url: {{baseUrl}}{{servicePath}}/test-only/overrides/{{clockZReference}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "clock": {
+      "date": "{{outsideDeclarationPeriodDate}}"
+    }
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.clock.date: eq {{outsideDeclarationPeriodDate}}
+}

@@ -24,7 +24,7 @@ import uk.gov.hmrc.disareturnssubmission.actions.SubmissionStoreAction
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.models.*
 import uk.gov.hmrc.disareturnssubmission.repositories.{DeclareMonthlyReturnRepositoryResult, MonthlyReturnRepository}
-import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, MonthlyReturnService, ReportingWindowService, SubmitReturnResult, TimeSource}
+import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, MonthlyReturnService, ReportingWindowService, ResolvedReportingWindow, SubmitReturnResult, TimeSource}
 import uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator
 
 import java.time.Instant
@@ -65,6 +65,24 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
   "MonthlyReturnService" - {
 
     "create" - {
+
+      "must evaluate the reporting window at its already-resolved instant" in {
+        val now                    = Instant.parse("2026-06-17T12:00:00Z")
+        val reportingWindowService = mock[ReportingWindowService]
+        val service                = new MonthlyReturnService(
+          monthlyReturnRepository = mockMonthlyReturnRepository,
+          submissionStoreAction = mockSubStoreAction,
+          reportingWindowService = reportingWindowService,
+          uuidGenerator = mockUuidGenerator
+        )
+        when(reportingWindowService.resolve(zReference))
+          .thenReturn(Future.successful(ResolvedReportingWindow(now, isOpen = false)))
+
+        service.create(zReference, taxYear, month, nilReturn = false).futureValue mustBe
+          CreateMonthlyReturnResult.OutsideDeclarationPeriod
+
+        verify(reportingWindowService).resolve(zReference)
+      }
 
       "must return Created when the repository creates the MonthlyReturn" in {
         when(mockUuidGenerator.randomUuid()).thenReturn(testSubmissionId)
@@ -662,7 +680,6 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
       monthlyReturnRepository = mockMonthlyReturnRepository,
       mockSubStoreAction,
       reportingWindowService = new ReportingWindowService(appConfig, timeSource),
-      timeSource = timeSource,
       uuidGenerator = mockUuidGenerator
     )
   }

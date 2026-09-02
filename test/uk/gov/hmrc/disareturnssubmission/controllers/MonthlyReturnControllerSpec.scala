@@ -305,6 +305,10 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
         )
 
         status(result) mustBe UNPROCESSABLE_ENTITY
+        contentAsJson(result) mustBe Json.obj(
+          "code"    -> "MONTHLY_RETURN_ALREADY_DECLARED",
+          "message" -> "This monthly return was already declared"
+        )
       }
 
       "must return NOT_FOUND when no monthly return data has been submitted" in {
@@ -343,6 +347,10 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
         )
 
         status(result) mustBe UNPROCESSABLE_ENTITY
+        contentAsJson(result) mustBe Json.obj(
+          "code"    -> "DECLARATION_PERIOD_CLOSED",
+          "message" -> "Monthly declaration period is closed."
+        )
       }
 
       "must return SERVICE_UNAVAILABLE when the service fails" in {

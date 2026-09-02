@@ -1,0 +1,23 @@
+meta {
+  name: 01-200-get-overrides
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}{{servicePath}}/test-only/overrides/{{overrideZReference}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.zReference: eq {{overrideZReference}}
+}
+
+tests {
+  test("response includes both optional override fields", function() {
+    expect(res.body).to.have.property("clock");
+    expect(res.body).to.have.property("reportingWindow");
+  });
+}
