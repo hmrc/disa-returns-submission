@@ -18,19 +18,28 @@ package uk.gov.hmrc.disareturnssubmission.services
 
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 
-import java.time.{LocalDate, ZoneOffset}
+import java.time.{Instant, LocalDate, ZoneOffset}
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
+
+final case class ResolvedReportingWindow(instant: Instant, isOpen: Boolean)
 
 @Singleton
 class ReportingWindowService @Inject() (appConfig: AppConfig, timeSource: TimeSource)(implicit ec: ExecutionContext) {
 
   def isOpen(zReference: String): Future[Boolean] =
-    isDefaultReportingWindowOpen(zReference)
+    resolve(zReference).map(_.isOpen)
 
-  protected def isDefaultReportingWindowOpen(zReference: String): Future[Boolean] =
-    timeSource.instant(zReference).map { instant =>
-      val dayOfMonth = LocalDate.ofInstant(instant, ZoneOffset.UTC).getDayOfMonth
-      dayOfMonth >= appConfig.declarationPeriodStart && dayOfMonth <= appConfig.declarationPeriodEnd
+  def resolve(zReference: String): Future[ResolvedReportingWindow] =
+    timeSource.resolve(zReference).map { resolved =>
+      ResolvedReportingWindow(resolved.instant, isDefaultReportingWindowOpenAt(resolved.instant))
     }
+
+  def isOpenAt(zReference: String, instant: Instant): Future[Boolean] =
+    Future.successful(isDefaultReportingWindowOpenAt(instant))
+
+  def isDefaultReportingWindowOpenAt(instant: Instant): Boolean = {
+    val dayOfMonth = LocalDate.ofInstant(instant, ZoneOffset.UTC).getDayOfMonth
+    dayOfMonth >= appConfig.declarationPeriodStart && dayOfMonth <= appConfig.declarationPeriodEnd
+  }
 }

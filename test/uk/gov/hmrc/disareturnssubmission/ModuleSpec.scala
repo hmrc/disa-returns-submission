@@ -19,8 +19,8 @@ package uk.gov.hmrc.disareturnssubmission
 import base.SpecBase
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.disareturnssubmission.services.{ReportingWindowService, SystemClock, TimeSource}
-import uk.gov.hmrc.disareturnssubmission.testOnly.OverridableClock
-import uk.gov.hmrc.disareturnssubmission.testOnly.services.MutableReportingWindowService
+import uk.gov.hmrc.disareturnssubmission.testOnly.OverrideTimeSource
+import uk.gov.hmrc.disareturnssubmission.testOnly.services.OverrideReportingWindowService
 
 class ModuleSpec extends SpecBase {
 
@@ -37,8 +37,8 @@ class ModuleSpec extends SpecBase {
         .build()
 
       try {
-        overrideApp.injector.instanceOf[ReportingWindowService] mustBe a[MutableReportingWindowService]
-        overrideApp.injector.instanceOf[TimeSource] mustBe a[OverridableClock]
+        overrideApp.injector.instanceOf[ReportingWindowService] mustBe a[OverrideReportingWindowService]
+        overrideApp.injector.instanceOf[TimeSource] mustBe a[OverrideTimeSource]
       } finally await(overrideApp.stop())
     }
   }

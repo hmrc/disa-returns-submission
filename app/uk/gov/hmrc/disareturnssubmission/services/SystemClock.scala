@@ -16,11 +16,11 @@
 
 package uk.gov.hmrc.disareturnssubmission.services
 
-import java.time.Instant
+import java.time.{Clock, Instant}
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.Future
 
 @Singleton
-class SystemClock @Inject() () extends TimeSource {
-  override def instant(zReference: String): Future[Instant] = Future.successful(Instant.now())
+class SystemClock @Inject() (clock: Clock) extends TimeSource {
+  override def instant(zReference: String): Future[Instant] = Future.successful(clock.instant())
 }

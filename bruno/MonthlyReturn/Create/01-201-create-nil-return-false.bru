@@ -39,7 +39,7 @@ script:pre-request {
 
   for (const clockZReference of [zRef(0), zRef(1)]) {
     bru.setVar("clockZReference", clockZReference);
-    const clockResponse = await bru.runRequest("TestOnly/Clock/02-200-set-clock-inside-declaration-period");
+    const clockResponse = await bru.runRequest("TestOnly/Overrides/06-200-set-clock-inside-declaration-period");
 
     if (clockResponse.status !== 200) {
       throw new Error(`Expected clock setup for ${clockZReference} to respond with 200, got ${clockResponse.status}`);

@@ -1,0 +1,17 @@
+meta {
+  name: 04-200-delete-overrides
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}{{servicePath}}/test-only/overrides/{{overrideZReference}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.clock: isNull
+  res.body.reportingWindow: isNull
+}

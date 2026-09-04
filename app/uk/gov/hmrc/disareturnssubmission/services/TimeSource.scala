@@ -17,8 +17,13 @@
 package uk.gov.hmrc.disareturnssubmission.services
 
 import java.time.Instant
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
+
+final case class ResolvedInstant(instant: Instant, overridden: Boolean)
 
 trait TimeSource {
   def instant(zReference: String): Future[Instant]
+
+  def resolve(zReference: String): Future[ResolvedInstant] =
+    instant(zReference).map(ResolvedInstant(_, overridden = false))(using ExecutionContext.parasitic)
 }

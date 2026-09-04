@@ -1,0 +1,25 @@
+meta {
+  name: 03-200-clear-fields-by-replacement
+  type: http
+  seq: 3
+}
+
+put {
+  url: {{baseUrl}}{{servicePath}}/test-only/overrides/{{overrideZReference}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {}
+}
+
+assert {
+  res.status: eq 200
+  res.body.clock: isNull
+  res.body.reportingWindow: isNull
+}

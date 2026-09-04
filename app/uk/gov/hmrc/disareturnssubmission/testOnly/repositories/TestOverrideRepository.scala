@@ -18,26 +18,26 @@ package uk.gov.hmrc.disareturnssubmission.testOnly.repositories
 
 import org.mongodb.scala.model.{Filters, IndexModel, IndexOptions, Indexes, ReplaceOptions}
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
-import uk.gov.hmrc.disareturnssubmission.testOnly.models.ClockOverride
+import uk.gov.hmrc.disareturnssubmission.testOnly.models.{TestOverrideDocument, TestOverrideRequest}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 
-import java.time.{Clock, Instant}
 import java.time.temporal.ChronoUnit
+import java.time.{Clock, Instant}
 import java.util.concurrent.TimeUnit
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
-class ClockOverrideRepository @Inject() (
+class TestOverrideRepository @Inject() (
   mongoComponent: MongoComponent,
   appConfig: AppConfig,
   clock: Clock
 )(implicit ec: ExecutionContext)
-    extends PlayMongoRepository[ClockOverride](
+    extends PlayMongoRepository[TestOverrideDocument](
       mongoComponent = mongoComponent,
-      collectionName = "clockOverrides",
-      domainFormat = ClockOverride.format,
+      collectionName = "testOverrides",
+      domainFormat = TestOverrideDocument.format,
       indexes = Seq(
         IndexModel(
           keys = Indexes.ascending("expiresAt"),
@@ -49,27 +49,23 @@ class ClockOverrideRepository @Inject() (
       replaceIndexes = true
     ) {
 
-  def set(zReference: String, instant: Instant): Future[Unit] = {
-    val now              = Instant.now(clock)
-    val expiresAt        = now.plus(appConfig.clockOverrideTtlHours.toLong, ChronoUnit.HOURS)
-    val overrideDocument = ClockOverride(
+  def replace(zReference: String, request: TestOverrideRequest): Future[TestOverrideDocument] = {
+    val now       = Instant.now(clock)
+    val aggregate = TestOverrideDocument(
       _id = zReference,
-      instant = instant,
-      expiresAt = expiresAt,
+      clock = request.clock,
+      reportingWindow = request.reportingWindow,
+      expiresAt = now.plus(appConfig.testOverrideTtlHours.toLong, ChronoUnit.HOURS),
       updatedAt = now
     )
 
     collection
-      .replaceOne(
-        Filters.eq("_id", zReference),
-        overrideDocument,
-        ReplaceOptions().upsert(true)
-      )
+      .replaceOne(Filters.eq("_id", zReference), aggregate, ReplaceOptions().upsert(true))
       .toFuture()
-      .map(_ => ())
+      .map(_ => aggregate)
   }
 
-  def getActive(zReference: String): Future[Option[ClockOverride]] =
+  def getActive(zReference: String): Future[Option[TestOverrideDocument]] =
     collection
       .find(Filters.eq("_id", zReference))
       .first()
@@ -77,8 +73,5 @@ class ClockOverrideRepository @Inject() (
       .map(_.filter(_.expiresAt.isAfter(Instant.now(clock))))
 
   def delete(zReference: String): Future[Unit] =
-    collection
-      .deleteOne(Filters.eq("_id", zReference))
-      .toFuture()
-      .map(_ => ())
+    collection.deleteOne(Filters.eq("_id", zReference)).toFuture().map(_ => ())
 }

@@ -16,24 +16,17 @@ assert {
 }
 
 script:pre-request {
-  bru.setVar("clockZReference", bru.getEnvVar("overrideZReference"));
-  const clockResponse = await bru.runRequest("TestOnly/Clock/03-200-set-clock-outside-declaration-period");
+  const overrideResponse = await bru.runRequest("TestOnly/Overrides/02-200-replace-overrides");
   
-  if (clockResponse.status !== 200) {
-    throw new Error(`Expected clock setup to respond with 200, got ${clockResponse.status}`);
-  }
-  
-  const overrideResponse = await bru.runRequest("TestOnly/ReportingWindowOverride/01-204-set-override");
-  
-  if (overrideResponse.status !== 204) {
-    throw new Error(`Expected override setup to respond with 204, got ${overrideResponse.status}`);
+  if (overrideResponse.status !== 200) {
+    throw new Error(`Expected override setup to respond with 200, got ${overrideResponse.status}`);
   }
 }
 
 script:post-response {
-  const deleteResponse = await bru.runRequest("TestOnly/ReportingWindowOverride/02-204-delete-override");
+  const deleteResponse = await bru.runRequest("TestOnly/Overrides/04-200-delete-overrides");
   
-  if (deleteResponse.status !== 204) {
-    throw new Error(`Expected override cleanup to respond with 204, got ${deleteResponse.status}`);
+  if (deleteResponse.status !== 200) {
+    throw new Error(`Expected override cleanup to respond with 200, got ${deleteResponse.status}`);
   }
 }

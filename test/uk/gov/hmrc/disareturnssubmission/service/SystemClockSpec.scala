@@ -14,21 +14,20 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.disareturnssubmission.testOnly.models
+package uk.gov.hmrc.disareturnssubmission.service
 
-import play.api.libs.json.{Format, Json, OFormat}
-import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
+import base.SpecBase
+import uk.gov.hmrc.disareturnssubmission.services.{ResolvedInstant, SystemClock}
 
-import java.time.Instant
+import java.time.{Clock, Instant, ZoneOffset}
 
-final case class ClockOverride(
-  _id: String,
-  instant: Instant,
-  expiresAt: Instant,
-  updatedAt: Instant
-)
+class SystemClockSpec extends SpecBase {
 
-object ClockOverride {
-  implicit val instantFormat: Format[Instant] = MongoJavatimeFormats.instantFormat
-  implicit val format: OFormat[ClockOverride] = Json.format[ClockOverride]
+  "SystemClock must use its injected clock" in {
+    val instant = Instant.parse("2026-05-20T12:34:56Z")
+    val clock   = new SystemClock(Clock.fixed(instant, ZoneOffset.UTC))
+
+    clock.instant(testZReference).futureValue mustBe instant
+    clock.resolve(testZReference).futureValue mustBe ResolvedInstant(instant, overridden = false)
+  }
 }

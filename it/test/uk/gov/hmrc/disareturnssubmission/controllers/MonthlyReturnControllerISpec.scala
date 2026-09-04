@@ -160,6 +160,10 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
       val result = postJson(declarationPath, Json.obj("nilReturn" -> false))
 
       result.status shouldBe UNPROCESSABLE_ENTITY
+      result.json   shouldBe Json.obj(
+        "code"    -> "MONTHLY_RETURN_ALREADY_DECLARED",
+        "message" -> "This monthly return was already declared"
+      )
     }
 
     "return 404 NotFound when the monthly return wasn't previously created" in {
@@ -173,6 +177,10 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
       val result = postJson(currentMonthDeclarationPath, Json.obj("nilReturn" -> false))
 
       result.status shouldBe UNPROCESSABLE_ENTITY
+      result.json   shouldBe Json.obj(
+        "code"    -> "DECLARATION_PERIOD_CLOSED",
+        "message" -> "Monthly declaration period is closed."
+      )
     }
 
     "return 401 Unauthorized when no internal auth token is provided" in {

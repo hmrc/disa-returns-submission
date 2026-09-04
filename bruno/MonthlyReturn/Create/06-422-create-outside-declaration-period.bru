@@ -30,7 +30,7 @@ script:pre-request {
   bru.setVar("outsidePeriodZReference", outsidePeriodZReference);
   bru.setVar("clockZReference", outsidePeriodZReference);
 
-  const clockResponse = await bru.runRequest("TestOnly/Clock/03-200-set-clock-outside-declaration-period");
+  const clockResponse = await bru.runRequest("TestOnly/Overrides/07-200-set-clock-outside-declaration-period");
   
   if (clockResponse.status !== 200) {
     throw new Error(`Expected clock setup to respond with 200, got ${clockResponse.status}`);
