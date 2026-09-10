@@ -1,0 +1,25 @@
+meta {
+  name: 04-204-delete-overrides
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}{{servicePath}}/test-only/overrides/delete
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "zReferences": ["{{overrideZReference}}"]
+  }
+}
+
+assert {
+  res.status: eq 204
+}

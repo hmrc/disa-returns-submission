@@ -42,11 +42,19 @@ If starting through service-manager, pass the same JVM parameter in the local se
 -Dapplication.router=testOnlyDoNotUseInAppConf.Routes
 ```
 
+### Performance tests
+
+Run with test-only routes and extended Z-references:
+
+```bash
+sbt -Dapplication.router=testOnlyDoNotUseInAppConf.Routes -Dfeatures.strict-z-reference-validation-enabled=false run
+```
+
 The following test-only routes are available only with that router:
 
 - `GET /disa-returns-submission/test-only/overrides/:zReference`
-- `PUT /disa-returns-submission/test-only/overrides/:zReference`
-- `DELETE /disa-returns-submission/test-only/overrides/:zReference`
+- `PUT /disa-returns-submission/test-only/overrides`
+- `POST /disa-returns-submission/test-only/overrides/delete`
 - `POST /disa-returns-submission/test-only/monthly-returns`
 
 Production monthly-return and reporting-window routes require an internal-auth token. Local Bruno requests use:
@@ -63,8 +71,10 @@ aggregate-backed test implementations. Production monthly-return and reporting-w
 status routes therefore observe test-only clock and reporting-window overrides while this router is active. With the
 normal router, they use `SystemClock` and the configured declaration-period boundaries only and never query overrides.
 
-Test-only utilities trim and uppercase Z-references before validation. A valid normalized reference is `Z` followed
-by exactly four digits. Persisted overrides are keyed by that value, so `z1234` and `Z1234` address the same state.
+Z-references are canonically uppercased using `Locale.ROOT`. Utilities that previously normalized references continue
+to trim them before validation. By default a valid reference is `Z` followed by exactly four digits. Setting
+`features.strict-z-reference-validation-enabled=false` uses loose validation that accepts four to eight digits instead. Persisted overrides are
+keyed by the canonical value, so `z1234` and `Z1234` address the same state.
 
 The production reporting-window status route remains available for the effective status of a normalized Z-reference:
 
@@ -77,11 +87,11 @@ returns `400 Bad Request` for an invalid Z-reference. With the test-only router 
 
 ### Aggregate overrides
 
-Use `PUT /disa-returns-submission/test-only/overrides/:zReference` to atomically replace all overrides for one normalized
-Z-reference:
+Use `PUT /disa-returns-submission/test-only/overrides` to apply the same full replacement to every supplied Z-reference:
 
 ```json
 {
+  "zReferences": ["Z1234", "Z5678"],
   "clock": {
     "date": "2026-05-17"
   },
@@ -92,11 +102,13 @@ Z-reference:
 }
 ```
 
-Both fields are optional. Because PUT is a full replacement, omitting either field clears that field; `{}` clears both.
+Both override fields are optional. Because PUT is a full replacement, omitting either field clears that field for every
+reference; a body containing only `zReferences` clears both.
 The clock date is applied at `00:00:00Z`. The reporting-window interval is inclusive and `startDate` must be before or
-equal to `endDate`. Invalid references or bodies return `400`.
+equal to `endDate`. `zReferences` must be a non-empty array; values are trimmed, uppercased and de-duplicated, and any
+invalid reference or body returns `400` before any write occurs. Repository failures return `503`.
 
-GET, successful PUT, and DELETE always return `200` with this flat shape:
+Successful PUT returns `204`. Single-reference GET returns `200` with this flat shape:
 
 ```json
 {
@@ -109,7 +121,8 @@ GET, successful PUT, and DELETE always return `200` with this flat shape:
 }
 ```
 
-Absent fields are returned as `null`, and DELETE removes the complete aggregate and returns both fields as `null`.
+Absent fields are returned as `null`. `POST /disa-returns-submission/test-only/overrides/delete` accepts
+`{"zReferences":["Z1234","Z5678"]}`, removes all matching aggregates, and returns `204`.
 The override endpoint only reports configured overrides; use the production reporting-window status endpoint for the
 effective status. Submission processing uses `SystemClock` when the aggregate clock is absent or expired, and the
 configured declaration-period boundaries when its reporting window is absent. The complete persistence document is
@@ -199,13 +212,13 @@ Otherwise the routes will not be available.
 | Endpoint | Used by | Purpose and response |
 | --- | --- | --- |
 | `GET /disa-returns-submission/test-only/overrides/:zReference` | `bruno/TestOnly/Overrides` | Return the configured aggregate fields. |
-| `PUT /disa-returns-submission/test-only/overrides/:zReference` | `bruno/TestOnly/Overrides` | Atomically replace and return the aggregate. |
-| `DELETE /disa-returns-submission/test-only/overrides/:zReference` | `bruno/TestOnly/Overrides` | Delete the aggregate and return empty options. |
+| `PUT /disa-returns-submission/test-only/overrides` | `bruno/TestOnly/Overrides` | Bulk replace aggregates and return `204`. |
+| `POST /disa-returns-submission/test-only/overrides/delete` | `bruno/TestOnly/Overrides` | Bulk delete aggregates and return `204`. |
 | `POST /disa-returns-submission/test-only/monthly-returns` | `bruno/TestOnly/MonthlyReturns`, performance tests | Delete monthly returns only for supplied normalized, de-duplicated references and return `204`; reject missing, empty, or invalid input with `400`. |
 
 The `ReportingWindow/01-200-status-open-by-override` Bruno journey creates one aggregate, verifies the production status
-route, and deletes the aggregate. The test-only override folder covers GET, full replacement, omitted-field clearing,
-DELETE, and invalid interval behavior.
+route, and deletes the aggregate. The test-only override folder covers GET, bulk replacement, omitted-field clearing,
+bulk deletion, and invalid interval behavior.
 
 ### Before you commit
 

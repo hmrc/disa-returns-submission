@@ -21,55 +21,46 @@ import org.mockito.Mockito.{verify, when}
 import uk.gov.hmrc.disareturnssubmission.testOnly.models.*
 import uk.gov.hmrc.disareturnssubmission.testOnly.repositories.TestOverrideRepository
 
-import java.time.{Instant, LocalDate}
+import java.time.Instant
 import scala.concurrent.Future
 
 class TestOverrideServiceSpec extends SpecBase {
 
-  private val repository    = mock[TestOverrideRepository]
-  private val service       = new TestOverrideService(repository)
-  private val systemInstant = Instant.parse("2026-06-17T12:00:00Z")
+  private val repository = mock[TestOverrideRepository]
+  private val service    = new TestOverrideService(repository)
 
   "TestOverrideService" - {
 
-    "must return the public model after replacement" in {
-      val request   = TestOverrideRequest(
-        Some(ClockOverride(LocalDate.parse("2026-06-20"))),
-        Some(
-          ReportingWindowOverride(
-            Instant.parse("2026-06-19T23:59:00Z"),
-            Instant.parse("2026-06-20T00:01:00Z")
-          )
-        )
-      )
-      val aggregate = TestOverrideDocument(
-        testZReference,
-        request.clock,
-        request.reportingWindow,
-        systemInstant.plusSeconds(3600),
-        systemInstant
-      )
-      when(repository.replace(testZReference, request)).thenReturn(Future.successful(aggregate))
+    "must bulk replace overrides" in {
+      val zReferences = Seq(testZReference, "Z5678")
+      val request     = TestOverrideRequest(zReferences, None, None)
+      when(repository.replace(zReferences, request)).thenReturn(Future.unit)
 
-      val result = service.replace(testZReference, request).futureValue
+      service.replace(zReferences, request).futureValue
 
-      result mustBe TestOverride(testZReference, request.clock, request.reportingWindow)
+      verify(repository).replace(zReferences, request)
     }
 
     "must return empty options when no active aggregate exists" in {
       when(repository.getActive(testZReference)).thenReturn(Future.successful(None))
 
-      val result = service.get(testZReference).futureValue
-
-      result mustBe TestOverride(testZReference, None, None)
+      service.get(testZReference).futureValue mustBe TestOverride(testZReference, None, None)
     }
 
-    "must delete the full aggregate and return empty options" in {
-      when(repository.delete(testZReference)).thenReturn(Future.unit)
+    "must bulk delete overrides" in {
+      val zReferences = Seq(testZReference, "Z5678")
+      when(repository.delete(zReferences)).thenReturn(Future.unit)
 
-      service.delete(testZReference).futureValue mustBe TestOverride(testZReference, None, None)
+      service.delete(zReferences).futureValue
 
-      verify(repository).delete(testZReference)
+      verify(repository).delete(zReferences)
+    }
+
+    "must return an active aggregate" in {
+      val document = TestOverrideDocument(testZReference, None, None, Instant.MAX, Instant.EPOCH)
+      when(repository.getActive(testZReference)).thenReturn(Future.successful(Some(document)))
+
+      service.get(testZReference).futureValue mustBe TestOverride(testZReference, None, None)
     }
   }
 }

@@ -17,7 +17,7 @@
 package uk.gov.hmrc.disareturnssubmission.controllers
 
 import play.api.Application
-import play.api.http.Status.{BAD_REQUEST, OK}
+import play.api.http.Status.{BAD_REQUEST, NO_CONTENT, OK}
 import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.json.{JsNull, Json}
@@ -36,16 +36,21 @@ class TestOverrideISpec extends BaseIntegrationSpec {
     )
     .build()
 
-  private val overridePath = s"$testServicePath/test-only/overrides/$testZReference"
-  private val statusPath   = s"$testServicePath/reporting-window/status/$testZReference"
+  private val otherZReference = "Z5678"
+  private val overridesPath   = s"$testServicePath/test-only/overrides"
+  private val deletePath      = s"$overridesPath/delete"
+  private val overridePath    = s"$overridesPath/$testZReference"
+  private val otherPath       = s"$overridesPath/$otherZReference"
+  private val statusPath      = s"$testServicePath/reporting-window/status/$testZReference"
 
   "test override journey" should {
 
-    "replace and return the complete aggregate" in {
+    "bulk replace and expose complete aggregates through single GET" in {
       val result = putJson(
-        overridePath.toLowerCase,
+        overridesPath,
         Json.obj(
-          "clock" -> Json.obj("date" -> "2026-06-20"),
+          "zReferences"     -> Seq(testZReference.toLowerCase, testZReference, otherZReference.toLowerCase),
+          "clock"           -> Json.obj("date" -> "2026-06-20"),
           "reportingWindow" -> Json.obj(
             "startDate" -> "2026-06-19T23:59:00Z",
             "endDate"   -> "2026-06-20T00:01:00Z"
@@ -53,61 +58,65 @@ class TestOverrideISpec extends BaseIntegrationSpec {
         )
       )
 
-      result.status shouldBe OK
-      result.json shouldBe Json.obj(
-        "zReference"          -> testZReference,
-        "clock"               -> Json.obj("date" -> "2026-06-20"),
-        "reportingWindow" -> Json.obj(
-          "startDate" -> "2026-06-19T23:59:00Z",
-          "endDate"   -> "2026-06-20T00:01:00Z"
-        )
-      )
-      get(overridePath).json shouldBe result.json
+      result.status                                              shouldBe NO_CONTENT
+      Seq(overridePath, otherPath).foreach { path =>
+        val aggregate = get(path).json
+        (aggregate \ "clock" \ "date").as[String]                shouldBe "2026-06-20"
+        (aggregate \ "reportingWindow" \ "startDate").as[String] shouldBe "2026-06-19T23:59:00Z"
+      }
       (get(statusPath).json \ "reportingWindowOpen").as[Boolean] shouldBe true
     }
 
-    "clear omitted fields during full replacement" in {
+    "clear omitted fields for every reference during full replacement" in {
       putJson(
-        overridePath,
+        overridesPath,
         Json.obj(
-          "clock" -> Json.obj("date" -> "2026-06-20"),
-          "reportingWindow" -> Json.obj(
-            "startDate" -> "2026-06-19T23:59:00Z",
-            "endDate"   -> "2026-06-20T00:01:00Z"
-          )
+          "zReferences" -> Seq(testZReference, otherZReference),
+          "clock"       -> Json.obj("date" -> "2026-06-18")
         )
-      ).status shouldBe OK
+      ).status shouldBe NO_CONTENT
 
-      val result = putJson(overridePath, Json.obj("clock" -> Json.obj("date" -> "2026-06-18")))
-
-      result.status shouldBe OK
-      (result.json \ "clock" \ "date").as[String] shouldBe "2026-06-18"
-      (result.json \ "reportingWindow").get shouldBe JsNull
+      Seq(overridePath, otherPath).foreach { path =>
+        val aggregate = get(path).json
+        (aggregate \ "clock" \ "date").as[String] shouldBe "2026-06-18"
+        (aggregate \ "reportingWindow").get       shouldBe JsNull
+      }
     }
 
-    "delete all override fields" in {
-      putJson(overridePath, Json.obj("clock" -> Json.obj("date" -> "2026-06-20"))).status shouldBe OK
+    "bulk delete complete aggregates" in {
+      putJson(
+        overridesPath,
+        Json.obj("zReferences" -> Seq(testZReference, otherZReference), "clock" -> Json.obj("date" -> "2026-06-20"))
+      ).status shouldBe NO_CONTENT
 
-      val result = delete(overridePath)
+      postJson(
+        deletePath,
+        Json.obj("zReferences" -> Seq(testZReference.toLowerCase, otherZReference))
+      ).status shouldBe NO_CONTENT
 
-      result.status shouldBe OK
-      (result.json \ "clock").get shouldBe JsNull
-      (result.json \ "reportingWindow").get shouldBe JsNull
-      get(overridePath).json shouldBe result.json
+      Seq(overridePath, otherPath).foreach { path =>
+        val aggregate = get(path).json
+        (aggregate \ "clock").get           shouldBe JsNull
+        (aggregate \ "reportingWindow").get shouldBe JsNull
+      }
     }
 
-    "reject invalid aggregate requests" in {
+    "reject a complete invalid request before replacing any aggregate" in {
       val result = putJson(
-        overridePath,
+        overridesPath,
         Json.obj(
-          "reportingWindow" -> Json.obj(
-            "startDate" -> "2026-06-20T00:01:00Z",
-            "endDate"   -> "2026-06-19T23:59:00Z"
-          )
+          "zReferences" -> Seq(testZReference, "invalid"),
+          "clock"       -> Json.obj("date" -> "2026-06-20")
         )
       )
 
-      result.status shouldBe BAD_REQUEST
+      result.status                          shouldBe BAD_REQUEST
+      (result.json \ "message").as[String]   shouldBe "zReferences must be a non-empty array of valid Z-references"
+      (get(overridePath).json \ "clock").get shouldBe JsNull
+    }
+
+    "retain single-reference GET" in {
+      get(overridePath).status shouldBe OK
     }
   }
 }

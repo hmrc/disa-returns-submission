@@ -49,6 +49,7 @@ object ReportingWindowOverride {
 }
 
 final case class TestOverrideRequest(
+  zReferences: Seq[String],
   clock: Option[ClockOverride],
   reportingWindow: Option[ReportingWindowOverride]
 )
@@ -56,17 +57,23 @@ final case class TestOverrideRequest(
 object TestOverrideRequest {
   private val reads: Reads[TestOverrideRequest] = Reads { json =>
     for {
+      zReferences     <- (json \ "zReferences").validate[Seq[String]]
       clock           <- (json \ "clock").validateOpt[ClockOverride]
       reportingWindow <- (json \ "reportingWindow").validateOpt[ReportingWindowOverride]
-    } yield TestOverrideRequest(clock, reportingWindow)
+    } yield TestOverrideRequest(zReferences, clock, reportingWindow)
   }
     .filter(JsonValidationError("reportingWindow.startDate must be before or equal to reportingWindow.endDate")) {
       request =>
         request.reportingWindow.forall(window => !window.startDate.isAfter(window.endDate))
     }
 
-  implicit val format: OFormat[TestOverrideRequest] =
-    OFormat(reads, Json.writes[TestOverrideRequest])
+  implicit val requestReads: Reads[TestOverrideRequest] = reads
+}
+
+final case class DeleteTestOverridesRequest(zReferences: Seq[String])
+
+object DeleteTestOverridesRequest {
+  implicit val reads: Reads[DeleteTestOverridesRequest] = Json.reads[DeleteTestOverridesRequest]
 }
 
 final case class TestOverride(

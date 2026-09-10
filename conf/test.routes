@@ -1,5 +1,5 @@
 GET        /overrides/:zReference                        uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyOverridesController.get(zReference: String)
-PUT        /overrides/:zReference                        uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyOverridesController.put(zReference: String)
-DELETE     /overrides/:zReference                        uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyOverridesController.delete(zReference: String)
+PUT        /overrides                                    uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyOverridesController.put()
+POST       /overrides/delete                             uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyOverridesController.delete()
 
 POST       /monthly-returns                              uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyMonthlyReturnController.delete()

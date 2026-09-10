@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.disareturnssubmission.testOnly.repositories
 
-import org.mongodb.scala.model.{Filters, IndexModel, IndexOptions, Indexes, ReplaceOptions}
+import org.mongodb.scala.model.{BulkWriteOptions, Filters, IndexModel, IndexOptions, Indexes, ReplaceOneModel, ReplaceOptions}
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.testOnly.models.{TestOverrideDocument, TestOverrideRequest}
 import uk.gov.hmrc.mongo.MongoComponent
@@ -49,20 +49,24 @@ class TestOverrideRepository @Inject() (
       replaceIndexes = true
     ) {
 
-  def replace(zReference: String, request: TestOverrideRequest): Future[TestOverrideDocument] = {
+  def replace(zReferences: Seq[String], request: TestOverrideRequest): Future[Unit] = {
     val now       = Instant.now(clock)
-    val aggregate = TestOverrideDocument(
-      _id = zReference,
-      clock = request.clock,
-      reportingWindow = request.reportingWindow,
-      expiresAt = now.plus(appConfig.testOverrideTtlHours.toLong, ChronoUnit.HOURS),
-      updatedAt = now
-    )
+    val expiresAt = now.plus(appConfig.testOverrideTtlHours.toLong, ChronoUnit.HOURS)
+    val writes    = zReferences.map { zReference =>
+      val aggregate = TestOverrideDocument(
+        _id = zReference,
+        clock = request.clock,
+        reportingWindow = request.reportingWindow,
+        expiresAt = expiresAt,
+        updatedAt = now
+      )
+      ReplaceOneModel(Filters.eq("_id", zReference), aggregate, ReplaceOptions().upsert(true))
+    }
 
     collection
-      .replaceOne(Filters.eq("_id", zReference), aggregate, ReplaceOptions().upsert(true))
+      .bulkWrite(writes, BulkWriteOptions().ordered(false))
       .toFuture()
-      .map(_ => aggregate)
+      .map(_ => ())
   }
 
   def getActive(zReference: String): Future[Option[TestOverrideDocument]] =
@@ -72,6 +76,6 @@ class TestOverrideRepository @Inject() (
       .toFutureOption()
       .map(_.filter(_.expiresAt.isAfter(Instant.now(clock))))
 
-  def delete(zReference: String): Future[Unit] =
-    collection.deleteOne(Filters.eq("_id", zReference)).toFuture().map(_ => ())
+  def delete(zReferences: Seq[String]): Future[Unit] =
+    collection.deleteMany(Filters.in("_id", zReferences: _*)).toFuture().map(_ => ())
 }

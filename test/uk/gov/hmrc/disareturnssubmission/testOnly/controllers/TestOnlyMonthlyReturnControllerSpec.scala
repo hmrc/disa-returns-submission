@@ -22,13 +22,18 @@ import play.api.libs.json.Json
 import play.api.test.FakeRequest
 import play.api.test.Helpers.*
 import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository
+import uk.gov.hmrc.disareturnssubmission.validators.StrictZReferenceValidator
 
 import scala.concurrent.Future
 
 class TestOnlyMonthlyReturnControllerSpec extends SpecBase {
 
   private val mockMonthlyReturnRepository = mock[MonthlyReturnRepository]
-  private val controller                  = new TestOnlyMonthlyReturnController(stubControllerComponents(), mockMonthlyReturnRepository)
+  private val controller                  = new TestOnlyMonthlyReturnController(
+    stubControllerComponents(),
+    mockMonthlyReturnRepository,
+    new StrictZReferenceValidator
+  )
 
   "TestOnlyMonthlyReturnController" - {
 

@@ -21,6 +21,7 @@ import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.disareturnssubmission.services.{ReportingWindowService, SystemClock, TimeSource}
 import uk.gov.hmrc.disareturnssubmission.testOnly.OverrideTimeSource
 import uk.gov.hmrc.disareturnssubmission.testOnly.services.OverrideReportingWindowService
+import uk.gov.hmrc.disareturnssubmission.validators.{LooseZReferenceValidator, StrictZReferenceValidator, ZReferenceValidator}
 
 class ModuleSpec extends SpecBase {
 
@@ -40,6 +41,19 @@ class ModuleSpec extends SpecBase {
         overrideApp.injector.instanceOf[ReportingWindowService] mustBe a[OverrideReportingWindowService]
         overrideApp.injector.instanceOf[TimeSource] mustBe a[OverrideTimeSource]
       } finally await(overrideApp.stop())
+    }
+
+    "must bind strict Z-reference validation by default" in {
+      inject[ZReferenceValidator] mustBe a[StrictZReferenceValidator]
+    }
+
+    "must bind loose Z-reference validation when strict validation is disabled" in {
+      val looseApp = applicationBuilder()
+        .configure("features.strict-z-reference-validation-enabled" -> false)
+        .build()
+
+      try looseApp.injector.instanceOf[ZReferenceValidator] mustBe a[LooseZReferenceValidator]
+      finally await(looseApp.stop())
     }
   }
 }

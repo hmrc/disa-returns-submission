@@ -16,17 +16,17 @@ assert {
 }
 
 script:pre-request {
-  const overrideResponse = await bru.runRequest("TestOnly/Overrides/02-200-replace-overrides");
+  const overrideResponse = await bru.runRequest("TestOnly/Overrides/02-204-replace-overrides");
   
-  if (overrideResponse.status !== 200) {
-    throw new Error(`Expected override setup to respond with 200, got ${overrideResponse.status}`);
+  if (overrideResponse.status !== 204) {
+    throw new Error(`Expected override setup to respond with 204, got ${overrideResponse.status}`);
   }
 }
 
 script:post-response {
-  const deleteResponse = await bru.runRequest("TestOnly/Overrides/04-200-delete-overrides");
+  const deleteResponse = await bru.runRequest("TestOnly/Overrides/04-204-delete-overrides");
   
-  if (deleteResponse.status !== 200) {
-    throw new Error(`Expected override cleanup to respond with 200, got ${deleteResponse.status}`);
+  if (deleteResponse.status !== 204) {
+    throw new Error(`Expected override cleanup to respond with 204, got ${deleteResponse.status}`);
   }
 }

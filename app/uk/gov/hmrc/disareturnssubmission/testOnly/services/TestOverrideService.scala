@@ -30,11 +30,11 @@ class TestOverrideService @Inject() (
   def get(zReference: String): Future[TestOverride] =
     repository.getActive(zReference).map(_.fold(empty(zReference))(toApi))
 
-  def replace(zReference: String, request: TestOverrideRequest): Future[TestOverride] =
-    repository.replace(zReference, request).map(toApi)
+  def replace(zReferences: Seq[String], request: TestOverrideRequest): Future[Unit] =
+    repository.replace(zReferences, request)
 
-  def delete(zReference: String): Future[TestOverride] =
-    repository.delete(zReference).map(_ => empty(zReference))
+  def delete(zReferences: Seq[String]): Future[Unit] =
+    repository.delete(zReferences)
 
   private def toApi(document: TestOverrideDocument): TestOverride =
     TestOverride(document._id, document.clock, document.reportingWindow)

@@ -16,47 +16,80 @@
 
 package uk.gov.hmrc.disareturnssubmission.testOnly.controllers
 
-import play.api.libs.json.{JsValue, Json}
+import play.api.Logging
+import play.api.libs.json.{JsValue, Json, Reads}
 import play.api.mvc.{Action, AnyContent, ControllerComponents, Result}
-import uk.gov.hmrc.disareturnssubmission.models.ZReference
-import uk.gov.hmrc.disareturnssubmission.testOnly.models.{TestOverride, TestOverrideRequest}
+import uk.gov.hmrc.disareturnssubmission.testOnly.models.{DeleteTestOverridesRequest, TestOverride, TestOverrideRequest}
 import uk.gov.hmrc.disareturnssubmission.testOnly.services.TestOverrideService
+import uk.gov.hmrc.disareturnssubmission.validators.ZReferenceValidator
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.control.NonFatal
 
 @Singleton
 class TestOnlyOverridesController @Inject() (
   cc: ControllerComponents,
-  service: TestOverrideService
+  service: TestOverrideService,
+  zReferenceValidator: ZReferenceValidator
 )(implicit ec: ExecutionContext)
-    extends BackendController(cc) {
+    extends BackendController(cc)
+    with Logging {
 
   def get(zReference: String): Action[AnyContent] = Action.async {
     withZReference(zReference)(service.get)
   }
 
-  def put(zReference: String): Action[JsValue] = Action.async(parse.json) { request =>
-    ZReference.normalize(zReference) match {
-      case None             => Future.successful(BadRequest(Json.obj("message" -> "invalid zReference")))
-      case Some(normalized) =>
-        request.body
-          .validate[TestOverrideRequest]
-          .fold(
-            _ => Future.successful(BadRequest(Json.obj("message" -> "invalid override"))),
-            overrideRequest => service.replace(normalized, overrideRequest).map(context => Ok(Json.toJson(context)))
-          )
+  def put(): Action[JsValue] = Action.async(parse.json) { request =>
+    withValidRequest[TestOverrideRequest](request.body, "invalid override request") { overrideRequest =>
+      withValidZReferences(overrideRequest.zReferences) { zReferences =>
+        service
+          .replace(zReferences, overrideRequest)
+          .map(_ => NoContent)
+          .recover(repositoryFailure("replace", zReferences.size))
+      }
     }
   }
 
-  def delete(zReference: String): Action[AnyContent] = Action.async {
-    withZReference(zReference)(service.delete)
+  def delete(): Action[JsValue] = Action.async(parse.json) { request =>
+    withValidRequest[DeleteTestOverridesRequest](request.body, "invalid delete request") { deleteRequest =>
+      withValidZReferences(deleteRequest.zReferences) { zReferences =>
+        service
+          .delete(zReferences)
+          .map(_ => NoContent)
+          .recover(repositoryFailure("delete", zReferences.size))
+      }
+    }
   }
 
   private def withZReference(zReference: String)(f: String => Future[TestOverride]): Future[Result] =
-    ZReference
+    zReferenceValidator
       .normalize(zReference)
       .map(normalized => f(normalized).map(context => Ok(Json.toJson(context))))
-      .getOrElse(Future.successful(BadRequest(Json.obj("message" -> "invalid zReference"))))
+      .getOrElse(badRequest("invalid zReference"))
+
+  private def withValidRequest[A: Reads](body: JsValue, error: String)(f: A => Future[Result]): Future[Result] =
+    body.validate[A].fold(_ => badRequest(error), f)
+
+  private def withValidZReferences(zReferences: Seq[String])(f: Seq[String] => Future[Result]): Future[Result] = {
+    val normalized = zReferences.map(zReferenceValidator.normalize)
+    if (zReferences.isEmpty || normalized.exists(_.isEmpty)) {
+      badRequest("zReferences must be a non-empty array of valid Z-references")
+    } else {
+      f(normalized.flatten.distinct)
+    }
+  }
+
+  private def badRequest(message: String): Future[Result] =
+    Future.successful(BadRequest(Json.obj("message" -> message)))
+
+  private def repositoryFailure(operation: String, zReferenceCount: Int): PartialFunction[Throwable, Result] = {
+    case NonFatal(exception) =>
+      logger.error(
+        s"[TestOnlyOverridesController][$operation] Failed to $operation overrides for [$zReferenceCount] Z-references",
+        exception
+      )
+      ServiceUnavailable
+  }
 }

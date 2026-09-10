@@ -16,14 +16,27 @@
 
 package uk.gov.hmrc.disareturnssubmission.validators
 
-import scala.util.matching.Regex
+import java.util.Locale
 
-object ZReferenceValidator {
-
-  private val ZReferencePattern: Regex = "^[zZ][0-9]{4}$".r
-
-  def isValid(zReference: String): Boolean =
-    Option(zReference).exists { value =>
-      ZReferencePattern.pattern.matcher(value).matches()
-    }
+trait ZReferenceValidator {
+  def isValid(zReference: String): Boolean
+  def normalize(zReference: String): Option[String]
 }
+
+abstract class RegexZReferenceValidator(minDigits: Int, maxDigits: Int) extends ZReferenceValidator {
+
+  private val pattern = s"Z[0-9]{$minDigits,$maxDigits}".r
+
+  override def isValid(zReference: String): Boolean =
+    canonical(zReference).exists(pattern.matches)
+
+  override def normalize(zReference: String): Option[String] =
+    canonical(Option(zReference).map(_.trim).orNull).filter(pattern.matches)
+
+  private def canonical(zReference: String): Option[String] =
+    Option(zReference).map(_.toUpperCase(Locale.ROOT))
+}
+
+final class StrictZReferenceValidator extends RegexZReferenceValidator(4, 4)
+
+final class LooseZReferenceValidator extends RegexZReferenceValidator(4, 8)

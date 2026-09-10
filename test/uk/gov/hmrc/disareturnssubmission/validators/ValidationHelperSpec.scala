@@ -20,17 +20,33 @@ import base.SpecBase
 
 class ValidationHelperSpec extends SpecBase {
 
+  private val strictValidator  = new StrictZReferenceValidator
+  private val looseValidator   = new LooseZReferenceValidator
+  private val validationHelper = new ValidationHelper(strictValidator)
+
   "ZReferenceValidator.isValid" - {
 
     "must return true for a valid upper or lower case zReference" in {
-      ZReferenceValidator.isValid(testZReference) mustBe true
-      ZReferenceValidator.isValid(lowercaseTestZReference) mustBe true
+      strictValidator.isValid(testZReference) mustBe true
+      strictValidator.isValid(lowercaseTestZReference) mustBe true
     }
 
     "must return false for an invalid zReference" in {
-      ZReferenceValidator.isValid(invalidTestZReference) mustBe false
-      ZReferenceValidator.isValid("Z12345") mustBe false
-      ZReferenceValidator.isValid(null) mustBe false
+      strictValidator.isValid(invalidTestZReference) mustBe false
+      strictValidator.isValid("Z12345") mustBe false
+      strictValidator.isValid(null) mustBe false
+    }
+
+    "must support four to eight digits in loose mode" in {
+      looseValidator.isValid("Z1234") mustBe true
+      looseValidator.isValid("z12345678") mustBe true
+      looseValidator.isValid("Z123") mustBe false
+      looseValidator.isValid("Z123456789") mustBe false
+    }
+
+    "must normalize with Locale-independent uppercase and preserved trimming" in {
+      strictValidator.normalize("  z1234  ") mustBe Some("Z1234")
+      strictValidator.normalize(null) mustBe None
     }
   }
 
@@ -65,13 +81,19 @@ class ValidationHelperSpec extends SpecBase {
   "ValidationHelper.validateParams" - {
 
     "must normalise valid path parameters" in {
-      ValidationHelper.validateParams(lowercaseTestZReference, testTaxYear, testMonth) mustBe
+      validationHelper.validateParams(lowercaseTestZReference, testTaxYear, testMonth) mustBe
         Right((testZReference, testTaxYear, testMonth))
     }
 
     "must return all invalid field names" in {
-      ValidationHelper.validateParams(invalidTestZReference, invalidTestTaxYear, invalidTestMonth) mustBe Left(
+      validationHelper.validateParams(invalidTestZReference, invalidTestTaxYear, invalidTestMonth) mustBe Left(
         s"Invalid monthly return submission fields: [$zReferenceFieldName, $taxYearFieldName, $monthFieldName]"
+      )
+    }
+
+    "must retain non-trimming validation for monthly path parameters" in {
+      validationHelper.validateParams(s" $testZReference ", testTaxYear, testMonth) mustBe Left(
+        s"Invalid monthly return submission fields: [$zReferenceFieldName]"
       )
     }
   }

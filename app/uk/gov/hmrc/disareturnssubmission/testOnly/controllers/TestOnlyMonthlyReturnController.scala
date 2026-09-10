@@ -19,8 +19,8 @@ package uk.gov.hmrc.disareturnssubmission.testOnly.controllers
 import play.api.Logging
 import play.api.libs.json.JsValue
 import play.api.mvc.{Action, ControllerComponents}
-import uk.gov.hmrc.disareturnssubmission.models.ZReference
 import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository
+import uk.gov.hmrc.disareturnssubmission.validators.ZReferenceValidator
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
 import javax.inject.{Inject, Singleton}
@@ -30,7 +30,8 @@ import scala.util.control.NonFatal
 @Singleton
 class TestOnlyMonthlyReturnController @Inject() (
   cc: ControllerComponents,
-  monthlyReturnRepository: MonthlyReturnRepository
+  monthlyReturnRepository: MonthlyReturnRepository,
+  zReferenceValidator: ZReferenceValidator
 )(implicit ec: ExecutionContext)
     extends BackendController(cc)
     with Logging {
@@ -38,7 +39,7 @@ class TestOnlyMonthlyReturnController @Inject() (
   def delete(): Action[JsValue] = Action.async(parse.json) { request =>
     (request.body \ "zReferences").validate[Seq[String]].asOpt match {
       case Some(zReferences) if zReferences.nonEmpty =>
-        val normalized = zReferences.map(ZReference.normalize)
+        val normalized = zReferences.map(zReferenceValidator.normalize)
 
         if (normalized.exists(_.isEmpty)) {
           Future.successful(BadRequest)

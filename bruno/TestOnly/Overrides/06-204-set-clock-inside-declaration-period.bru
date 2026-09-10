@@ -1,11 +1,11 @@
 meta {
-  name: 06-200-set-clock-inside-declaration-period
+  name: 06-204-set-clock-inside-declaration-period
   type: http
   seq: 6
 }
 
 put {
-  url: {{baseUrl}}{{servicePath}}/test-only/overrides/{{clockZReference}}
+  url: {{baseUrl}}{{servicePath}}/test-only/overrides
   body: json
   auth: none
 }
@@ -16,6 +16,7 @@ headers {
 
 body:json {
   {
+    "zReferences": ["{{clockZReference}}"],
     "clock": {
       "date": "{{declarationPeriodDate}}"
     }
@@ -23,6 +24,5 @@ body:json {
 }
 
 assert {
-  res.status: eq 200
-  res.body.clock.date: eq {{declarationPeriodDate}}
+  res.status: eq 204
 }

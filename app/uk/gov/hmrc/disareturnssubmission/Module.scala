@@ -22,6 +22,7 @@ import play.api.inject.{Binding, Module as AppModule, bind as binding}
 import services.{ReportingWindowService, SystemClock, TimeSource}
 import testOnly.services.OverrideReportingWindowService
 import uk.gov.hmrc.disareturnssubmission.testOnly.OverrideTimeSource
+import validators.{LooseZReferenceValidator, StrictZReferenceValidator, ZReferenceValidator}
 
 import java.time.{Clock, ZoneOffset}
 
@@ -48,6 +49,13 @@ class Module extends AppModule:
     val testOnlyRoutesEnabled =
       configuration.getOptional[String]("application.router").contains("testOnlyDoNotUseInAppConf.Routes")
 
+    val zReferenceValidatorBinding =
+      if (configuration.get[Boolean]("features.strict-z-reference-validation-enabled")) {
+        binding[ZReferenceValidator].to[StrictZReferenceValidator]
+      } else {
+        binding[ZReferenceValidator].to[LooseZReferenceValidator]
+      }
+
     val overrideBindings: Seq[Binding[?]] =
       if (testOnlyRoutesEnabled) {
         Seq(
@@ -64,6 +72,7 @@ class Module extends AppModule:
 
     Seq(
       binding[AppInitialiser].toSelf.eagerly(),
-      binding[Clock].to(Clock.systemDefaultZone.withZone(ZoneOffset.UTC))
+      binding[Clock].to(Clock.systemDefaultZone.withZone(ZoneOffset.UTC)),
+      zReferenceValidatorBinding
     ) ++ overrideBindings ++ authTokenInitialiserBindings
   }

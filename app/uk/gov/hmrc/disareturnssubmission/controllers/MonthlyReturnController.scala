@@ -40,6 +40,7 @@ class MonthlyReturnController @Inject() (
   monthlyReturnService: MonthlyReturnService,
   appConfig: AppConfig,
   auth: BackendAuthComponents,
+  validationHelper: ValidationHelper,
   implicit val mat: Materializer
 )(implicit ec: ExecutionContext)
     extends BackendController(cc)
@@ -190,7 +191,7 @@ class MonthlyReturnController @Inject() (
     taxYear: String,
     month: Int
   )(block: (String, String, Int) => Future[Result]): Future[Result] =
-    ValidationHelper.validateParams(zReference, taxYear, month) match {
+    validationHelper.validateParams(zReference, taxYear, month) match {
       case Right((validZReference, validTaxYear, validMonth)) =>
         block(validZReference, validTaxYear, validMonth)
 

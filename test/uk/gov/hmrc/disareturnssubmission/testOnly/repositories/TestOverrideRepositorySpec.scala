@@ -59,12 +59,13 @@ class TestOverrideRepositorySpec extends SpecBase with DefaultPlayMongoRepositor
 
     "must atomically replace the complete aggregate" in {
       val initial = TestOverrideRequest(
+        Seq(testZReference),
         Some(ClockOverride(LocalDate.parse("2026-06-17"))),
         Some(ReportingWindowOverride(now.minusSeconds(60), now.plusSeconds(60)))
       )
-      repository.replace(testZReference, initial).futureValue
+      repository.replace(Seq(testZReference), initial).futureValue
 
-      repository.replace(testZReference, TestOverrideRequest(None, None)).futureValue
+      repository.replace(Seq(testZReference), TestOverrideRequest(Seq(testZReference), None, None)).futureValue
 
       val aggregate = repository.getActive(testZReference).futureValue.value
       aggregate.clock mustBe None
@@ -73,17 +74,19 @@ class TestOverrideRepositorySpec extends SpecBase with DefaultPlayMongoRepositor
     }
 
     "must isolate and delete aggregates by Z-reference" in {
-      repository.replace(testZReference, TestOverrideRequest(None, None)).futureValue
-      repository.replace("Z5678", TestOverrideRequest(None, None)).futureValue
+      val references = Seq(testZReference, "Z5678")
+      repository.replace(references, TestOverrideRequest(references, None, None)).futureValue
 
-      repository.delete(testZReference).futureValue
+      repository.delete(Seq(testZReference)).futureValue
 
       repository.getActive(testZReference).futureValue mustBe None
-      repository.getActive("Z5678").futureValue must not be empty
+      val retained = repository.getActive("Z5678").futureValue.value
+      retained.updatedAt mustBe now
+      retained.expiresAt mustBe now.plusSeconds(3600)
     }
 
     "must stop returning an expired aggregate before MongoDB removes it" in {
-      repository.replace(testZReference, TestOverrideRequest(None, None)).futureValue
+      repository.replace(Seq(testZReference), TestOverrideRequest(Seq(testZReference), None, None)).futureValue
       val laterRepository = new TestOverrideRepository(
         mongoComponent,
         appConfig,
@@ -94,7 +97,7 @@ class TestOverrideRepositorySpec extends SpecBase with DefaultPlayMongoRepositor
     }
 
     "must store expiry timestamps as BSON dates" in {
-      repository.replace(testZReference, TestOverrideRequest(None, None)).futureValue
+      repository.replace(Seq(testZReference), TestOverrideRequest(Seq(testZReference), None, None)).futureValue
 
       val document = rawCollection.find(Filters.equal("_id", testZReference)).first().toFuture().futureValue
 

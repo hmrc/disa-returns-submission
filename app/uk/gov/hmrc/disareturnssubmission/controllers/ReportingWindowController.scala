@@ -19,8 +19,9 @@ package uk.gov.hmrc.disareturnssubmission.controllers
 import play.api.Logging
 import play.api.libs.json.Json
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
-import uk.gov.hmrc.disareturnssubmission.models.{ReportingWindowStatus, ZReference}
+import uk.gov.hmrc.disareturnssubmission.models.ReportingWindowStatus
 import uk.gov.hmrc.disareturnssubmission.services.ReportingWindowService
+import uk.gov.hmrc.disareturnssubmission.validators.ZReferenceValidator
 import uk.gov.hmrc.internalauth.client.{BackendAuthComponents, IAAction, Predicate, Resource, ResourceLocation, ResourceType}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
@@ -30,14 +31,15 @@ import scala.concurrent.{ExecutionContext, Future}
 class ReportingWindowController @Inject() (
   cc: ControllerComponents,
   reportingWindowService: ReportingWindowService,
-  auth: BackendAuthComponents
+  auth: BackendAuthComponents,
+  zReferenceValidator: ZReferenceValidator
 )(implicit ec: ExecutionContext)
     extends BackendController(cc)
     with Logging {
 
   def status(zReference: String): Action[AnyContent] =
     auth.authorizedAction(readPermission).async {
-      ZReference.normalize(zReference) match {
+      zReferenceValidator.normalize(zReference) match {
         case Some(normalizedZReference) =>
           reportingWindowService.isOpen(normalizedZReference).map { reportingWindowOpen =>
             logger.info(

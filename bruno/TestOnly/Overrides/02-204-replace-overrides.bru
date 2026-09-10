@@ -1,11 +1,11 @@
 meta {
-  name: 02-200-replace-overrides
+  name: 02-204-replace-overrides
   type: http
   seq: 2
 }
 
 put {
-  url: {{baseUrl}}{{servicePath}}/test-only/overrides/{{overrideZReference}}
+  url: {{baseUrl}}{{servicePath}}/test-only/overrides
   body: json
   auth: none
 }
@@ -16,6 +16,7 @@ headers {
 
 body:json {
   {
+    "zReferences": ["{{overrideZReference}}"],
     "clock": {
       "date": "{{outsideDeclarationPeriodDate}}"
     },
@@ -27,6 +28,5 @@ body:json {
 }
 
 assert {
-  res.status: eq 200
-  res.body.clock.date: eq {{outsideDeclarationPeriodDate}}
+  res.status: eq 204
 }
