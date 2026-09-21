@@ -41,15 +41,11 @@ class ReportingWindowService @Inject() (appConfig: AppConfig, timeSource: TimeSo
       )
     }
 
-  def isOpenAt(zReference: String, instant: Instant): Future[Boolean] =
-    Future.successful(isDefaultReportingWindowOpenAt(instant))
-
   def isDefaultReportingWindowOpenAt(instant: Instant): Boolean = {
     val dayOfMonth = LocalDate.ofInstant(instant, ZoneOffset.UTC).getDayOfMonth
     dayOfMonth >= appConfig.declarationPeriodStart && dayOfMonth <= appConfig.declarationPeriodEnd
   }
 
-  // The declaration period days-of-month apply to whichever calendar month `instant` falls in.
   protected def defaultWindowBounds(instant: Instant): (Instant, Instant) = {
     val date  = LocalDate.ofInstant(instant, ZoneOffset.UTC)
     val start = date.withDayOfMonth(appConfig.declarationPeriodStart).atStartOfDay(ZoneOffset.UTC).toInstant

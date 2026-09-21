@@ -86,20 +86,5 @@ class OverrideReportingWindowServiceSpec extends SpecBase {
       result.windowEnd mustBe
         LocalDate.of(2026, 4, appConfig.declarationPeriodEnd).atTime(23, 59, 59).atZone(ZoneOffset.UTC).toInstant
     }
-
-    "must apply the aggregate window to a supplied instant" in {
-      val aggregate = Some(
-        TestOverrideDocument(
-          testZReference,
-          None,
-          Some(ReportingWindowOverride(now.minusSeconds(60), now.plusSeconds(60))),
-          now.plusSeconds(3600),
-          now
-        )
-      )
-      when(repository.getActive(testZReference)).thenReturn(Future.successful(aggregate))
-
-      service.isOpenAt(testZReference, now).futureValue mustBe true
-    }
   }
 }

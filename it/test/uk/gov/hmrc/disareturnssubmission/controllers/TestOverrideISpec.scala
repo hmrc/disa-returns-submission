@@ -58,7 +58,7 @@ class TestOverrideISpec extends BaseIntegrationSpec {
         )
       )
 
-      result.status                                              shouldBe NO_CONTENT
+      result.status shouldBe NO_CONTENT
       Seq(overridePath, otherPath).foreach { path =>
         val aggregate = get(path).json
         (aggregate \ "clock" \ "date").as[String]                shouldBe "2026-06-20"
@@ -66,10 +66,10 @@ class TestOverrideISpec extends BaseIntegrationSpec {
       }
 
       val statusJson = get(statusPath).json
-      (statusJson \ "reportingWindowOpen").as[Boolean]           shouldBe true
-      (statusJson \ "reportingWindowStart").as[String]           shouldBe "2026-06-19T23:59:00Z"
-      (statusJson \ "reportingWindowEnd").as[String]             shouldBe "2026-06-20T00:01:00Z"
-      (statusJson \ "resolvedAt").as[String]                     shouldBe "2026-06-20T00:00:00Z"
+      (statusJson \ "reportingWindowOpen").as[Boolean] shouldBe true
+      (statusJson \ "reportingWindowStart").as[String] shouldBe "2026-06-19T23:59:00Z"
+      (statusJson \ "reportingWindowEnd").as[String]   shouldBe "2026-06-20T00:01:00Z"
+      (statusJson \ "resolvedAt").as[String]           shouldBe "2026-06-20T00:00:00Z"
     }
 
     "clear omitted fields for every reference during full replacement" in {

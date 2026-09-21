@@ -75,12 +75,6 @@ class ReportingWindowServiceSpec extends SpecBase {
       }
     }
 
-    "isOpenAt must evaluate the supplied instant" in {
-      buildService(Instant.parse("2026-04-01T00:00:00Z"))
-        .isOpenAt(testZReference, Instant.parse("2026-04-12T00:00:00Z"))
-        .futureValue mustBe true
-    }
-
     "resolve must return the default window bounds for the instant's calendar month" in {
       val instant       = Instant.parse("2026-04-12T00:00:00Z")
       val expectedStart =

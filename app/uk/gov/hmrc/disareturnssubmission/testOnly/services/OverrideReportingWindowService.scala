@@ -44,12 +44,4 @@ class OverrideReportingWindowService @Inject() (
         ResolvedReportingWindow(resolved.instant, windowStart, windowEnd, open)
       }
     }
-
-  override def isOpenAt(zReference: String, instant: Instant): Future[Boolean] =
-    repository.getActive(zReference).map { aggregate =>
-      aggregate.flatMap(_.reportingWindow) match {
-        case Some(window) => !instant.isBefore(window.startDate) && !instant.isAfter(window.endDate)
-        case None         => isDefaultReportingWindowOpenAt(instant)
-      }
-    }
 }
