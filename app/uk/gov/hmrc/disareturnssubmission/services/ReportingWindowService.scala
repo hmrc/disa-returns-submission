@@ -22,7 +22,7 @@ import java.time.{Instant, LocalDate, ZoneOffset}
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
-final case class ResolvedReportingWindow(instant: Instant, isOpen: Boolean)
+final case class ResolvedReportingWindow(instant: Instant, windowStart: Instant, windowEnd: Instant, isOpen: Boolean)
 
 @Singleton
 class ReportingWindowService @Inject() (appConfig: AppConfig, timeSource: TimeSource)(implicit ec: ExecutionContext) {
@@ -32,7 +32,13 @@ class ReportingWindowService @Inject() (appConfig: AppConfig, timeSource: TimeSo
 
   def resolve(zReference: String): Future[ResolvedReportingWindow] =
     timeSource.resolve(zReference).map { resolved =>
-      ResolvedReportingWindow(resolved.instant, isDefaultReportingWindowOpenAt(resolved.instant))
+      val (windowStart, windowEnd) = defaultWindowBounds(resolved.instant)
+      ResolvedReportingWindow(
+        resolved.instant,
+        windowStart,
+        windowEnd,
+        isDefaultReportingWindowOpenAt(resolved.instant)
+      )
     }
 
   def isOpenAt(zReference: String, instant: Instant): Future[Boolean] =
@@ -41,5 +47,13 @@ class ReportingWindowService @Inject() (appConfig: AppConfig, timeSource: TimeSo
   def isDefaultReportingWindowOpenAt(instant: Instant): Boolean = {
     val dayOfMonth = LocalDate.ofInstant(instant, ZoneOffset.UTC).getDayOfMonth
     dayOfMonth >= appConfig.declarationPeriodStart && dayOfMonth <= appConfig.declarationPeriodEnd
+  }
+
+  // The declaration period days-of-month apply to whichever calendar month `instant` falls in.
+  protected def defaultWindowBounds(instant: Instant): (Instant, Instant) = {
+    val date  = LocalDate.ofInstant(instant, ZoneOffset.UTC)
+    val start = date.withDayOfMonth(appConfig.declarationPeriodStart).atStartOfDay(ZoneOffset.UTC).toInstant
+    val end   = date.withDayOfMonth(appConfig.declarationPeriodEnd).atTime(23, 59, 59).atZone(ZoneOffset.UTC).toInstant
+    (start, end)
   }
 }

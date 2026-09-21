@@ -24,7 +24,7 @@ import uk.gov.hmrc.disareturnssubmission.testOnly.OverrideTimeSource
 import uk.gov.hmrc.disareturnssubmission.testOnly.models.{ClockOverride, ReportingWindowOverride, TestOverrideDocument}
 import uk.gov.hmrc.disareturnssubmission.testOnly.repositories.TestOverrideRepository
 
-import java.time.{Instant, LocalDate}
+import java.time.{Instant, LocalDate, ZoneOffset}
 import scala.concurrent.Future
 
 class OverrideReportingWindowServiceSpec extends SpecBase {
@@ -32,7 +32,8 @@ class OverrideReportingWindowServiceSpec extends SpecBase {
   private val now        = Instant.parse("2026-04-01T12:00:00Z")
   private val timeSource = mock[OverrideTimeSource]
   private val repository = mock[TestOverrideRepository]
-  private val service    = new OverrideReportingWindowService(inject[AppConfig], timeSource, repository)
+  private val appConfig  = inject[AppConfig]
+  private val service    = new OverrideReportingWindowService(appConfig, timeSource, repository)
 
   "OverrideReportingWindowService" - {
 
@@ -55,6 +56,8 @@ class OverrideReportingWindowServiceSpec extends SpecBase {
       val result = service.resolve(testZReference).futureValue
 
       result.instant mustBe supplied
+      result.windowStart mustBe now.plusSeconds(60)
+      result.windowEnd mustBe now.plusSeconds(180)
       result.isOpen mustBe true
       verify(repository).getActive(testZReference)
       verify(timeSource).resolve(testZReference, aggregate)
@@ -75,7 +78,13 @@ class OverrideReportingWindowServiceSpec extends SpecBase {
         Future.successful(ResolvedInstant(now, overridden = false))
       )
 
-      service.resolve(testZReference).futureValue.isOpen mustBe false
+      val result = service.resolve(testZReference).futureValue
+
+      result.isOpen mustBe false
+      result.windowStart mustBe
+        LocalDate.of(2026, 4, appConfig.declarationPeriodStart).atStartOfDay(ZoneOffset.UTC).toInstant
+      result.windowEnd mustBe
+        LocalDate.of(2026, 4, appConfig.declarationPeriodEnd).atTime(23, 59, 59).atZone(ZoneOffset.UTC).toInstant
     }
 
     "must apply the aggregate window to a supplied instant" in {

@@ -64,7 +64,12 @@ class TestOverrideISpec extends BaseIntegrationSpec {
         (aggregate \ "clock" \ "date").as[String]                shouldBe "2026-06-20"
         (aggregate \ "reportingWindow" \ "startDate").as[String] shouldBe "2026-06-19T23:59:00Z"
       }
-      (get(statusPath).json \ "reportingWindowOpen").as[Boolean] shouldBe true
+
+      val statusJson = get(statusPath).json
+      (statusJson \ "reportingWindowOpen").as[Boolean]           shouldBe true
+      (statusJson \ "reportingWindowStart").as[String]           shouldBe "2026-06-19T23:59:00Z"
+      (statusJson \ "reportingWindowEnd").as[String]             shouldBe "2026-06-20T00:01:00Z"
+      (statusJson \ "resolvedAt").as[String]                     shouldBe "2026-06-20T00:00:00Z"
     }
 
     "clear omitted fields for every reference during full replacement" in {
