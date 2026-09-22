@@ -26,8 +26,9 @@ import play.api.libs.json.Json
 import play.api.test.FakeRequest
 import play.api.test.Helpers.*
 import uk.gov.hmrc.disareturnssubmission.models.ReportingWindowStatus
-import uk.gov.hmrc.disareturnssubmission.services.ReportingWindowService
+import uk.gov.hmrc.disareturnssubmission.services.{ReportingWindowService, ResolvedReportingWindow}
 
+import java.time.Instant
 import scala.concurrent.Future
 
 class ReportingWindowControllerSpec extends SpecBase with BeforeAndAfterEach {
@@ -53,30 +54,54 @@ class ReportingWindowControllerSpec extends SpecBase with BeforeAndAfterEach {
     reset(mockReportingWindowService)
   }
 
+  private val testInstant     = Instant.parse("2026-04-12T00:00:00Z")
+  private val testWindowStart = Instant.parse("2026-04-06T00:00:00Z")
+  private val testWindowEnd   = Instant.parse("2026-04-19T23:59:59Z")
+
   "ReportingWindowController" - {
 
     "status" - {
 
       "must return OK with reportingWindowOpen true when the reporting window is open" in {
-        when(mockReportingWindowService.isOpen(testZReference)).thenReturn(Future.successful(true))
+        when(mockReportingWindowService.resolve(testZReference)).thenReturn(
+          Future.successful(ResolvedReportingWindow(testInstant, testWindowStart, testWindowEnd, isOpen = true))
+        )
 
         val result = controller.status(testZReference)(authorizedRequest("GET", path))
 
         status(result) mustBe OK
-        contentAsJson(result) mustBe Json.toJson(ReportingWindowStatus(reportingWindowOpen = true))
+        contentAsJson(result) mustBe Json.toJson(
+          ReportingWindowStatus(
+            reportingWindowOpen = true,
+            reportingWindowStart = testWindowStart,
+            reportingWindowEnd = testWindowEnd,
+            resolvedAt = testInstant
+          )
+        )
       }
 
       "must return OK with reportingWindowOpen false when the reporting window is closed" in {
-        when(mockReportingWindowService.isOpen(testZReference)).thenReturn(Future.successful(false))
+        when(mockReportingWindowService.resolve(testZReference)).thenReturn(
+          Future.successful(ResolvedReportingWindow(testInstant, testWindowStart, testWindowEnd, isOpen = false))
+        )
 
         val result = controller.status(testZReference)(authorizedRequest("GET", path))
 
         status(result) mustBe OK
-        contentAsJson(result) mustBe Json.toJson(ReportingWindowStatus(reportingWindowOpen = false))
+        contentAsJson(result) mustBe Json.toJson(
+          ReportingWindowStatus(
+            reportingWindowOpen = false,
+            reportingWindowStart = testWindowStart,
+            reportingWindowEnd = testWindowEnd,
+            resolvedAt = testInstant
+          )
+        )
       }
 
       "must normalize the Z-reference" in {
-        when(mockReportingWindowService.isOpen(testZReference)).thenReturn(Future.successful(true))
+        when(mockReportingWindowService.resolve(testZReference)).thenReturn(
+          Future.successful(ResolvedReportingWindow(testInstant, testWindowStart, testWindowEnd, isOpen = true))
+        )
 
         val result = controller.status(testZReference.toLowerCase)(authorizedRequest("GET", path))
 

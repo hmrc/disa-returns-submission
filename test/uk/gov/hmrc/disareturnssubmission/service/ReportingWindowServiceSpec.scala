@@ -21,7 +21,7 @@ import org.mockito.Mockito.{verify, when}
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.services.{ReportingWindowService, ResolvedInstant, TimeSource}
 
-import java.time.Instant
+import java.time.{Instant, LocalDate, ZoneOffset}
 import scala.concurrent.Future
 
 class ReportingWindowServiceSpec extends SpecBase {
@@ -75,10 +75,19 @@ class ReportingWindowServiceSpec extends SpecBase {
       }
     }
 
-    "isOpenAt must evaluate the supplied instant" in {
-      buildService(Instant.parse("2026-04-01T00:00:00Z"))
-        .isOpenAt(testZReference, Instant.parse("2026-04-12T00:00:00Z"))
-        .futureValue mustBe true
+    "resolve must return the default window bounds for the instant's calendar month" in {
+      val instant       = Instant.parse("2026-04-12T00:00:00Z")
+      val expectedStart =
+        LocalDate.of(2026, 4, appConfig.declarationPeriodStart).atStartOfDay(ZoneOffset.UTC).toInstant
+      val expectedEnd   =
+        LocalDate.of(2026, 4, appConfig.declarationPeriodEnd).atTime(23, 59, 59).atZone(ZoneOffset.UTC).toInstant
+
+      val result = buildService(instant).resolve(testZReference).futureValue
+
+      result.instant mustBe instant
+      result.windowStart mustBe expectedStart
+      result.windowEnd mustBe expectedEnd
+      result.isOpen mustBe true
     }
   }
 }

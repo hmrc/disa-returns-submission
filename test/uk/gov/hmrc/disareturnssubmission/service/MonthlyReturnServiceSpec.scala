@@ -76,7 +76,9 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
           uuidGenerator = mockUuidGenerator
         )
         when(reportingWindowService.resolve(zReference))
-          .thenReturn(Future.successful(ResolvedReportingWindow(now, isOpen = false)))
+          .thenReturn(
+            Future.successful(ResolvedReportingWindow(now, windowStart = now, windowEnd = now, isOpen = false))
+          )
 
         service.create(zReference, taxYear, month, nilReturn = false).futureValue mustBe
           CreateMonthlyReturnResult.OutsideDeclarationPeriod

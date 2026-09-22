@@ -41,11 +41,20 @@ class ReportingWindowController @Inject() (
     auth.authorizedAction(readPermission).async {
       zReferenceValidator.normalize(zReference) match {
         case Some(normalizedZReference) =>
-          reportingWindowService.isOpen(normalizedZReference).map { reportingWindowOpen =>
+          reportingWindowService.resolve(normalizedZReference).map { resolved =>
             logger.info(
-              s"[ReportingWindowController][status] Reporting window open for Z-reference [$normalizedZReference]: [$reportingWindowOpen]"
+              s"[ReportingWindowController][status] Reporting window open for Z-reference [$normalizedZReference]: [${resolved.isOpen}]"
             )
-            Ok(Json.toJson(ReportingWindowStatus(reportingWindowOpen)))
+            Ok(
+              Json.toJson(
+                ReportingWindowStatus(
+                  reportingWindowOpen = resolved.isOpen,
+                  reportingWindowStart = resolved.windowStart,
+                  reportingWindowEnd = resolved.windowEnd,
+                  resolvedAt = resolved.instant
+                )
+              )
+            )
           }
         case None                       => Future.successful(BadRequest(Json.obj("error" -> "Invalid zReference")))
       }
