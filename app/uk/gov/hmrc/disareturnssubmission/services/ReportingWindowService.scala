@@ -42,14 +42,17 @@ class ReportingWindowService @Inject() (appConfig: AppConfig, timeSource: TimeSo
     }
 
   def isDefaultReportingWindowOpenAt(instant: Instant): Boolean = {
-    val dayOfMonth = LocalDate.ofInstant(instant, ZoneOffset.UTC).getDayOfMonth
-    dayOfMonth >= appConfig.declarationPeriodStart && dayOfMonth <= appConfig.declarationPeriodEnd
+    val date = LocalDate.ofInstant(instant, ZoneOffset.UTC)
+    date.getDayOfMonth >= math.min(appConfig.declarationPeriodStart, date.lengthOfMonth) &&
+    date.getDayOfMonth <= appConfig.declarationPeriodEnd
   }
 
   protected def defaultWindowBounds(instant: Instant): (Instant, Instant) = {
-    val date  = LocalDate.ofInstant(instant, ZoneOffset.UTC)
-    val start = date.withDayOfMonth(appConfig.declarationPeriodStart).atStartOfDay(ZoneOffset.UTC).toInstant
-    val end   = date.withDayOfMonth(appConfig.declarationPeriodEnd).atTime(23, 59, 59).atZone(ZoneOffset.UTC).toInstant
+    val date     = LocalDate.ofInstant(instant, ZoneOffset.UTC)
+    val startDay = math.min(appConfig.declarationPeriodStart, date.lengthOfMonth)
+    val start    = date.withDayOfMonth(startDay).atStartOfDay(ZoneOffset.UTC).toInstant
+    val endDay   = math.min(appConfig.declarationPeriodEnd, date.lengthOfMonth)
+    val end      = date.withDayOfMonth(endDay).atTime(23, 59, 59).atZone(ZoneOffset.UTC).toInstant
     (start, end)
   }
 }
