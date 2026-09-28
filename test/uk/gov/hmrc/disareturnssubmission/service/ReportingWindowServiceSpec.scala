@@ -28,9 +28,9 @@ class ReportingWindowServiceSpec extends SpecBase {
 
   private val appConfig = inject[AppConfig]
 
-  private def buildService(now: Instant): ReportingWindowService =
+  private def buildService(now: Instant, config: AppConfig = appConfig): ReportingWindowService =
     new ReportingWindowService(
-      appConfig = appConfig,
+      appConfig = config,
       timeSource = (_: String) => Future.successful(now)
     )
 
@@ -88,6 +88,46 @@ class ReportingWindowServiceSpec extends SpecBase {
       result.windowStart mustBe expectedStart
       result.windowEnd mustBe expectedEnd
       result.isOpen mustBe true
+    }
+
+    "resolve must cap a configured end day of 31 at the last day of shorter months" in {
+      val config = mock[AppConfig]
+      when(config.declarationPeriodStart).thenReturn(6)
+      when(config.declarationPeriodEnd).thenReturn(31)
+
+      Seq(
+        ("2026-09-25", "2026-09-30"),
+        ("2026-02-25", "2026-02-28"),
+        ("2028-02-25", "2028-02-29"),
+        ("2026-12-25", "2026-12-31")
+      ).foreach { (today, lastDay) =>
+        val result = buildService(Instant.parse(s"${today}T12:00:00Z"), config).resolve(testZReference).futureValue
+
+        result.windowStart mustBe LocalDate.parse(today).withDayOfMonth(6).atStartOfDay(ZoneOffset.UTC).toInstant
+        result.windowEnd mustBe LocalDate.parse(lastDay).atTime(23, 59, 59).atZone(ZoneOffset.UTC).toInstant
+        result.isOpen mustBe true
+      }
+    }
+
+    "resolve must cap a configured start and end day of 31 and open only on the last day" in {
+      val config = mock[AppConfig]
+      when(config.declarationPeriodStart).thenReturn(31)
+      when(config.declarationPeriodEnd).thenReturn(31)
+
+      Seq(
+        ("2026-09-30", "2026-09-29"),
+        ("2026-02-28", "2026-02-27"),
+        ("2028-02-29", "2028-02-28"),
+        ("2026-12-31", "2026-12-30")
+      ).foreach { (lastDay, previousDay) =>
+        val lastDate = LocalDate.parse(lastDay)
+        val result   = buildService(Instant.parse(s"${lastDay}T12:00:00Z"), config).resolve(testZReference).futureValue
+
+        result.windowStart mustBe lastDate.atStartOfDay(ZoneOffset.UTC).toInstant
+        result.windowEnd mustBe lastDate.atTime(23, 59, 59).atZone(ZoneOffset.UTC).toInstant
+        result.isOpen mustBe true
+        buildService(Instant.parse(s"${previousDay}T12:00:00Z"), config).isOpen(testZReference).futureValue mustBe false
+      }
     }
   }
 }

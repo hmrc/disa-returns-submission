@@ -86,5 +86,31 @@ class OverrideReportingWindowServiceSpec extends SpecBase {
       result.windowEnd mustBe
         LocalDate.of(2026, 4, appConfig.declarationPeriodEnd).atTime(23, 59, 59).atZone(ZoneOffset.UTC).toInstant
     }
+
+    "must cap the default window when only the clock is overridden into a short month" in {
+      val config    = mock[AppConfig]
+      val september = Instant.parse("2026-09-25T12:00:00Z")
+      val aggregate = Some(
+        TestOverrideDocument(
+          testZReference,
+          Some(ClockOverride(LocalDate.parse("2026-09-25"))),
+          None,
+          now.plusSeconds(3600),
+          now
+        )
+      )
+      when(config.declarationPeriodStart).thenReturn(6)
+      when(config.declarationPeriodEnd).thenReturn(31)
+      when(repository.getActive(testZReference)).thenReturn(Future.successful(aggregate))
+      when(timeSource.resolve(testZReference, aggregate)).thenReturn(
+        Future.successful(ResolvedInstant(september, overridden = true))
+      )
+
+      val result =
+        new OverrideReportingWindowService(config, timeSource, repository).resolve(testZReference).futureValue
+
+      result.windowEnd mustBe Instant.parse("2026-09-30T23:59:59Z")
+      result.isOpen mustBe true
+    }
   }
 }
