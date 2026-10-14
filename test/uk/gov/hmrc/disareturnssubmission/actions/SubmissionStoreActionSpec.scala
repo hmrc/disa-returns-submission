@@ -18,10 +18,11 @@ package uk.gov.hmrc.disareturnssubmission.actions
 
 import base.SpecBase
 import org.apache.pekko.actor.ActorSystem
-import org.mockito.ArgumentMatchers.{any, eq as eqTo}
+import org.mockito.ArgumentMatchers.{any, argThat, eq as eqTo}
 import org.mockito.Mockito.{reset, verify, verifyNoInteractions, when}
 import org.scalatest.BeforeAndAfterEach
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
+import uk.gov.hmrc.disareturnssubmission.models.SubmissionDetails
 import uk.gov.hmrc.disareturnssubmission.repositories.{MonthlyReturnRepository, StoreSubmissionRepositoryResult}
 import uk.gov.hmrc.disareturnssubmission.services.{ObjectStoreService, SubmitReturnResult}
 
@@ -55,13 +56,19 @@ class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
       when(mockMonthlyReturnRepository.storeSubmission(any(), any(), any(), any(), any()))
         .thenReturn(Future.successful(StoreSubmissionRepositoryResult.SubmissionStored))
 
-      val result = action.store(testTempFile, monthlyReturn, testUploadReference)
+      val result = action.store(testTempFile, monthlyReturn, testUploadReference, testNumberOfEntries)
 
       result.futureValue mustBe SubmitReturnResult.UpdateSuccessful
       verify(mockObjectStoreService)
         .uploadFileToObjectStore(eqTo(testUploadReference), any(), any(), any(), any())
       verify(mockMonthlyReturnRepository)
-        .storeSubmission(any(), any(), any(), eqTo(testUploadReference), any())
+        .storeSubmission(
+          any(),
+          any(),
+          any(),
+          eqTo(testUploadReference),
+          argThat[SubmissionDetails](_.numberOfEntries == testNumberOfEntries)
+        )
     }
 
     "must return SubmissionConflict when the repository reports a conflict" in {
@@ -72,7 +79,7 @@ class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
         .thenReturn(Future.successful(StoreSubmissionRepositoryResult.SubmissionConflict))
 
       action
-        .store(testTempFile, monthlyReturn, testUploadReference)
+        .store(testTempFile, monthlyReturn, testUploadReference, testNumberOfEntries)
         .futureValue mustBe SubmitReturnResult.SubmissionConflict
     }
 
@@ -83,7 +90,7 @@ class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
         .thenReturn(Future.successful(StoreSubmissionRepositoryResult.MonthlyReturnNotFound))
 
       action
-        .store(testTempFile, monthlyReturn, testUploadReference)
+        .store(testTempFile, monthlyReturn, testUploadReference, testNumberOfEntries)
         .futureValue mustBe SubmitReturnResult.MonthlyReturnNotFound
     }
 
@@ -92,7 +99,7 @@ class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
       Files.size(emptyFile.path) mustBe 0L
 
       action
-        .store(emptyFile, monthlyReturn, testUploadReference)
+        .store(emptyFile, monthlyReturn, testUploadReference, testNumberOfEntries)
         .futureValue mustBe SubmitReturnResult.NoBody
 
       verifyNoInteractions(mockObjectStoreService, mockMonthlyReturnRepository)

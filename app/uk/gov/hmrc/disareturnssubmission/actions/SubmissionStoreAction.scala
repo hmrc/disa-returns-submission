@@ -43,7 +43,8 @@ class SubmissionStoreAction @Inject() (
   def store(
     bodyPath: Path,
     monthlyReturn: MonthlyReturn,
-    submissionId: String
+    submissionId: String,
+    numberOfEntries: Long
   ): Future[SubmitReturnResult] = {
     val someMd5 = Future {
       blocking {
@@ -65,7 +66,8 @@ class SubmissionStoreAction @Inject() (
               fileLocation,
               md5.toString,
               monthlyReturn,
-              length
+              length,
+              numberOfEntries
             )
           }
       case None              => Future.successful(SubmitReturnResult.NoBody)
@@ -77,13 +79,15 @@ class SubmissionStoreAction @Inject() (
     someLocation: String,
     checksum: String,
     monthlyReturn: MonthlyReturn,
-    length: Long
+    length: Long,
+    numberOfEntries: Long
   ): Future[SubmitReturnResult] = {
     val fileUploadDetails = SubmissionDetails(
       fileNameRef,
       appConfig.contentType,
       checksum,
       length,
+      numberOfEntries,
       Some(someLocation)
     )
 

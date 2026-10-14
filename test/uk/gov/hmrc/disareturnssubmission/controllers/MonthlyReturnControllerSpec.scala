@@ -46,7 +46,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
 
   private val path                   = s"/monthly/$testZReference/$testTaxYear/$testMonth"
   private val declarationsPath       = s"$path/declarations"
-  private val submissionsPath        = s"$path/submissions/$testUploadReference"
+  private val submissionsPath        = s"$path/submissions/$testUploadReference?numberOfEntries=$testNumberOfEntries"
   private val validInternalAuthToken = "valid-internal-auth-token-disa-returns-backend"
 
   private def authorizedRequest(method: String, path: String) =
@@ -390,12 +390,19 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           eqTo(testTaxYear),
           eqTo(testMonth),
           eqTo(testUploadReference),
-          any()
+          any(),
+          eqTo(testNumberOfEntries)
         )
       )
         .thenReturn(Future.successful(SubmitReturnResult.UpdateSuccessful))
 
-      val result = controller.storeSubmission(lowercaseTestZReference, testTaxYear, testMonth, testUploadReference)(
+      val result = controller.storeSubmission(
+        lowercaseTestZReference,
+        testTaxYear,
+        testMonth,
+        testUploadReference,
+        testNumberOfEntries
+      )(
         authorizedRequest("PUT", submissionsPath)
           .withHeaders("Content-Type" -> "application/x-ndjson")
           .withBody(testTempFile)
@@ -405,7 +412,13 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
     }
 
     "must return UnsupportedMediaType when the wrong filetype is uploaded" in {
-      val result = controller.storeSubmission(lowercaseTestZReference, testTaxYear, testMonth, testUploadReference)(
+      val result = controller.storeSubmission(
+        lowercaseTestZReference,
+        testTaxYear,
+        testMonth,
+        testUploadReference,
+        testNumberOfEntries
+      )(
         authorizedRequest("PUT", submissionsPath)
           .withHeaders("Content-Type" -> "something wrong")
           .withBody(testTempFile)
@@ -423,11 +436,18 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           any(),
           any(),
           eqTo(testUploadReference),
-          any()
+          any(),
+          eqTo(testNumberOfEntries)
         )
       ).thenReturn(Future.successful(SubmitReturnResult.SubmissionConflict))
 
-      val result = controller.storeSubmission(lowercaseTestZReference, testTaxYear, testMonth, testUploadReference)(
+      val result = controller.storeSubmission(
+        lowercaseTestZReference,
+        testTaxYear,
+        testMonth,
+        testUploadReference,
+        testNumberOfEntries
+      )(
         authorizedRequest("PUT", submissionsPath)
           .withHeaders("Content-Type" -> "application/x-ndjson")
           .withBody(testTempFile)
@@ -443,11 +463,18 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           any(),
           any(),
           eqTo(testUploadReference),
-          any()
+          any(),
+          eqTo(testNumberOfEntries)
         )
       ).thenReturn(Future.failed(new RuntimeException(testMongoDownMessage)))
 
-      val result = controller.storeSubmission(lowercaseTestZReference, testTaxYear, testMonth, testUploadReference)(
+      val result = controller.storeSubmission(
+        lowercaseTestZReference,
+        testTaxYear,
+        testMonth,
+        testUploadReference,
+        testNumberOfEntries
+      )(
         authorizedRequest("PUT", submissionsPath)
           .withHeaders("Content-Type" -> "application/x-ndjson")
           .withBody(testTempFile)
@@ -463,12 +490,19 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           any(),
           any(),
           eqTo(testUploadReference),
-          any()
+          any(),
+          eqTo(testNumberOfEntries)
         )
       )
         .thenReturn(Future.successful(SubmitReturnResult.MonthlyReturnNotFound))
 
-      val result = controller.storeSubmission(lowercaseTestZReference, testTaxYear, testMonth, testUploadReference)(
+      val result = controller.storeSubmission(
+        lowercaseTestZReference,
+        testTaxYear,
+        testMonth,
+        testUploadReference,
+        testNumberOfEntries
+      )(
         authorizedRequest("PUT", submissionsPath)
           .withHeaders("Content-Type" -> "application/x-ndjson")
           .withBody(testTempFile)
@@ -485,12 +519,19 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
           any(),
           any(),
           eqTo(testUploadReference),
-          any()
+          any(),
+          eqTo(testNumberOfEntries)
         )
       )
         .thenReturn(Future.successful(SubmitReturnResult.NoBody))
 
-      val result = controller.storeSubmission(lowercaseTestZReference, testTaxYear, testMonth, testUploadReference)(
+      val result = controller.storeSubmission(
+        lowercaseTestZReference,
+        testTaxYear,
+        testMonth,
+        testUploadReference,
+        testNumberOfEntries
+      )(
         authorizedRequest("PUT", submissionsPath)
           .withHeaders("Content-Type" -> "application/x-ndjson")
       )
@@ -499,7 +540,13 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach {
     }
 
     "must return BAD_REQUEST when path parameters are invalid" in {
-      val result = controller.storeSubmission(invalidTestZReference, testTaxYear, testMonth, testUploadReference)(
+      val result = controller.storeSubmission(
+        invalidTestZReference,
+        testTaxYear,
+        testMonth,
+        testUploadReference,
+        testNumberOfEntries
+      )(
         authorizedRequest("PUT", submissionsPath)
           .withHeaders("Content-Type" -> "application/x-ndjson")
           .withBody(testTempFile)

@@ -23,6 +23,7 @@ final case class SubmissionDetails(
   fileMimeType: String,
   checksum: String,
   size: Long,
+  numberOfEntries: Long,
   objectStoreFileLocation: Option[String] = None,
   objectStoreFileErrorsLocation: Option[String] = None
 )

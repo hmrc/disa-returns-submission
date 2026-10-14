@@ -29,7 +29,7 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
   private val currentMonthPath   = s"$testServicePath/monthly/$testZReference/$testTaxYear/6"
 
   private val declarationPath             = monthlyPath ++ "/declarations"
-  private val submissionPath              = monthlyPath ++ s"/submissions/$testUploadReference"
+  private val submissionPath              = monthlyPath ++ s"/submissions/$testUploadReference?numberOfEntries=$testNumberOfEntries"
   private val currentMonthDeclarationPath = currentMonthPath ++ "/declarations"
 
   "POST /monthly/:zReference/:taxYear/:month" should {
@@ -219,6 +219,15 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
       (submissions.head \ "reference").as[String]                                   shouldBe testUploadReference
       (submissions.head \ "status").as[String]                                      shouldBe "STORED"
       (submissions.head \ "submissionDetails" \ "objectStoreFileLocation").as[String] should not be empty
+      (submissions.head \ "submissionDetails" \ "numberOfEntries").as[Long]         shouldBe testNumberOfEntries
+    }
+
+    "return 400 BadRequest when numberOfEntries is missing" in {
+      postJson(monthlyPath, nilReturnFalseRequest)
+
+      val result = putString(monthlyPath ++ s"/submissions/$testUploadReference", ndjsonContent, "application/x-ndjson")
+
+      result.status shouldBe BAD_REQUEST
     }
 
     "update an existing CREATED submission to STORED after declaration" in {
