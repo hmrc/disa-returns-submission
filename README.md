@@ -155,12 +155,9 @@ Pending submissions are recorded with `CREATED` status.
 Submission data is transferred with:
 
 ```text
-PUT /disa-returns-submission/monthly/:zReference/:taxYear/:month/submissions/:submissionId?numberOfEntries=N
+PUT /disa-returns-submission/monthly/:zReference/:taxYear/:month/submissions/:submissionId
 Content-Type: application/x-ndjson
 ```
-
-`numberOfEntries` is required. It is the number of entries in the payload, counted by disa-returns, and is stored on the
-submission's `submissionDetails`. A missing or non-numeric value returns `400 Bad Request`.
 
 A successful PUT updates an existing `CREATED` submission, or creates a missing submission before declaration, with
 `STORED` status. A `CREATED` submission remains uploadable after declaration. An already `STORED` submission, or an

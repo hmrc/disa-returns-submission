@@ -239,8 +239,7 @@ class MonthlyReturnService @Inject() (
     taxYear: String,
     month: Int,
     submissionId: String,
-    bodyPath: Path,
-    numberOfEntries: Long
+    bodyPath: Path
   ): Future[SubmitReturnResult] =
 
     get(zReference, taxYear, month)
@@ -258,7 +257,7 @@ class MonthlyReturnService @Inject() (
           Future.successful(SubmitReturnResult.SubmissionConflict)
 
         case Some(monthlyReturn) =>
-          submissionStoreAction.store(bodyPath, monthlyReturn, submissionId, numberOfEntries).map {
+          submissionStoreAction.store(bodyPath, monthlyReturn, submissionId).map {
             case SubmitReturnResult.UpdateSuccessful =>
               logger.info(
                 s"[MonthlyReturnService][storeSubmission] Stored submission [$submissionId] for zReference [$zReference], taxYear [$taxYear], month [$month]"

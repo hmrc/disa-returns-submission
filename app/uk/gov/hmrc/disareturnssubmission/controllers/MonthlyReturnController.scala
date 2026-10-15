@@ -131,8 +131,7 @@ class MonthlyReturnController @Inject() (
     zReference: String,
     taxYear: String,
     month: Int,
-    submissionId: String,
-    numberOfEntries: Long
+    submissionId: String
   ): Action[Files.TemporaryFile] =
     auth.authorizedAction(writePermission).async(parse.temporaryFile(maxLength = appConfig.maxContentLength)) {
       request =>
@@ -146,8 +145,7 @@ class MonthlyReturnController @Inject() (
                   validTaxYear,
                   validMonth,
                   submissionId,
-                  bodyPath = request.body.path,
-                  numberOfEntries = numberOfEntries
+                  bodyPath = request.body.path
                 )
                 .map {
                   case SubmitReturnResult.UpdateSuccessful      =>

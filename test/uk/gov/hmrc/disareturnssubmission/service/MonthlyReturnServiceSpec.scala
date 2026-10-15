@@ -410,7 +410,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
         when(mockMonthlyReturnRepository.get(any(), any(), any()))
           .thenReturn(Future.successful(Some(monthlyReturn)))
 
-        when(mockSubStoreAction.store(any(), any(), eqTo(testUploadReference), eqTo(testNumberOfEntries)))
+        when(mockSubStoreAction.store(any(), any(), eqTo(testUploadReference)))
           .thenReturn(Future.successful(SubmitReturnResult.UpdateSuccessful))
 
         service
@@ -419,8 +419,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
             taxYear,
             month,
             testUploadReference,
-            testTempFile,
-            testNumberOfEntries
+            testTempFile
           )
           .futureValue mustBe SubmitReturnResult.UpdateSuccessful
       }
@@ -438,13 +437,11 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
         )
         when(mockMonthlyReturnRepository.get(any(), any(), any()))
           .thenReturn(Future.successful(Some(declaredReturn)))
-        when(
-          mockSubStoreAction.store(any(), eqTo(declaredReturn), eqTo(testUploadReference), eqTo(testNumberOfEntries))
-        )
+        when(mockSubStoreAction.store(any(), eqTo(declaredReturn), eqTo(testUploadReference)))
           .thenReturn(Future.successful(SubmitReturnResult.UpdateSuccessful))
 
         service
-          .storeSubmission(zReference, taxYear, month, testUploadReference, testTempFile, testNumberOfEntries)
+          .storeSubmission(zReference, taxYear, month, testUploadReference, testTempFile)
           .futureValue mustBe SubmitReturnResult.UpdateSuccessful
       }
 
@@ -463,7 +460,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
           .thenReturn(Future.successful(Some(monthlyReturnWithStoredSubmission)))
 
         service
-          .storeSubmission(zReference, taxYear, month, testUploadReference, testTempFile, testNumberOfEntries)
+          .storeSubmission(zReference, taxYear, month, testUploadReference, testTempFile)
           .futureValue mustBe SubmitReturnResult.SubmissionConflict
 
         verifyNoInteractions(mockSubStoreAction)
@@ -474,7 +471,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
           .thenReturn(Future.successful(Some(monthlyReturn.copy(declaredOn = Some(testCreatedOn)))))
 
         service
-          .storeSubmission(zReference, taxYear, month, testUploadReference, testTempFile, testNumberOfEntries)
+          .storeSubmission(zReference, taxYear, month, testUploadReference, testTempFile)
           .futureValue mustBe SubmitReturnResult.SubmissionConflict
 
         verifyNoInteractions(mockSubStoreAction)
@@ -483,11 +480,11 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
       "must return SubmissionConflict if the state changes while storing" in {
         when(mockMonthlyReturnRepository.get(any(), any(), any()))
           .thenReturn(Future.successful(Some(monthlyReturn)))
-        when(mockSubStoreAction.store(any(), any(), eqTo(testUploadReference), eqTo(testNumberOfEntries)))
+        when(mockSubStoreAction.store(any(), any(), eqTo(testUploadReference)))
           .thenReturn(Future.successful(SubmitReturnResult.SubmissionConflict))
 
         service
-          .storeSubmission(zReference, taxYear, month, testUploadReference, testTempFile, testNumberOfEntries)
+          .storeSubmission(zReference, taxYear, month, testUploadReference, testTempFile)
           .futureValue mustBe SubmitReturnResult.SubmissionConflict
       }
 
@@ -502,8 +499,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
             taxYear,
             month,
             testUploadReference,
-            testTempFile,
-            testNumberOfEntries
+            testTempFile
           )
           .futureValue mustBe SubmitReturnResult.MonthlyReturnNotFound
 
@@ -515,7 +511,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
         when(mockMonthlyReturnRepository.get(any(), any(), any()))
           .thenReturn(Future.successful(Some(monthlyReturn)))
 
-        when(mockSubStoreAction.store(any(), any(), eqTo(testUploadReference), eqTo(testNumberOfEntries)))
+        when(mockSubStoreAction.store(any(), any(), eqTo(testUploadReference)))
           .thenReturn(Future.failed(new RuntimeException(testMongoDownMessage)))
 
         service
@@ -524,8 +520,7 @@ class MonthlyReturnServiceSpec extends SpecBase with BeforeAndAfterEach {
             taxYear,
             month,
             testUploadReference,
-            testTempFile,
-            testNumberOfEntries
+            testTempFile
           )
           .failed
           .futureValue mustBe a[RuntimeException]

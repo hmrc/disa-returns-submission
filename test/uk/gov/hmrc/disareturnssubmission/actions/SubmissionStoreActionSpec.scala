@@ -25,6 +25,7 @@ import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.models.SubmissionDetails
 import uk.gov.hmrc.disareturnssubmission.repositories.{MonthlyReturnRepository, StoreSubmissionRepositoryResult}
 import uk.gov.hmrc.disareturnssubmission.services.{ObjectStoreService, SubmitReturnResult}
+import uk.gov.hmrc.disareturnssubmission.utils.NdjsonRecordCounterImpl
 
 import java.nio.file.Files
 import scala.concurrent.Future
@@ -40,6 +41,7 @@ class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
     mockMonthlyReturnRepository,
     mockObjectStoreService,
     appConfig,
+    new NdjsonRecordCounterImpl,
     inject[ActorSystem]
   )
 
@@ -56,7 +58,7 @@ class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
       when(mockMonthlyReturnRepository.storeSubmission(any(), any(), any(), any(), any()))
         .thenReturn(Future.successful(StoreSubmissionRepositoryResult.SubmissionStored))
 
-      val result = action.store(testTempFile, monthlyReturn, testUploadReference, testNumberOfEntries)
+      val result = action.store(testTempFile, monthlyReturn, testUploadReference)
 
       result.futureValue mustBe SubmitReturnResult.UpdateSuccessful
       verify(mockObjectStoreService)
@@ -71,6 +73,23 @@ class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
         )
     }
 
+    "must not count blank lines in numberOfEntries" in {
+      val fileWithBlankLines = play.api.libs.Files.SingletonTemporaryFileCreator.create("blank-lines", ".ndjson")
+      Files.write(fileWithBlankLines.path, "{\"id\": \"1\"}\n\n   \n{\"id\": \"2\"}\n{\"id\": \"3\"}".getBytes)
+
+      when(mockObjectStoreService.uploadFileToObjectStore(any(), any(), any(), any(), any()))
+        .thenReturn(Future("test/test"))
+      when(mockMonthlyReturnRepository.storeSubmission(any(), any(), any(), any(), any()))
+        .thenReturn(Future.successful(StoreSubmissionRepositoryResult.SubmissionStored))
+
+      action
+        .store(fileWithBlankLines, monthlyReturn, testUploadReference)
+        .futureValue mustBe SubmitReturnResult.UpdateSuccessful
+
+      verify(mockMonthlyReturnRepository)
+        .storeSubmission(any(), any(), any(), any(), argThat[SubmissionDetails](_.numberOfEntries == 3L))
+    }
+
     "must return SubmissionConflict when the repository reports a conflict" in {
       when(mockObjectStoreService.uploadFileToObjectStore(any(), any(), any(), any(), any()))
         .thenReturn(Future("test/test"))
@@ -79,7 +98,7 @@ class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
         .thenReturn(Future.successful(StoreSubmissionRepositoryResult.SubmissionConflict))
 
       action
-        .store(testTempFile, monthlyReturn, testUploadReference, testNumberOfEntries)
+        .store(testTempFile, monthlyReturn, testUploadReference)
         .futureValue mustBe SubmitReturnResult.SubmissionConflict
     }
 
@@ -90,7 +109,7 @@ class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
         .thenReturn(Future.successful(StoreSubmissionRepositoryResult.MonthlyReturnNotFound))
 
       action
-        .store(testTempFile, monthlyReturn, testUploadReference, testNumberOfEntries)
+        .store(testTempFile, monthlyReturn, testUploadReference)
         .futureValue mustBe SubmitReturnResult.MonthlyReturnNotFound
     }
 
@@ -99,7 +118,7 @@ class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
       Files.size(emptyFile.path) mustBe 0L
 
       action
-        .store(emptyFile, monthlyReturn, testUploadReference, testNumberOfEntries)
+        .store(emptyFile, monthlyReturn, testUploadReference)
         .futureValue mustBe SubmitReturnResult.NoBody
 
       verifyNoInteractions(mockObjectStoreService, mockMonthlyReturnRepository)

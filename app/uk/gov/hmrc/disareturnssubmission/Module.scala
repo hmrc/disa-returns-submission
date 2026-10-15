@@ -22,6 +22,7 @@ import play.api.inject.{Binding, Module as AppModule, bind as binding}
 import services.{ReportingWindowService, SystemClock, TimeSource}
 import testOnly.services.OverrideReportingWindowService
 import uk.gov.hmrc.disareturnssubmission.testOnly.OverrideTimeSource
+import utils.{NdjsonRecordCounter, NdjsonRecordCounterImpl}
 import validators.{LooseZReferenceValidator, StrictZReferenceValidator, ZReferenceValidator}
 
 import java.time.{Clock, ZoneOffset}
@@ -73,6 +74,7 @@ class Module extends AppModule:
     Seq(
       binding[AppInitialiser].toSelf.eagerly(),
       binding[Clock].to(Clock.systemDefaultZone.withZone(ZoneOffset.UTC)),
+      binding[NdjsonRecordCounter].to[NdjsonRecordCounterImpl],
       zReferenceValidatorBinding
     ) ++ overrideBindings ++ authTokenInitialiserBindings
   }

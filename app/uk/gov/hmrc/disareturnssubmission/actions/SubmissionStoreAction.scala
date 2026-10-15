@@ -22,7 +22,7 @@ import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.models.{MonthlyReturn, SubmissionDetails}
 import uk.gov.hmrc.disareturnssubmission.repositories.{MonthlyReturnRepository, StoreSubmissionRepositoryResult}
 import uk.gov.hmrc.disareturnssubmission.services.{ObjectStoreService, SubmitReturnResult}
-import uk.gov.hmrc.disareturnssubmission.utils.Md5Base64
+import uk.gov.hmrc.disareturnssubmission.utils.{Md5Base64, NdjsonRecordCounter}
 
 import java.nio.file.{Files, Path}
 import javax.inject.Inject
@@ -32,6 +32,7 @@ class SubmissionStoreAction @Inject() (
   monthlyReturnRepository: MonthlyReturnRepository,
   objectStoreService: ObjectStoreService,
   appConfig: AppConfig,
+  ndjsonRecordCounter: NdjsonRecordCounter,
   val actorSystem: ActorSystem
 )(implicit ec: ExecutionContext)
     extends Logging
@@ -43,21 +44,20 @@ class SubmissionStoreAction @Inject() (
   def store(
     bodyPath: Path,
     monthlyReturn: MonthlyReturn,
-    submissionId: String,
-    numberOfEntries: Long
+    submissionId: String
   ): Future[SubmitReturnResult] = {
     val someMd5 = Future {
       blocking {
         val length = Files.size(bodyPath)
-        length -> checkMd5Base64(bodyPath)
+        (length, checkMd5Base64(bodyPath), ndjsonRecordCounter.count(bodyPath))
       }
     }(blockingExecutionContext).flatMap {
-      case (length, _) if length <= 0L => Future.successful(None)
-      case (length, md5)               => Future.successful(Some(md5 -> length))
+      case (length, _, _) if length <= 0L => Future.successful(None)
+      case (length, md5, numberOfEntries) => Future.successful(Some((md5, length, numberOfEntries)))
     }(ec)
 
     someMd5.flatMap {
-      case Some(md5, length) =>
+      case Some((md5, length, numberOfEntries)) =>
         objectStoreService
           .uploadFileToObjectStore(submissionId, bodyPath, appConfig.contentType, md5, length)
           .flatMap { fileLocation =>
@@ -70,7 +70,7 @@ class SubmissionStoreAction @Inject() (
               numberOfEntries
             )
           }
-      case None              => Future.successful(SubmitReturnResult.NoBody)
+      case None                                 => Future.successful(SubmitReturnResult.NoBody)
     }
   }
 
@@ -107,6 +107,5 @@ class SubmissionStoreAction @Inject() (
         case StoreSubmissionRepositoryResult.MonthlyReturnNotFound =>
           SubmitReturnResult.MonthlyReturnNotFound
       }
-
   }
 }

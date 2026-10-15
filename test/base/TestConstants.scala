@@ -72,7 +72,7 @@ trait TestConstants {
   val testMd5Hash: Md5Hash           = Md5Hash("6QE/wgLIe+SOOzAt8Q78Sw==")
 
   val testFileLength      = 100L
-  val testNumberOfEntries = 3L
+  val testNumberOfEntries = 2L
 
   protected val ndjsonContent: String =
     """{"id": "1", "name": "test"}
