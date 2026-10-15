@@ -27,15 +27,15 @@ trait NdjsonRecordCounter {
 @Singleton
 class NdjsonRecordCounterImpl @Inject() () extends NdjsonRecordCounter {
 
-  private val newline = '\n'.toByte
-  private val space = ' '.toByte
-  private val tab = '\t'.toByte
+  private val newline        = '\n'.toByte
+  private val space          = ' '.toByte
+  private val tab            = '\t'.toByte
   private val carriageReturn = '\r'.toByte
-  private val endOfFile = -1
+  private val endOfFile      = -1
 
   override def count(file: Path): Long = {
-    val buffer = new Array[Byte](8192)
-    var recordCount = 0L
+    val buffer         = new Array[Byte](8192)
+    var recordCount    = 0L
     var lineHasContent = false
 
     Using.resource(Files.newInputStream(file)) { input =>
@@ -44,12 +44,12 @@ class NdjsonRecordCounterImpl @Inject() () extends NdjsonRecordCounter {
       while (bytesRead != endOfFile) {
         var index = 0
         while (index < bytesRead) {
-          val currentByte = buffer(index)
-          val isNewline = currentByte == newline
-          val isSpace = currentByte == space
-          val isTab = currentByte == tab
+          val currentByte      = buffer(index)
+          val isNewline        = currentByte == newline
+          val isSpace          = currentByte == space
+          val isTab            = currentByte == tab
           val isCarriageReturn = currentByte == carriageReturn
-          val isWhitespace = isSpace || isTab || isCarriageReturn
+          val isWhitespace     = isSpace || isTab || isCarriageReturn
 
           if (isNewline) {
             if (lineHasContent) recordCount += 1L

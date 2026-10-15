@@ -66,7 +66,7 @@ class NdjsonRecordCounterSpec extends AnyFreeSpec with Matchers {
     "must not count blank lines ending in \\r\\n" in {
       countOf("{\"id\": \"1\"}\r\n\r\n  \r\n{\"id\": \"2\"}\r\n") mustBe 2L
     }
-    
+
     "must count a line containing only multi-byte characters" in {
       countOf("é\n") mustBe 1L
     }
