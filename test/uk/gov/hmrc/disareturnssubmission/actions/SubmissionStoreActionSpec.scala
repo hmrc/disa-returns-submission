@@ -18,12 +18,14 @@ package uk.gov.hmrc.disareturnssubmission.actions
 
 import base.SpecBase
 import org.apache.pekko.actor.ActorSystem
-import org.mockito.ArgumentMatchers.{any, eq as eqTo}
+import org.mockito.ArgumentMatchers.{any, argThat, eq as eqTo}
 import org.mockito.Mockito.{reset, verify, verifyNoInteractions, when}
 import org.scalatest.BeforeAndAfterEach
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
+import uk.gov.hmrc.disareturnssubmission.models.SubmissionDetails
 import uk.gov.hmrc.disareturnssubmission.repositories.{MonthlyReturnRepository, StoreSubmissionRepositoryResult}
 import uk.gov.hmrc.disareturnssubmission.services.{ObjectStoreService, SubmitReturnResult}
+import uk.gov.hmrc.disareturnssubmission.utils.NdjsonRecordCounterImpl
 
 import java.nio.file.Files
 import scala.concurrent.Future
@@ -39,6 +41,7 @@ class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
     mockMonthlyReturnRepository,
     mockObjectStoreService,
     appConfig,
+    new NdjsonRecordCounterImpl,
     inject[ActorSystem]
   )
 
@@ -61,7 +64,30 @@ class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
       verify(mockObjectStoreService)
         .uploadFileToObjectStore(eqTo(testUploadReference), any(), any(), any(), any())
       verify(mockMonthlyReturnRepository)
-        .storeSubmission(any(), any(), any(), eqTo(testUploadReference), any())
+        .storeSubmission(
+          any(),
+          any(),
+          any(),
+          eqTo(testUploadReference),
+          argThat[SubmissionDetails](_.numberOfEntries == testNumberOfEntries)
+        )
+    }
+
+    "must not count blank lines in numberOfEntries" in {
+      val fileWithBlankLines = play.api.libs.Files.SingletonTemporaryFileCreator.create("blank-lines", ".ndjson")
+      Files.write(fileWithBlankLines.path, "{\"id\": \"1\"}\n\n   \n{\"id\": \"2\"}\n{\"id\": \"3\"}".getBytes)
+
+      when(mockObjectStoreService.uploadFileToObjectStore(any(), any(), any(), any(), any()))
+        .thenReturn(Future("test/test"))
+      when(mockMonthlyReturnRepository.storeSubmission(any(), any(), any(), any(), any()))
+        .thenReturn(Future.successful(StoreSubmissionRepositoryResult.SubmissionStored))
+
+      action
+        .store(fileWithBlankLines, monthlyReturn, testUploadReference)
+        .futureValue mustBe SubmitReturnResult.UpdateSuccessful
+
+      verify(mockMonthlyReturnRepository)
+        .storeSubmission(any(), any(), any(), any(), argThat[SubmissionDetails](_.numberOfEntries == 3L))
     }
 
     "must return SubmissionConflict when the repository reports a conflict" in {

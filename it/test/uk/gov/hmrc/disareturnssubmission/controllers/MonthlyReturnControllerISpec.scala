@@ -219,6 +219,7 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
       (submissions.head \ "reference").as[String]                                   shouldBe testUploadReference
       (submissions.head \ "status").as[String]                                      shouldBe "STORED"
       (submissions.head \ "submissionDetails" \ "objectStoreFileLocation").as[String] should not be empty
+      (submissions.head \ "submissionDetails" \ "numberOfEntries").as[Long]         shouldBe testNumberOfEntries
     }
 
     "update an existing CREATED submission to STORED after declaration" in {
