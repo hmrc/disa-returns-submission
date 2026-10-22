@@ -124,10 +124,21 @@ class InternalAuthTokenInitialiserImpl @Inject() (
     logger.info(
       "[InternalAuthTokenInitialiser][authTokenIsValid] Checking auth token"
     )
-    httpClient
-      .get(url"${config.internalAuthService}/test-only/token")(HeaderCarrier())
-      .setHeader("Authorization" -> config.internalAuthToken)
-      .execute
-      .map(_.status == OK)
+    retryFor("GET Check auth token") {
+      case _: BadGatewayException | _: GatewayTimeoutException => true
+      case UpstreamErrorResponse.Upstream4xxResponse(_)        => true
+      case UpstreamErrorResponse.Upstream5xxResponse(_)        => true
+    } {
+      httpClient
+        .get(url"${config.internalAuthService}/test-only/token")(HeaderCarrier())
+        .setHeader("Authorization" -> config.internalAuthToken)
+        .execute[HttpResponse]
+        .flatMap {
+          case response if response.status >= 500 && response.status < 600 =>
+            Future.failed(UpstreamErrorResponse("Unable to check internal-auth token", response.status))
+          case response                                                    =>
+            Future.successful(response.status == OK)
+        }
+    }
   }
 }
