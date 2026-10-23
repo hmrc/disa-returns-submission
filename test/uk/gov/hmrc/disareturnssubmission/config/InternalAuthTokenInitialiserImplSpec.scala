@@ -21,8 +21,8 @@ import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.pekko.Done
 import org.apache.pekko.actor.ActorSystem
 import org.mockito.ArgumentMatchers.{any, eq as eqTo}
-import org.mockito.Mockito.{times, verify, when}
-import play.api.http.Status.{BAD_REQUEST, CREATED, INTERNAL_SERVER_ERROR, NOT_FOUND, OK}
+import org.mockito.Mockito.{never, times, verify, when}
+import play.api.http.Status.{BAD_REQUEST, CREATED, INTERNAL_SERVER_ERROR, NOT_FOUND, OK, UNAUTHORIZED}
 import play.api.libs.concurrent.Futures
 import play.api.libs.json.{JsObject, Json}
 import uk.gov.hmrc.http.client.{HttpClientV2, RequestBuilder}
@@ -138,18 +138,22 @@ class InternalAuthTokenInitialiserImplSpec extends SpecBase {
 
         futures.timeoutDuration mustBe Some(30.seconds)
         verify(mockGetRequestBuilder).execute[HttpResponse](any(), any())
+        verify(mockHttpClient, never()).post(any())(any())
       }
 
-      "must create the auth token when the existing token is not valid" in new TestSetup {
-        authTokenIsValidResponse(NOT_FOUND)
-        createAuthTokenResponse(Right(HttpResponse(CREATED)))
+      Seq(NOT_FOUND, UNAUTHORIZED).foreach { status =>
+        s"must create the auth token when the existing token check returns $status" in new TestSetup {
+          authTokenIsValidResponse(status)
+          createAuthTokenResponse(Right(HttpResponse(CREATED)))
 
-        initialiser.initialised.futureValue mustBe Done
+          initialiser.initialised.futureValue mustBe Done
 
-        futures.timeoutDuration mustBe Some(30.seconds)
-        verify(mockPostRequestBuilder)
-          .withBody(eqTo(expectedCreateTokenRequestBody))(any(), any(), any())
-        verify(mockPostRequestBuilder).execute[Either[UpstreamErrorResponse, HttpResponse]](any(), any())
+          futures.timeoutDuration mustBe Some(30.seconds)
+          verify(mockPostRequestBuilder)
+            .withBody(eqTo(expectedCreateTokenRequestBody))(any(), any(), any())
+          verify(mockPostRequestBuilder).execute[Either[UpstreamErrorResponse, HttpResponse]](any(), any())
+        }
+
       }
 
       "must fail without retrying when the auth endpoint returns an unexpected non-error status" in new TestSetup {
@@ -194,13 +198,64 @@ class InternalAuthTokenInitialiserImplSpec extends SpecBase {
         }
       }
 
-      "must fail when checking the auth token fails" in new TestSetup {
+      Seq(
+        "BadGatewayException"       -> new BadGatewayException("Bad gateway"),
+        "GatewayTimeoutException"   -> new GatewayTimeoutException("Gateway timeout"),
+        "4xx UpstreamErrorResponse" -> UpstreamErrorResponse("Bad request", BAD_REQUEST),
+        "5xx UpstreamErrorResponse" -> UpstreamErrorResponse("Internal server error", INTERNAL_SERVER_ERROR)
+      ).foreach { case (errorType, error) =>
+        s"must exhaust retries without creating a token when checking fails with $errorType" in new TestSetup {
+          authTokenIsValidFailure(error)
+
+          initialiser.initialised.failed.futureValue mustBe error
+
+          verify(mockGetRequestBuilder, times(callAmountWithRetries)).execute[HttpResponse](any(), any())
+          verify(mockHttpClient, never()).post(any())(any())
+        }
+
+        Seq(OK, NOT_FOUND).foreach { status =>
+          s"must recover from $errorType when a subsequent token check returns $status" in new TestSetup {
+            when(mockGetRequestBuilder.execute[HttpResponse](any(), any()))
+              .thenReturn(Future.failed(error), Future.successful(HttpResponse(status)))
+            createAuthTokenResponse(Right(HttpResponse(CREATED)))
+
+            initialiser.initialised.futureValue mustBe Done
+
+            verify(mockGetRequestBuilder, times(2)).execute[HttpResponse](any(), any())
+            verify(mockHttpClient, times(if (status == OK) 0 else 1)).post(eqTo(fullTokenUrl))(any[HeaderCarrier])
+          }
+        }
+      }
+
+      "must retry server error responses without creating a token" in new TestSetup {
+        authTokenIsValidResponse(INTERNAL_SERVER_ERROR)
+
+        val error = initialiser.initialised.failed.futureValue
+        error mustBe a[UpstreamErrorResponse]
+        error.asInstanceOf[UpstreamErrorResponse].statusCode mustBe INTERNAL_SERVER_ERROR
+        verify(mockGetRequestBuilder, times(callAmountWithRetries)).execute[HttpResponse](any(), any())
+        verify(mockHttpClient, never()).post(any())(any())
+      }
+
+      "must recover when a server error response is followed by a valid token" in new TestSetup {
+        when(mockGetRequestBuilder.execute[HttpResponse](any(), any()))
+          .thenReturn(Future.successful(HttpResponse(INTERNAL_SERVER_ERROR)), Future.successful(HttpResponse(OK)))
+
+        initialiser.initialised.futureValue mustBe Done
+
+        verify(mockGetRequestBuilder, times(2)).execute[HttpResponse](any(), any())
+        verify(mockHttpClient, never()).post(any())(any())
+      }
+
+      "must fail without retrying when checking the auth token fails with an unrelated exception" in new TestSetup {
         val exception = new RuntimeException("Unable to check auth token")
 
         authTokenIsValidFailure(exception)
 
         initialiser.initialised.failed.futureValue mustBe exception
         futures.timeoutDuration mustBe Some(30.seconds)
+        verify(mockGetRequestBuilder).execute[HttpResponse](any(), any())
+        verify(mockHttpClient, never()).post(any())(any())
       }
     }
   }
