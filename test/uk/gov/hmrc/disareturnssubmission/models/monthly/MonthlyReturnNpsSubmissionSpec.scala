@@ -26,6 +26,7 @@ import java.time.LocalDate
 import scala.jdk.CollectionConverters.*
 
 class MonthlyReturnNpsSubmissionSpec extends AnyFreeSpec with Matchers {
+  private val unknownEnumValue                             = "UNKNOWN"
   private val common                                       = MonthlyReturnNpsSubmissionCommon(
     accountNumber = "ACC123",
     nino = "AB123456C",
@@ -125,7 +126,7 @@ class MonthlyReturnNpsSubmissionSpec extends AnyFreeSpec with Matchers {
     }
 
     Seq(
-      "isaType"             -> JsString("UNKNOWN"),
+      "isaType"             -> JsString(unknownEnumValue),
       "isaType"             -> JsNumber(1),
       "middleName"          -> JsNumber(1),
       "dateOfBirth"         -> JsString("1980-02-31"),
@@ -138,7 +139,7 @@ class MonthlyReturnNpsSubmissionSpec extends AnyFreeSpec with Matchers {
     }
 
     "must reject an unsupported closure reason" in {
-      (backendRecords.last + ("reasonForClosure" -> JsString("UNKNOWN")))
+      (backendRecords.last + ("reasonForClosure" -> JsString(unknownEnumValue)))
         .validate[MonthlyReturnNpsSubmission]
         .isError mustBe true
     }

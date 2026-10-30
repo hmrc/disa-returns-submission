@@ -37,6 +37,7 @@ class MonthlyReturnSubmissionStoreActionSpec extends SpecBase with BeforeAndAfte
   private val mockMonthlyReturnRepository = mock[MonthlyReturnRepository]
   private val mockObjectStoreService      = mock[ObjectStoreService]
   private val appConfig                   = inject[AppConfig]
+  private val objectStoreLocation         = "test/test"
 
   val action = new MonthlyReturnSubmissionStoreAction(
     mockMonthlyReturnRepository,
@@ -54,7 +55,7 @@ class MonthlyReturnSubmissionStoreActionSpec extends SpecBase with BeforeAndAfte
   "MonthlyReturnSubmissionStoreAction" - {
     "must return UpdateSuccessful when successfully storing in Mongo" in {
       when(mockObjectStoreService.uploadFileToObjectStore(any(), any(), any(), any(), any()))
-        .thenReturn(Future("test/test"))
+        .thenReturn(Future(objectStoreLocation))
 
       when(mockMonthlyReturnRepository.storeSubmission(any(), any(), any(), any(), any()))
         .thenReturn(Future.successful(StoreSubmissionRepositoryResult.SubmissionStored))
@@ -79,7 +80,7 @@ class MonthlyReturnSubmissionStoreActionSpec extends SpecBase with BeforeAndAfte
       Files.write(fileWithBlankLines.path, "{\"id\": \"1\"}\n\n   \n{\"id\": \"2\"}\n{\"id\": \"3\"}".getBytes)
 
       when(mockObjectStoreService.uploadFileToObjectStore(any(), any(), any(), any(), any()))
-        .thenReturn(Future("test/test"))
+        .thenReturn(Future(objectStoreLocation))
       when(mockMonthlyReturnRepository.storeSubmission(any(), any(), any(), any(), any()))
         .thenReturn(Future.successful(StoreSubmissionRepositoryResult.SubmissionStored))
 
@@ -94,7 +95,7 @@ class MonthlyReturnSubmissionStoreActionSpec extends SpecBase with BeforeAndAfte
 
     "must return SubmissionConflict when the repository reports a conflict" in {
       when(mockObjectStoreService.uploadFileToObjectStore(any(), any(), any(), any(), any()))
-        .thenReturn(Future("test/test"))
+        .thenReturn(Future(objectStoreLocation))
 
       when(mockMonthlyReturnRepository.storeSubmission(any(), any(), any(), any(), any()))
         .thenReturn(Future.successful(StoreSubmissionRepositoryResult.SubmissionConflict))
@@ -107,7 +108,7 @@ class MonthlyReturnSubmissionStoreActionSpec extends SpecBase with BeforeAndAfte
 
     "must return MonthlyReturnNotFound when the repository can no longer find the return" in {
       when(mockObjectStoreService.uploadFileToObjectStore(any(), any(), any(), any(), any()))
-        .thenReturn(Future("test/test"))
+        .thenReturn(Future(objectStoreLocation))
       when(mockMonthlyReturnRepository.storeSubmission(any(), any(), any(), any(), any()))
         .thenReturn(Future.successful(StoreSubmissionRepositoryResult.MonthlyReturnNotFound))
 

@@ -31,6 +31,7 @@ import scala.concurrent.Future
 class OverrideMonthlyReturnReportingWindowServiceSpec extends SpecBase {
 
   private val now        = Instant.parse("2026-04-01T12:00:00Z")
+  private val expiresAt  = now.plusSeconds(3600)
   private val timeSource = mock[OverrideTimeSource]
   private val repository = mock[TestOverrideRepository]
   private val appConfig  = inject[AppConfig]
@@ -39,13 +40,15 @@ class OverrideMonthlyReturnReportingWindowServiceSpec extends SpecBase {
   "OverrideMonthlyReturnReportingWindowService" - {
 
     "must evaluate clock and window from one aggregate snapshot" in {
-      val supplied  = now.plusSeconds(120)
-      val aggregate = Some(
+      val supplied    = now.plusSeconds(120)
+      val windowStart = now.plusSeconds(60)
+      val windowEnd   = now.plusSeconds(180)
+      val aggregate   = Some(
         TestOverrideDocument(
           testZReference,
           Some(ClockOverride(LocalDate.parse("2026-04-01"))),
-          Some(ReportingWindowOverride(now.plusSeconds(60), now.plusSeconds(180))),
-          now.plusSeconds(3600),
+          Some(ReportingWindowOverride(windowStart, windowEnd)),
+          expiresAt,
           now
         )
       )
@@ -57,8 +60,8 @@ class OverrideMonthlyReturnReportingWindowServiceSpec extends SpecBase {
       val result = await(service.resolve(testZReference))
 
       result.instant mustBe supplied
-      result.windowStart mustBe now.plusSeconds(60)
-      result.windowEnd mustBe now.plusSeconds(180)
+      result.windowStart mustBe windowStart
+      result.windowEnd mustBe windowEnd
       result.isOpen mustBe true
       verify(repository).getActive(testZReference)
       verify(timeSource).resolve(testZReference, aggregate)
@@ -70,7 +73,7 @@ class OverrideMonthlyReturnReportingWindowServiceSpec extends SpecBase {
           testZReference,
           None,
           None,
-          now.plusSeconds(3600),
+          expiresAt,
           now
         )
       )
@@ -96,7 +99,7 @@ class OverrideMonthlyReturnReportingWindowServiceSpec extends SpecBase {
           testZReference,
           Some(ClockOverride(LocalDate.parse("2026-09-25"))),
           None,
-          now.plusSeconds(3600),
+          expiresAt,
           now
         )
       )

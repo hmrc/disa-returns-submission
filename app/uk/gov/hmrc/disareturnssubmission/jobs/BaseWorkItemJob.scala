@@ -52,20 +52,23 @@ abstract class BaseWorkItemJob[A](
 
   def start(): Unit =
     if (started.compareAndSet(false, true)) {
-      logger.info(s"[$jobName][start] Starting with $workerCount workers")
+      logger.info(s"[BaseWorkItemJob][start] Starting [$jobName] with $workerCount workers")
       stopping.set(false)
       (1 to workerCount).foreach(runWorker)
     }
 
   private def runWorker(workerId: Int): Unit = {
     if (stopping.get()) {
-      logger.info(s"[$jobName][runWorker] Worker $workerId stopping")
+      logger.info(s"[BaseWorkItemJob][runWorker] Worker $workerId stopping for job [$jobName]")
       return
     }
 
     processNextWorkItem(workerId)
       .recover { case exception =>
-        logger.error(s"[$jobName][runWorker] Worker $workerId failed while processing work items", exception)
+        logger.error(
+          s"[BaseWorkItemJob][runWorker] Worker $workerId failed while processing work items for job [$jobName]",
+          exception
+        )
         false
       }
       .foreach { workItemWasProcessed =>

@@ -21,24 +21,36 @@ import org.apache.pekko.actor.ActorSystem
 import org.bson.types.ObjectId
 import org.mockito.ArgumentMatchers.{eq as eqTo, *}
 import org.mockito.Mockito.{timeout as mockitoTimeout, *}
+import play.api.Logger
 import play.api.inject.ApplicationLifecycle
 import play.api.test.Helpers.*
 import uk.gov.hmrc.mongo.workitem.*
+import uk.gov.hmrc.play.bootstrap.tools.LogCapturing
 
 import java.time.*
 import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.*
 import scala.concurrent.duration.{Duration as _, *}
 
-class BaseWorkItemJobSpec extends SpecBase {
+class BaseWorkItemJobSpec extends SpecBase with LogCapturing {
+  private val verificationTimeoutMillis = 1000L
+  private val failedRetryAfter          = Duration.ofMinutes(10)
+  private val workerCount               = 2
+  private val testJobName               = "TestWorkItemJob"
+
   "BaseWorkItemJob" - {
     "must use the retry cutoff and configured worker count, and start only once" in new TestSetup {
-      job.start()
-      job.start()
+      withCaptureOfLoggingFrom(Logger(job.getClass)) { events =>
+        job.start()
+        job.start()
 
-      verify(repository, mockitoTimeout(1000).times(2))
-        .pullOutstanding(eqTo(testCreatedOn.minusSeconds(600)), eqTo(testCreatedOn))
-      await(lifecycle.stop())
+        verify(repository, mockitoTimeout(verificationTimeoutMillis).times(workerCount))
+          .pullOutstanding(eqTo(testCreatedOn.minus(failedRetryAfter)), eqTo(testCreatedOn))
+        await(lifecycle.stop())
+        events.count(
+          _.getMessage == s"[BaseWorkItemJob][start] Starting [$testJobName] with $workerCount workers"
+        ) mustBe 1
+      }
     }
 
     "must process outstanding items and immediately poll again" in new TestSetup {
@@ -49,7 +61,7 @@ class BaseWorkItemJobSpec extends SpecBase {
       job.start()
 
       await(processed.future) mustBe item
-      verify(repository, mockitoTimeout(1000).times(3)).pullOutstanding(any(), any())
+      verify(repository, mockitoTimeout(verificationTimeoutMillis).times(3)).pullOutstanding(any(), any())
       await(lifecycle.stop())
     }
 
@@ -63,7 +75,7 @@ class BaseWorkItemJobSpec extends SpecBase {
       }
 
       job.start()
-      verify(repository, mockitoTimeout(1000).atLeast(2)).pullOutstanding(any(), any())
+      verify(repository, mockitoTimeout(verificationTimeoutMillis).atLeast(workerCount)).pullOutstanding(any(), any())
       await(lifecycle.stop())
       val stoppedCount = calls.get()
       Thread.sleep(100)
@@ -85,10 +97,10 @@ class BaseWorkItemJobSpec extends SpecBase {
       repository,
       "contexts.monthly-return-submission-work-item",
       jobPollInterval,
-      Duration.ofMinutes(10),
-      workerCount = 2
+      failedRetryAfter,
+      workerCount = workerCount
     ) {
-      override protected val jobName                                                                     = "TestWorkItemJob"
+      override protected val jobName                                                                     = testJobName
       override protected def processWorkItem(workerId: Int, workItem: WorkItem[String]): Future[Boolean] = {
         processed.trySuccess(workItem)
         Future.successful(true)

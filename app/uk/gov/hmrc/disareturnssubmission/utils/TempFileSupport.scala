@@ -17,10 +17,12 @@
 package uk.gov.hmrc.disareturnssubmission.utils
 
 import play.api.Logging
-import play.api.libs.Files.TemporaryFileCreator
+import play.api.libs.Files.*
 
 import java.nio.file.Path
+import java.util.concurrent.ConcurrentLinkedQueue
 import scala.concurrent.*
+import scala.jdk.CollectionConverters.*
 import scala.util.control.NonFatal
 
 trait TempFileSupport extends Logging {
@@ -29,16 +31,32 @@ trait TempFileSupport extends Logging {
   protected def blockingExecutionContext: ExecutionContext
 
   protected def withTempFile[A](prefix: String)(use: Path => Future[A])(implicit ec: ExecutionContext): Future[A] =
-    Future(blocking(temporaryFileCreator.create(prefix)))(blockingExecutionContext).flatMap { file =>
-      Future.unit.flatMap(_ => use(file.path)).transformWith { result =>
-        Future {
-          blocking {
+    withTempFiles(prefix) { create =>
+      Future(blocking(create()))(blockingExecutionContext).flatMap(use)
+    }
+
+  protected def withTempFiles[A](
+    prefix: String
+  )(use: (() => Path) => Future[A])(implicit ec: ExecutionContext): Future[A] = {
+    val files          = new ConcurrentLinkedQueue[TemporaryFile]()
+    def create(): Path = {
+      val file = temporaryFileCreator.create(prefix)
+      files.add(file)
+      file.path
+    }
+
+    Future.unit.flatMap(_ => use(() => create())).transformWith { result =>
+      Future {
+        blocking {
+          files.asScala.foreach { file =>
             try file.delete()
             catch {
-              case NonFatal(exception) => logger.warn(s"Failed to delete temporary file [$file]", exception)
+              case NonFatal(exception) =>
+                logger.warn(s"[TempFileSupport][withTempFiles] Failed to delete temporary file [$file]", exception)
             }
           }
-        }(blockingExecutionContext).transform(_ => result)
-      }
+        }
+      }(blockingExecutionContext).transform(_ => result)
     }
+  }
 }

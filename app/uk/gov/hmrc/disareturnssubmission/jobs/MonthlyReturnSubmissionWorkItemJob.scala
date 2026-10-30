@@ -56,33 +56,37 @@ class MonthlyReturnSubmissionWorkItemJob @Inject() (
   ): Future[Boolean] = {
     val context =
       s"work item [${workItem.id}] for zReference [${workItem.item.zReference}], taxYear [${workItem.item.taxYear}], month [${workItem.item.month}], submission [${workItem.item.reference}]"
-    logger.info(s"[$jobName][processWorkItem] Worker $workerId processing $context")
+    logger.info(s"[MonthlyReturnSubmissionWorkItemJob][processWorkItem] Worker $workerId processing $context")
     Future.unit
       .flatMap(_ => processingService.process(workItem.item))
       .flatMap { _ =>
         repository.complete(workItem.id, ProcessingStatus.Succeeded).map { completed =>
           if (completed) {
-            logger.info(s"[$jobName][processWorkItem] Worker $workerId completed $context")
+            logger.info(s"[MonthlyReturnSubmissionWorkItemJob][processWorkItem] Worker $workerId completed $context")
           } else {
-            logger.warn(s"[$jobName][processWorkItem] Worker $workerId could not mark $context as [Succeeded]")
+            logger.warn(
+              s"[MonthlyReturnSubmissionWorkItemJob][processWorkItem] Worker $workerId could not mark $context as [Succeeded]"
+            )
           }
         }
       }
       .recoverWith { case NonFatal(exception) =>
         logger.error(
-          s"[$jobName][processWorkItem] Worker $workerId processing or completion failed for $context; marking as [Failed] for delayed retry",
+          s"[MonthlyReturnSubmissionWorkItemJob][processWorkItem] Worker $workerId processing or completion failed for $context - marking as [Failed] for delayed retry",
           exception
         )
         repository
           .markAs(workItem.id, ProcessingStatus.Failed)
           .map { marked =>
             if (!marked) {
-              logger.warn(s"[$jobName][processWorkItem] Worker $workerId could not mark $context as [Failed]")
+              logger.warn(
+                s"[MonthlyReturnSubmissionWorkItemJob][processWorkItem] Worker $workerId could not mark $context as [Failed]"
+              )
             }
           }
           .recoverWith { case NonFatal(updateException) =>
             logger.error(
-              s"[$jobName][processWorkItem] Worker $workerId could not mark $context as [Failed]",
+              s"[MonthlyReturnSubmissionWorkItemJob][processWorkItem] Worker $workerId could not mark $context as [Failed]",
               updateException
             )
             Future.failed(updateException)
