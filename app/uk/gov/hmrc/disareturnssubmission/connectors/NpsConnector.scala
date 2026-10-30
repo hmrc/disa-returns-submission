@@ -51,7 +51,6 @@ class NpsConnector @Inject() (
         .withBody(body)
         .execute[HttpResponse]
         .flatMap { response =>
-          // Shared retries log exception messages, so never include the response body.
           if (response.status == NO_CONTENT) Future.unit
           else
             Future.failed(
