@@ -166,11 +166,7 @@ class MonthlyReturnRepository @Inject() (
             submissionsField,
             Filters.and(
               Filters.equal(referenceField, reference),
-              Filters.in(
-                statusField,
-                MonthlyReturnSubmissionStatus.Stored.value,
-                MonthlyReturnSubmissionStatus.NpsSubmitted.value
-              )
+              Filters.equal(statusField, MonthlyReturnSubmissionStatus.Stored.value)
             )
           )
         ),

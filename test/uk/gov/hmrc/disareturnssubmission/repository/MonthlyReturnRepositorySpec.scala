@@ -80,7 +80,7 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
           .copy(status = MonthlyReturnSubmissionStatus.NpsSubmitted)
         updated.submissions(1) mustBe original.submissions(1)
         updated.lastUpdated mustBe fixedNow
-        await(repository.markSubmissionNpsSubmitted(zReference, taxYear, month, uploadReference)) mustBe true
+        await(repository.markSubmissionNpsSubmitted(zReference, taxYear, month, uploadReference)) mustBe false
       }
 
       "must not update a created submission or match another submission's status" in {
