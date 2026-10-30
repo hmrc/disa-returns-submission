@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.disareturnssubmission.models
+package uk.gov.hmrc.disareturnssubmission.models.monthly
 
-import play.api.libs.json.{Format, Json, OFormat}
+import play.api.libs.json.*
+import uk.gov.hmrc.disareturnssubmission.models.UuidFormat
 
 import java.util.UUID
 

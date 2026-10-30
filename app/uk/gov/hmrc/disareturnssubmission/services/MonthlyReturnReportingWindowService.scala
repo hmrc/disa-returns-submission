@@ -18,14 +18,16 @@ package uk.gov.hmrc.disareturnssubmission.services
 
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 
-import java.time.{Instant, LocalDate, ZoneOffset}
-import javax.inject.{Inject, Singleton}
-import scala.concurrent.{ExecutionContext, Future}
+import java.time.*
+import javax.inject.*
+import scala.concurrent.*
 
 final case class ResolvedReportingWindow(instant: Instant, windowStart: Instant, windowEnd: Instant, isOpen: Boolean)
 
 @Singleton
-class ReportingWindowService @Inject() (appConfig: AppConfig, timeSource: TimeSource)(implicit ec: ExecutionContext) {
+class MonthlyReturnReportingWindowService @Inject() (appConfig: AppConfig, timeSource: TimeSource)(implicit
+  ec: ExecutionContext
+) {
 
   def isOpen(zReference: String): Future[Boolean] =
     resolve(zReference).map(_.isOpen)

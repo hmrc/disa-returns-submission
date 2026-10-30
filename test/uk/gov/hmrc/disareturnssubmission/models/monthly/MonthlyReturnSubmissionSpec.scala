@@ -14,43 +14,50 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.disareturnssubmission.models
+package uk.gov.hmrc.disareturnssubmission.models.monthly
 
 import base.SpecBase
-import play.api.libs.json.{JsError, JsString, Json}
+import play.api.libs.json.*
 
-class SubmissionSpec extends SpecBase {
+class MonthlyReturnSubmissionSpec extends SpecBase {
 
-  "Submission format" - {
+  "MonthlyReturnSubmission format" - {
 
     "must write CREATED and STORED statuses as uppercase strings" in {
-      val created = Submission(
+      val created = MonthlyReturnSubmission(
         reference = testUploadReference,
-        status = SubmissionStatus.Created,
+        status = MonthlyReturnSubmissionStatus.Created,
         createdOn = testCreatedOn
       )
-      val stored  = created.copy(status = SubmissionStatus.Stored)
+      val stored  = created.copy(status = MonthlyReturnSubmissionStatus.Stored)
 
       (Json.toJson(created) \ "status").as[JsString] mustBe JsString("CREATED")
       (Json.toJson(stored) \ "status").as[JsString] mustBe JsString("STORED")
+      (Json.toJson(created.copy(status = MonthlyReturnSubmissionStatus.NpsSubmitted)) \ "status")
+        .as[JsString] mustBe JsString(
+        "NPS_SUBMITTED"
+      )
     }
 
     "must read valid statuses" in {
-      Json.fromJson[SubmissionStatus](JsString("CREATED")).get mustBe SubmissionStatus.Created
-      Json.fromJson[SubmissionStatus](JsString("STORED")).get mustBe SubmissionStatus.Stored
+      Json.fromJson[MonthlyReturnSubmissionStatus](JsString("CREATED")).get mustBe MonthlyReturnSubmissionStatus.Created
+      Json.fromJson[MonthlyReturnSubmissionStatus](JsString("STORED")).get mustBe MonthlyReturnSubmissionStatus.Stored
+      Json
+        .fromJson[MonthlyReturnSubmissionStatus](JsString("NPS_SUBMITTED"))
+        .get mustBe MonthlyReturnSubmissionStatus.NpsSubmitted
     }
 
     "must reject an unknown status" in {
-      Json.fromJson[SubmissionStatus](JsString("UNKNOWN")) mustBe a[JsError]
+      Json.fromJson[MonthlyReturnSubmissionStatus](JsString("UNKNOWN")) mustBe a[JsError]
     }
 
-    "must require status when reading a Submission" in {
+    "must require status when reading a MonthlyReturnSubmission" in {
       val json = Json.obj(
         "reference" -> testUploadReference,
         "createdOn" -> testCreatedOn
       )
 
-      Json.fromJson[Submission](json) mustBe a[JsError]
+      Json.fromJson[MonthlyReturnSubmission](json) mustBe a[JsError]
     }
   }
 }

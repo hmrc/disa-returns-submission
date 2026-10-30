@@ -18,10 +18,10 @@ object CodeCoverageSettings {
     "uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator",
     "uk.gov.hmrc.disareturnssubmission.models.checkMd5Base64",
     "uk.gov.hmrc.disareturnssubmission.models.UuidFormat",
-    "uk.gov.hmrc.disareturnssubmission.models.CreateMonthlyReturnRequest",
-    "uk.gov.hmrc.disareturnssubmission.models.CreateMonthlyReturnResponse",
-    "uk.gov.hmrc.disareturnssubmission.models.SubmissionDetails",
-    "uk.gov.hmrc.disareturnssubmission.models.Submission",
+    "uk.gov.hmrc.disareturnssubmission.models.monthly.CreateMonthlyReturnRequest",
+    "uk.gov.hmrc.disareturnssubmission.models.monthly.CreateMonthlyReturnResponse",
+    "uk.gov.hmrc.disareturnssubmission.models.monthly.MonthlyReturnSubmissionDetails",
+    "uk.gov.hmrc.disareturnssubmission.models.monthly.MonthlyReturnSubmission",
     "uk.gov.hmrc.disareturnssubmission.testOnly.*"
   )
 

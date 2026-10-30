@@ -17,25 +17,33 @@
 package uk.gov.hmrc.disareturnssubmission.services
 
 import play.api.Logging
-import uk.gov.hmrc.disareturnssubmission.actions.SubmissionStoreAction
-import uk.gov.hmrc.disareturnssubmission.models.MonthlyReturn
-import uk.gov.hmrc.disareturnssubmission.repositories.{DeclareMonthlyReturnRepositoryResult, MonthlyReturnRepository}
+import com.mongodb.MongoException
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.pattern.after
+import uk.gov.hmrc.disareturnssubmission.actions.MonthlyReturnSubmissionStoreAction
+import uk.gov.hmrc.disareturnssubmission.config.AppConfig
+import uk.gov.hmrc.disareturnssubmission.models.monthly.*
+import uk.gov.hmrc.disareturnssubmission.repositories.*
 import uk.gov.hmrc.disareturnssubmission.services.CreateMonthlyReturnResult.*
 import uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator
 
 import java.nio.file.Path
-import java.time.{LocalDate, YearMonth, ZoneOffset}
+import java.time.*
 import java.util.UUID
-import javax.inject.{Inject, Singleton}
-import scala.concurrent.{ExecutionContext, Future}
+import javax.inject.*
+import scala.concurrent.*
+import scala.concurrent.duration.DurationInt
 import scala.util.control.NonFatal
 
 @Singleton
 class MonthlyReturnService @Inject() (
   monthlyReturnRepository: MonthlyReturnRepository,
-  submissionStoreAction: SubmissionStoreAction,
-  reportingWindowService: ReportingWindowService,
-  uuidGenerator: UuidGenerator
+  submissionStoreAction: MonthlyReturnSubmissionStoreAction,
+  reportingWindowService: MonthlyReturnReportingWindowService,
+  uuidGenerator: UuidGenerator,
+  workItemRepository: MonthlyReturnSubmissionWorkItemRepository,
+  appConfig: AppConfig,
+  actorSystem: ActorSystem
 )(implicit ec: ExecutionContext)
     extends Logging {
 
@@ -244,11 +252,13 @@ class MonthlyReturnService @Inject() (
 
     get(zReference, taxYear, month)
       .flatMap {
-        case Some(monthlyReturn) if monthlyReturn.hasStoredSubmission(submissionId) =>
+        case Some(monthlyReturn)
+            if monthlyReturn
+              .hasStoredSubmission(submissionId) || monthlyReturn.hasNpsSubmittedSubmission(submissionId) =>
           logger.warn(
             s"[MonthlyReturnService][storeSubmission] Submission [$submissionId] is already stored for zReference [$zReference], taxYear [$taxYear], month [$month]"
           )
-          Future.successful(SubmitReturnResult.SubmissionConflict)
+          enqueueSubmissionForNpsTransfer(monthlyReturn, submissionId).map(_ => SubmitReturnResult.SubmissionConflict)
 
         case Some(monthlyReturn) if !monthlyReturn.hasCreatedSubmission(submissionId) =>
           logger.warn(
@@ -257,30 +267,35 @@ class MonthlyReturnService @Inject() (
           Future.successful(SubmitReturnResult.SubmissionConflict)
 
         case Some(monthlyReturn) =>
-          submissionStoreAction.store(bodyPath, monthlyReturn, submissionId).map {
+          submissionStoreAction.store(bodyPath, monthlyReturn, submissionId).flatMap {
             case SubmitReturnResult.UpdateSuccessful =>
               logger.info(
                 s"[MonthlyReturnService][storeSubmission] Stored submission [$submissionId] for zReference [$zReference], taxYear [$taxYear], month [$month]"
               )
-              SubmitReturnResult.UpdateSuccessful
+              enqueueSubmissionForNpsTransfer(monthlyReturn, submissionId).map(_ => SubmitReturnResult.UpdateSuccessful)
 
             case SubmitReturnResult.SubmissionConflict =>
               logger.warn(
                 s"[MonthlyReturnService][storeSubmission] Submission [$submissionId] conflicted with the current monthly return state for zReference [$zReference], taxYear [$taxYear], month [$month]"
               )
-              SubmitReturnResult.SubmissionConflict
+              get(zReference, taxYear, month).flatMap {
+                case Some(latest)
+                    if latest.hasStoredSubmission(submissionId) || latest.hasNpsSubmittedSubmission(submissionId) =>
+                  enqueueSubmissionForNpsTransfer(latest, submissionId).map(_ => SubmitReturnResult.SubmissionConflict)
+                case _ => Future.successful(SubmitReturnResult.SubmissionConflict)
+              }
 
             case SubmitReturnResult.NoBody =>
               logger.warn(
                 s"[MonthlyReturnService][storeSubmission] Submission body was empty for zReference [$zReference], taxYear [$taxYear], month [$month]"
               )
-              SubmitReturnResult.NoBody
+              Future.successful(SubmitReturnResult.NoBody)
 
             case SubmitReturnResult.MonthlyReturnNotFound =>
               logger.warn(
                 s"[MonthlyReturnService][storeSubmission] Submission store action could not find monthly return for zReference [$zReference], taxYear [$taxYear], month [$month]"
               )
-              SubmitReturnResult.MonthlyReturnNotFound
+              Future.successful(SubmitReturnResult.MonthlyReturnNotFound)
           }
 
         case _ =>
@@ -291,11 +306,49 @@ class MonthlyReturnService @Inject() (
       }
       .recoverWith { case NonFatal(exception) =>
         logger.error(
-          s"[MonthlyReturnService][storeSubmission] Failed to store submission [$submissionId] for zReference [$zReference], taxYear [$taxYear], month [$month]",
+          s"[MonthlyReturnService][storeSubmission] Failed to store or enqueue submission [$submissionId] for zReference [$zReference], taxYear [$taxYear], month [$month]",
           exception
         )
         Future.failed(exception)
       }
+
+  private def enqueueSubmissionForNpsTransfer(monthlyReturn: MonthlyReturn, reference: String): Future[Unit] = {
+    val hasAlreadySubmittedToNps = monthlyReturn.hasNpsSubmittedSubmission(reference)
+    val context                  =
+      s"submission [$reference] for zReference [${monthlyReturn.zReference}], taxYear [${monthlyReturn.taxYear}], month [${monthlyReturn.month}]"
+
+    if (hasAlreadySubmittedToNps) {
+      logger.info(
+        s"[MonthlyReturnService][enqueueSubmissionForNpsTransfer] Submission already submitted to NPS; skipping enqueue for $context"
+      )
+      Future.unit
+    } else {
+      logger.debug(s"[MonthlyReturnService][enqueueSubmissionForNpsTransfer] Enqueueing NPS transfer for $context")
+      retryMongo(appConfig.monthlyReturnSubmissionEnqueueAttempts, context) {
+        workItemRepository.enqueue(
+          MonthlyReturnSubmissionWorkItem(
+            monthlyReturn.zReference,
+            monthlyReturn.taxYear,
+            monthlyReturn.month,
+            reference
+          )
+        )
+      }.map { _ =>
+        logger.info(
+          s"[MonthlyReturnService][enqueueSubmissionForNpsTransfer] Confirmed NPS transfer work item for $context"
+        )
+      }
+    }
+  }
+
+  private def retryMongo[A](attemptsRemaining: Int, context: String)(operation: => Future[A]): Future[A] =
+    operation.recoverWith {
+      case exception: MongoException if attemptsRemaining > 1 =>
+        logger.warn(
+          s"[MonthlyReturnService][retryMongo] Retrying NPS enqueue for $context in [1 second]; attempts remaining [${attemptsRemaining - 1}], error [${exception.getClass.getSimpleName}]"
+        )
+        after(1.second, actorSystem.scheduler)(retryMongo(attemptsRemaining - 1, context)(operation))
+    }
 
   private def isWithinDeclarationPeriod(zReference: String, taxYear: String, month: Int): Future[Boolean] =
     reportingWindowService.resolve(zReference).map { reportingWindow =>

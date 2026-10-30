@@ -17,24 +17,25 @@
 package uk.gov.hmrc.disareturnssubmission.service
 
 import base.SpecBase
-import org.mockito.Mockito.{verify, when}
+import org.mockito.Mockito.*
+import play.api.test.Helpers.*
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
-import uk.gov.hmrc.disareturnssubmission.services.{ReportingWindowService, ResolvedInstant, TimeSource}
+import uk.gov.hmrc.disareturnssubmission.services.*
 
-import java.time.{Instant, LocalDate, ZoneOffset}
+import java.time.*
 import scala.concurrent.Future
 
-class ReportingWindowServiceSpec extends SpecBase {
+class MonthlyReturnReportingWindowServiceSpec extends SpecBase {
 
   private val appConfig = inject[AppConfig]
 
-  private def buildService(now: Instant, config: AppConfig = appConfig): ReportingWindowService =
-    new ReportingWindowService(
+  private def buildService(now: Instant, config: AppConfig = appConfig): MonthlyReturnReportingWindowService =
+    new MonthlyReturnReportingWindowService(
       appConfig = config,
       timeSource = (_: String) => Future.successful(now)
     )
 
-  "ReportingWindowService" - {
+  "MonthlyReturnReportingWindowService" - {
 
     "isOpen" - {
 
@@ -45,33 +46,35 @@ class ReportingWindowServiceSpec extends SpecBase {
           Future.successful(ResolvedInstant(instant, overridden = true))
         )
 
-        new ReportingWindowService(appConfig, timeSource).isOpen(testZReference).futureValue mustBe true
+        await(new MonthlyReturnReportingWindowService(appConfig, timeSource).isOpen(testZReference)) mustBe true
 
         verify(timeSource).resolve(testZReference)
       }
 
       "must return true when today's day of month is the declarationPeriodStart" in {
-        buildService(Instant.parse(s"2026-04-0${appConfig.declarationPeriodStart}T00:00:00Z"))
-          .isOpen(testZReference)
-          .futureValue mustBe true
+        await(
+          buildService(Instant.parse(s"2026-04-0${appConfig.declarationPeriodStart}T00:00:00Z"))
+            .isOpen(testZReference)
+        ) mustBe true
       }
 
       "must return true when today's day of month is the declarationPeriodEnd" in {
-        buildService(Instant.parse(s"2026-04-${appConfig.declarationPeriodEnd}T00:00:00Z"))
-          .isOpen(testZReference)
-          .futureValue mustBe true
+        await(
+          buildService(Instant.parse(s"2026-04-${appConfig.declarationPeriodEnd}T00:00:00Z"))
+            .isOpen(testZReference)
+        ) mustBe true
       }
 
       "must return true when today's day of month is between declarationPeriodStart and declarationPeriodEnd" in {
-        buildService(Instant.parse("2026-04-12T00:00:00Z")).isOpen(testZReference).futureValue mustBe true
+        await(buildService(Instant.parse("2026-04-12T00:00:00Z")).isOpen(testZReference)) mustBe true
       }
 
       "must return false when today's day of month is before declarationPeriodStart" in {
-        buildService(Instant.parse("2026-04-01T00:00:00Z")).isOpen(testZReference).futureValue mustBe false
+        await(buildService(Instant.parse("2026-04-01T00:00:00Z")).isOpen(testZReference)) mustBe false
       }
 
       "must return false when today's day of month is after declarationPeriodEnd" in {
-        buildService(Instant.parse("2026-04-25T00:00:00Z")).isOpen(testZReference).futureValue mustBe false
+        await(buildService(Instant.parse("2026-04-25T00:00:00Z")).isOpen(testZReference)) mustBe false
       }
     }
 
@@ -82,7 +85,7 @@ class ReportingWindowServiceSpec extends SpecBase {
       val expectedEnd   =
         LocalDate.of(2026, 4, appConfig.declarationPeriodEnd).atTime(23, 59, 59).atZone(ZoneOffset.UTC).toInstant
 
-      val result = buildService(instant).resolve(testZReference).futureValue
+      val result = await(buildService(instant).resolve(testZReference))
 
       result.instant mustBe instant
       result.windowStart mustBe expectedStart
@@ -101,7 +104,7 @@ class ReportingWindowServiceSpec extends SpecBase {
         ("2028-02-25", "2028-02-29"),
         ("2026-12-25", "2026-12-31")
       ).foreach { (today, lastDay) =>
-        val result = buildService(Instant.parse(s"${today}T12:00:00Z"), config).resolve(testZReference).futureValue
+        val result = await(buildService(Instant.parse(s"${today}T12:00:00Z"), config).resolve(testZReference))
 
         result.windowStart mustBe LocalDate.parse(today).withDayOfMonth(6).atStartOfDay(ZoneOffset.UTC).toInstant
         result.windowEnd mustBe LocalDate.parse(lastDay).atTime(23, 59, 59).atZone(ZoneOffset.UTC).toInstant
@@ -121,12 +124,12 @@ class ReportingWindowServiceSpec extends SpecBase {
         ("2026-12-31", "2026-12-30")
       ).foreach { (lastDay, previousDay) =>
         val lastDate = LocalDate.parse(lastDay)
-        val result   = buildService(Instant.parse(s"${lastDay}T12:00:00Z"), config).resolve(testZReference).futureValue
+        val result   = await(buildService(Instant.parse(s"${lastDay}T12:00:00Z"), config).resolve(testZReference))
 
         result.windowStart mustBe lastDate.atStartOfDay(ZoneOffset.UTC).toInstant
         result.windowEnd mustBe lastDate.atTime(23, 59, 59).atZone(ZoneOffset.UTC).toInstant
         result.isOpen mustBe true
-        buildService(Instant.parse(s"${previousDay}T12:00:00Z"), config).isOpen(testZReference).futureValue mustBe false
+        await(buildService(Instant.parse(s"${previousDay}T12:00:00Z"), config).isOpen(testZReference)) mustBe false
       }
     }
   }

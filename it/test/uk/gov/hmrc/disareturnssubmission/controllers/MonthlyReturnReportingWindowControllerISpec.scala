@@ -16,10 +16,10 @@
 
 package uk.gov.hmrc.disareturnssubmission.controllers
 
-import play.api.http.Status.{FORBIDDEN, OK, UNAUTHORIZED}
+import play.api.http.Status.*
 import uk.gov.hmrc.disareturnssubmission.BaseIntegrationSpec
 
-class ReportingWindowControllerISpec extends BaseIntegrationSpec {
+class MonthlyReturnReportingWindowControllerISpec extends BaseIntegrationSpec {
 
   private val reportingWindowStatusPath = s"$testServicePath/reporting-window/status/$testZReference"
 

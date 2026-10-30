@@ -18,19 +18,19 @@ package uk.gov.hmrc.disareturnssubmission.controllers
 
 import play.api.Logging
 import play.api.libs.json.Json
-import play.api.mvc.{Action, AnyContent, ControllerComponents}
-import uk.gov.hmrc.disareturnssubmission.models.ReportingWindowStatus
-import uk.gov.hmrc.disareturnssubmission.services.ReportingWindowService
+import play.api.mvc.*
+import uk.gov.hmrc.disareturnssubmission.models.monthly.MonthlyReturnReportingWindowStatus
+import uk.gov.hmrc.disareturnssubmission.services.MonthlyReturnReportingWindowService
 import uk.gov.hmrc.disareturnssubmission.validators.ZReferenceValidator
-import uk.gov.hmrc.internalauth.client.{BackendAuthComponents, IAAction, Predicate, Resource, ResourceLocation, ResourceType}
+import uk.gov.hmrc.internalauth.client.*
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
 import javax.inject.Inject
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.*
 
-class ReportingWindowController @Inject() (
+class MonthlyReturnReportingWindowController @Inject() (
   cc: ControllerComponents,
-  reportingWindowService: ReportingWindowService,
+  reportingWindowService: MonthlyReturnReportingWindowService,
   auth: BackendAuthComponents,
   zReferenceValidator: ZReferenceValidator
 )(implicit ec: ExecutionContext)
@@ -43,11 +43,11 @@ class ReportingWindowController @Inject() (
         case Some(normalizedZReference) =>
           reportingWindowService.resolve(normalizedZReference).map { resolved =>
             logger.info(
-              s"[ReportingWindowController][status] Reporting window open for Z-reference [$normalizedZReference]: [${resolved.isOpen}]"
+              s"[MonthlyReturnReportingWindowController][status] Reporting window open for Z-reference [$normalizedZReference]: [${resolved.isOpen}]"
             )
             Ok(
               Json.toJson(
-                ReportingWindowStatus(
+                MonthlyReturnReportingWindowStatus(
                   reportingWindowOpen = resolved.isOpen,
                   reportingWindowStart = resolved.windowStart,
                   reportingWindowEnd = resolved.windowEnd,

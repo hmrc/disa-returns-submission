@@ -16,16 +16,17 @@
 
 package uk.gov.hmrc.disareturnssubmission
 
-import config.{InternalAuthTokenInitialiser, InternalAuthTokenInitialiserImpl, NoOpInternalAuthTokenInitialiser}
-import play.api.{Configuration, Environment}
-import play.api.inject.{Binding, Module as AppModule, bind as binding}
-import services.{ReportingWindowService, SystemClock, TimeSource}
-import testOnly.services.OverrideReportingWindowService
+import config.*
+import play.api.*
+import play.api.inject.{Module as AppModule, bind as binding, *}
+import services.*
+import testOnly.services.OverrideMonthlyReturnReportingWindowService
 import uk.gov.hmrc.disareturnssubmission.testOnly.OverrideTimeSource
-import utils.{NdjsonRecordCounter, NdjsonRecordCounterImpl}
-import validators.{LooseZReferenceValidator, StrictZReferenceValidator, ZReferenceValidator}
+import uk.gov.hmrc.disareturnssubmission.jobs.MonthlyReturnSubmissionWorkItemJob
+import utils.*
+import validators.*
 
-import java.time.{Clock, ZoneOffset}
+import java.time.*
 
 class Module extends AppModule:
 
@@ -62,17 +63,18 @@ class Module extends AppModule:
         Seq(
           binding[OverrideTimeSource].toSelf,
           binding[TimeSource].to[OverrideTimeSource],
-          binding[ReportingWindowService].to[OverrideReportingWindowService]
+          binding[MonthlyReturnReportingWindowService].to[OverrideMonthlyReturnReportingWindowService]
         )
       } else {
         Seq(
           binding[TimeSource].to[SystemClock],
-          binding[ReportingWindowService].toSelf
+          binding[MonthlyReturnReportingWindowService].toSelf
         )
       }
 
     Seq(
       binding[AppInitialiser].toSelf.eagerly(),
+      binding[MonthlyReturnSubmissionWorkItemJob].toSelf,
       binding[Clock].to(Clock.systemDefaultZone.withZone(ZoneOffset.UTC)),
       binding[NdjsonRecordCounter].to[NdjsonRecordCounterImpl],
       zReferenceValidatorBinding

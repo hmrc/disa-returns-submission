@@ -17,21 +17,26 @@
 package uk.gov.hmrc.disareturnssubmission.connectors
 
 import base.SpecBase
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.*
 import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.NotUsed
 import org.apache.pekko.stream.Materializer
-import org.apache.pekko.stream.scaladsl.{Sink, Source}
+import org.apache.pekko.stream.scaladsl.*
 import org.apache.pekko.util.ByteString
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.{times, verify, when}
+import org.mockito.Mockito.*
+import play.api.http.MimeTypes.TEXT
 import play.api.http.Status.INTERNAL_SERVER_ERROR
-import uk.gov.hmrc.http.{HeaderCarrier, UpstreamErrorResponse}
+import play.api.test.Helpers.*
+import uk.gov.hmrc.disareturnssubmission.utils.Constants.NDJSON_MIME_TYPE
+import uk.gov.hmrc.http.*
 import uk.gov.hmrc.objectstore.client.http.Payload
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
-import uk.gov.hmrc.objectstore.client.{Md5Hash, ObjectSummaryWithMd5, Path}
+import uk.gov.hmrc.objectstore.client.{Object as StoredObject, *}
 
-import java.nio.file.Files
+import java.nio.charset.StandardCharsets.UTF_8
+import java.nio.file.{Path as _, *}
 import java.security.MessageDigest
 import java.time.Instant
 import java.util.Base64
@@ -45,6 +50,41 @@ class ObjectStoreConnectorSpec extends SpecBase {
     ConfigFactory.parseString("http-verbs.retries.intervals = [1 millisecond, 1 millisecond, 1 millisecond]")
 
   "ObjectStoreConnector" - {
+
+    "must download the file as a stream" in {
+      val client    = mock[PlayObjectStoreClient]
+      val connector = new ObjectStoreConnector(client, inject[ActorSystem], retryConfig)
+      val content   = Source.single(ByteString("file-content"))
+      val stored    = StoredObject(
+        Path.Directory("").file("object-name"),
+        content,
+        ObjectMetadata(NDJSON_MIME_TYPE, 12L, testMd5Hash, Instant.now(), Map.empty)
+      )
+      when(client.getObject[Source[ByteString, NotUsed]](any, any)(any, any))
+        .thenReturn(Future.successful(Some(stored)))
+
+      val source = await(connector.getFile("object-name"))
+      await(source.runWith(Sink.fold(ByteString.empty)(_ ++ _))(inject[Materializer])) mustBe ByteString("file-content")
+    }
+
+    "must fail without retrying a missing object" in {
+      val client    = mock[PlayObjectStoreClient]
+      val connector = new ObjectStoreConnector(client, inject[ActorSystem], retryConfig)
+      when(client.getObject[Source[ByteString, NotUsed]](any, any)(any, any)).thenReturn(Future.successful(None))
+
+      await(connector.getFile("missing").failed) mustBe a[NoSuchElementException]
+      verify(client).getObject[Source[ByteString, NotUsed]](any, any)(any, any)
+    }
+
+    "must retry object-store download 5xx failures" in {
+      val client    = mock[PlayObjectStoreClient]
+      val connector = new ObjectStoreConnector(client, inject[ActorSystem], retryConfig)
+      when(client.getObject[Source[ByteString, NotUsed]](any, any)(any, any))
+        .thenReturn(Future.failed(UpstreamErrorResponse("download failed", INTERNAL_SERVER_ERROR)))
+
+      await(connector.getFile("object-name").failed) mustBe a[UpstreamErrorResponse]
+      verify(client, times(callAmountWithRetries)).getObject[Source[ByteString, NotUsed]](any, any)(any, any)
+    }
 
     "must upload the file as a streaming Payload and return the object-store location" in {
       val client                                                        = mock[PlayObjectStoreClient]
@@ -64,17 +104,19 @@ class ObjectStoreConnectorSpec extends SpecBase {
       try {
         val service = new ObjectStoreConnector(client, inject[ActorSystem], retryConfig)
 
-        service
-          .putFile("object-name", file, "text/plain", testMd5Hash, testFileLength)
-          .futureValue mustBe summaryLocation.asUri
+        await(
+          service
+            .putFile("object-name", file, TEXT, testMd5Hash, testFileLength)
+        ) mustBe summaryLocation.asUri
 
         verify(client).putObject(any, payloadCaptor.capture(), any, any, any, any)(any, any)
         val payload = payloadCaptor.getValue
         payload.length mustBe testFileLength
         payload.md5Hash mustBe Md5Hash(md5Base64("file-content"))
-        payload.content
-          .runWith(Sink.fold(ByteString.empty)(_ ++ _))(inject[Materializer])
-          .futureValue mustBe ByteString("file-content")
+        await(
+          payload.content
+            .runWith(Sink.fold(ByteString.empty)(_ ++ _))(inject[Materializer])
+        ) mustBe ByteString("file-content")
       } finally Files.deleteIfExists(file)
     }
 
@@ -87,9 +129,9 @@ class ObjectStoreConnectorSpec extends SpecBase {
       when(client.putObject(any, any[Payload[Source[ByteString, ?]]], any, any, any, any)(any, any))
         .thenReturn(Future.failed(UpstreamErrorResponse(errorMessage, INTERNAL_SERVER_ERROR)))
 
-      val result = service.putFile("object-name", missingFile, "text/plain", testMd5Hash, testFileLength)
+      val result = service.putFile("object-name", missingFile, TEXT, testMd5Hash, testFileLength)
 
-      result.failed.futureValue mustBe a[java.nio.file.NoSuchFileException]
+      await(result.failed) mustBe a[NoSuchFileException]
       Files.deleteIfExists(missingFile.getParent)
     }
 
@@ -104,7 +146,7 @@ class ObjectStoreConnectorSpec extends SpecBase {
         .thenReturn(Future.failed(UpstreamErrorResponse(errorMessage, INTERNAL_SERVER_ERROR)))
 
       try {
-        val result = service.putFile("object-name", file, "text/plain", testMd5Hash, testFileLength).failed.futureValue
+        val result = await(service.putFile("object-name", file, TEXT, testMd5Hash, testFileLength).failed)
 
         result mustBe UpstreamErrorResponse(errorMessage, INTERNAL_SERVER_ERROR)
         verify(client, times(callAmountWithRetries))
@@ -114,7 +156,7 @@ class ObjectStoreConnectorSpec extends SpecBase {
   }
 
   private def md5Base64(value: String): String = {
-    val digest = MessageDigest.getInstance("MD5").digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8))
+    val digest = MessageDigest.getInstance("MD5").digest(value.getBytes(UTF_8))
     Base64.getEncoder.encodeToString(digest)
   }
 }

@@ -19,16 +19,16 @@ package uk.gov.hmrc.disareturnssubmission.actions
 import org.apache.pekko.actor.ActorSystem
 import play.api.Logging
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
-import uk.gov.hmrc.disareturnssubmission.models.{MonthlyReturn, SubmissionDetails}
-import uk.gov.hmrc.disareturnssubmission.repositories.{MonthlyReturnRepository, StoreSubmissionRepositoryResult}
-import uk.gov.hmrc.disareturnssubmission.services.{ObjectStoreService, SubmitReturnResult}
-import uk.gov.hmrc.disareturnssubmission.utils.{Md5Base64, NdjsonRecordCounter}
+import uk.gov.hmrc.disareturnssubmission.models.monthly.*
+import uk.gov.hmrc.disareturnssubmission.repositories.*
+import uk.gov.hmrc.disareturnssubmission.services.*
+import uk.gov.hmrc.disareturnssubmission.utils.*
 
-import java.nio.file.{Files, Path}
+import java.nio.file.*
 import javax.inject.Inject
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future, blocking}
+import scala.concurrent.*
 
-class SubmissionStoreAction @Inject() (
+class MonthlyReturnSubmissionStoreAction @Inject() (
   monthlyReturnRepository: MonthlyReturnRepository,
   objectStoreService: ObjectStoreService,
   appConfig: AppConfig,
@@ -82,7 +82,7 @@ class SubmissionStoreAction @Inject() (
     length: Long,
     numberOfEntries: Long
   ): Future[SubmitReturnResult] = {
-    val fileUploadDetails = SubmissionDetails(
+    val fileUploadDetails = MonthlyReturnSubmissionDetails(
       fileNameRef,
       appConfig.contentType,
       checksum,

@@ -14,23 +14,12 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.disareturnssubmission.models
+package uk.gov.hmrc.disareturnssubmission.models.monthly
 
-import play.api.libs.json.{Json, OFormat}
+import play.api.libs.json.*
 
-final case class SubmissionDetails(
-  fileName: String,
-  fileMimeType: String,
-  checksum: String,
-  size: Long,
-  numberOfEntries: Long,
-  objectStoreFileLocation: Option[String] = None,
-  objectStoreFileErrorsLocation: Option[String] = None
-)
+final case class CreateMonthlyReturnRequest(nilReturn: Boolean)
 
-object SubmissionDetails {
-  implicit val format: OFormat[SubmissionDetails] = Json.format[SubmissionDetails]
-
-  val mongoFormat: OFormat[SubmissionDetails] =
-    Json.format[SubmissionDetails]
+object CreateMonthlyReturnRequest {
+  implicit val format: OFormat[CreateMonthlyReturnRequest] = Json.format[CreateMonthlyReturnRequest]
 }

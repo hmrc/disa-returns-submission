@@ -18,12 +18,13 @@ package uk.gov.hmrc.disareturnssubmission.repository
 
 import base.SpecBase
 import org.mongodb.scala.SingleObservableFuture
+import play.api.test.Helpers.*
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
-import uk.gov.hmrc.disareturnssubmission.models.*
-import uk.gov.hmrc.disareturnssubmission.repositories.{DeclareMonthlyReturnRepositoryResult, MonthlyReturnRepository, StoreSubmissionRepositoryResult}
+import uk.gov.hmrc.disareturnssubmission.models.monthly.*
+import uk.gov.hmrc.disareturnssubmission.repositories.*
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
 
-import java.time.{Clock, Instant, ZoneOffset}
+import java.time.*
 import scala.concurrent.Future
 
 class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoRepositorySupport[MonthlyReturn] {
@@ -60,18 +61,41 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
         insertMonthlyReturn(buildMonthlyReturn().copy(zReference = otherZReference))
         insertMonthlyReturn(buildMonthlyReturn().copy(zReference = retainedZReference))
 
-        repository.deleteByZReferences(Seq(zReference, otherZReference)).futureValue mustBe 2L
+        await(repository.deleteByZReferences(Seq(zReference, otherZReference))) mustBe 2L
 
-        repository.get(zReference, taxYear, month).futureValue mustBe None
-        repository.get(otherZReference, taxYear, month).futureValue mustBe None
-        repository.get(retainedZReference, taxYear, month).futureValue must not be empty
+        await(repository.get(zReference, taxYear, month)) mustBe None
+        await(repository.get(otherZReference, taxYear, month)) mustBe None
+        await(repository.get(retainedZReference, taxYear, month)) must not be empty
+      }
+    }
+
+    "markSubmissionNpsSubmitted" - {
+      "must update only the matching stored submission and preserve its details" in {
+        val original = buildMonthlyReturn(submissions = List(storedSubmission(), storedSubmission("other")))
+        insertMonthlyReturn(original)
+
+        await(repository.markSubmissionNpsSubmitted(zReference, taxYear, month, uploadReference)) mustBe true
+        val updated = await(repository.get(zReference, taxYear, month)).value
+        updated.submissions.head mustBe original.submissions.head
+          .copy(status = MonthlyReturnSubmissionStatus.NpsSubmitted)
+        updated.submissions(1) mustBe original.submissions(1)
+        updated.lastUpdated mustBe fixedNow
+        await(repository.markSubmissionNpsSubmitted(zReference, taxYear, month, uploadReference)) mustBe false
+      }
+
+      "must not update a created submission or match another submission's status" in {
+        insertMonthlyReturn(buildMonthlyReturn(submissions = List(createdSubmission(), storedSubmission("other"))))
+
+        await(repository.markSubmissionNpsSubmitted(zReference, taxYear, month, uploadReference)) mustBe false
+        await(repository.markSubmissionNpsSubmitted(zReference, taxYear, month, "missing")) mustBe false
+        await(repository.markSubmissionNpsSubmitted("Z9999", taxYear, month, "other")) mustBe false
       }
     }
 
     "get" - {
 
       "must return None when a MonthlyReturn does not exist" in {
-        repository.get(zReference, taxYear, month).futureValue mustBe None
+        await(repository.get(zReference, taxYear, month)) mustBe None
       }
 
       "must return a MonthlyReturn by zReference, taxYear and month" in {
@@ -79,20 +103,20 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
 
         insertMonthlyReturn(monthlyReturn)
 
-        repository.get(zReference, taxYear, month).futureValue.value mustBe monthlyReturn
+        await(repository.get(zReference, taxYear, month)).value mustBe monthlyReturn
       }
 
       "must not return a MonthlyReturn with a different key" in {
         insertMonthlyReturn(buildMonthlyReturn())
 
-        repository.get(zReference, taxYear, 6).futureValue mustBe None
+        await(repository.get(zReference, taxYear, 6)) mustBe None
       }
     }
 
     "create" - {
 
       "must create a MonthlyReturn with nilReturn set to false" in {
-        repository.create(zReference, taxYear, month, testSubmissionId, nilReturn = false).futureValue mustBe Some(
+        await(repository.create(zReference, taxYear, month, testSubmissionId, nilReturn = false)) mustBe Some(
           MonthlyReturn(
             zReference = zReference,
             submissionId = testSubmissionId,
@@ -105,7 +129,7 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
           )
         )
 
-        repository.get(zReference, taxYear, month).futureValue.value mustBe MonthlyReturn(
+        await(repository.get(zReference, taxYear, month)).value mustBe MonthlyReturn(
           zReference = zReference,
           submissionId = testSubmissionId,
           taxYear = taxYear,
@@ -118,7 +142,7 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
       }
 
       "must create a MonthlyReturn with nilReturn set to true and no file uploads" in {
-        repository.create(zReference, taxYear, month, testSubmissionId, nilReturn = true).futureValue mustBe Some(
+        await(repository.create(zReference, taxYear, month, testSubmissionId, nilReturn = true)) mustBe Some(
           MonthlyReturn(
             zReference = zReference,
             submissionId = testSubmissionId,
@@ -131,7 +155,7 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
           )
         )
 
-        repository.get(zReference, taxYear, month).futureValue.value mustBe MonthlyReturn(
+        await(repository.get(zReference, taxYear, month)).value mustBe MonthlyReturn(
           zReference = zReference,
           submissionId = testSubmissionId,
           taxYear = taxYear,
@@ -144,15 +168,14 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
       }
 
       "must return None when a MonthlyReturn already exists for the same key" in {
-        repository
-          .create(zReference, taxYear, month, testSubmissionId, nilReturn = true)
-          .futureValue
-          .value
-          .nilReturn mustBe true
+        await(
+          repository
+            .create(zReference, taxYear, month, testSubmissionId, nilReturn = true)
+        ).value.nilReturn mustBe true
 
-        repository.create(zReference, taxYear, month, testSubmissionId, nilReturn = false).futureValue mustBe None
+        await(repository.create(zReference, taxYear, month, testSubmissionId, nilReturn = false)) mustBe None
 
-        repository.get(zReference, taxYear, month).futureValue.value.nilReturn mustBe true
+        await(repository.get(zReference, taxYear, month)).value.nilReturn mustBe true
       }
     }
 
@@ -161,9 +184,9 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
       "must declare a MonthlyReturn when it exists" in {
         insertMonthlyReturn(buildMonthlyReturn())
 
-        val result = repository.declare(zReference, taxYear, month).futureValue
+        val result = await(repository.declare(zReference, taxYear, month))
 
-        val stored = repository.get(zReference, taxYear, month).futureValue.value
+        val stored = await(repository.get(zReference, taxYear, month)).value
         result mustBe DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared
         stored.declaredOn mustBe Some(fixedNow)
         stored.createdOn mustBe existingUpdated
@@ -179,21 +202,22 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
           )
         )
 
-        repository
-          .declare(
-            zReference,
-            taxYear,
-            month,
-            List(storedReference, pendingReference, pendingReference)
-          )
-          .futureValue mustBe DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared
+        await(
+          repository
+            .declare(
+              zReference,
+              taxYear,
+              month,
+              List(storedReference, pendingReference, pendingReference)
+            )
+        ) mustBe DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared
 
-        val stored = repository.get(zReference, taxYear, month).futureValue.value
+        val stored = await(repository.get(zReference, taxYear, month)).value
         stored.submissions must contain theSameElementsInOrderAs List(
           storedSubmission(storedReference),
-          Submission(
+          MonthlyReturnSubmission(
             reference = pendingReference,
-            status = SubmissionStatus.Created,
+            status = MonthlyReturnSubmissionStatus.Created,
             createdOn = fixedNow
           )
         )
@@ -203,28 +227,29 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
       "must return MonthlyReturnAlreadyDeclared when the MonthlyReturn has already been declared" in {
         insertMonthlyReturn(buildMonthlyReturn(declaredOn = Some(existingUpdated)))
 
-        repository.declare(zReference, taxYear, month).futureValue mustBe
+        await(repository.declare(zReference, taxYear, month)) mustBe
           DeclareMonthlyReturnRepositoryResult.MonthlyReturnAlreadyDeclared
 
-        repository.get(zReference, taxYear, month).futureValue.value.declaredOn mustBe Some(existingUpdated)
+        await(repository.get(zReference, taxYear, month)).value.declaredOn mustBe Some(existingUpdated)
       }
 
       "must return MonthlyReturnNotFound when the MonthlyReturn does not exist" in {
-        repository.declare(zReference, taxYear, month).futureValue mustBe
+        await(repository.declare(zReference, taxYear, month)) mustBe
           DeclareMonthlyReturnRepositoryResult.MonthlyReturnNotFound
       }
 
       "must only allow one concurrent declaration" in {
         insertMonthlyReturn(buildMonthlyReturn())
 
-        val results = Future
-          .sequence(
-            Seq(
-              repository.declare(zReference, taxYear, month),
-              repository.declare(zReference, taxYear, month)
+        val results = await(
+          Future
+            .sequence(
+              Seq(
+                repository.declare(zReference, taxYear, month),
+                repository.declare(zReference, taxYear, month)
+              )
             )
-          )
-          .futureValue
+        )
 
         results.count(_ == DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared) mustBe 1
         results.count(_ == DeclareMonthlyReturnRepositoryResult.MonthlyReturnAlreadyDeclared) mustBe 1
@@ -236,10 +261,10 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
       "must declare a MonthlyReturn as a nil return and clear submissions atomically" in {
         insertMonthlyReturn(buildMonthlyReturn(submissions = List(storedSubmission())))
 
-        repository.declareNilReturn(zReference, taxYear, month).futureValue mustBe
+        await(repository.declareNilReturn(zReference, taxYear, month)) mustBe
           DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared
 
-        val stored = repository.get(zReference, taxYear, month).futureValue.value
+        val stored = await(repository.get(zReference, taxYear, month)).value
         stored.nilReturn mustBe true
         stored.submissions mustBe Nil
         stored.declaredOn mustBe Some(fixedNow)
@@ -249,12 +274,12 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
       "must return MonthlyReturnAlreadyDeclared when the MonthlyReturn has already been declared" in {
         insertMonthlyReturn(buildMonthlyReturn(declaredOn = Some(existingUpdated)))
 
-        repository.declareNilReturn(zReference, taxYear, month).futureValue mustBe
+        await(repository.declareNilReturn(zReference, taxYear, month)) mustBe
           DeclareMonthlyReturnRepositoryResult.MonthlyReturnAlreadyDeclared
       }
 
       "must return MonthlyReturnNotFound when the MonthlyReturn does not exist" in {
-        repository.declareNilReturn(zReference, taxYear, month).futureValue mustBe
+        await(repository.declareNilReturn(zReference, taxYear, month)) mustBe
           DeclareMonthlyReturnRepositoryResult.MonthlyReturnNotFound
       }
     }
@@ -265,16 +290,17 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
         val existingReference = "existing-reference"
         insertMonthlyReturn(buildMonthlyReturn(submissions = List(storedSubmission(existingReference))))
 
-        repository
-          .storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
-          .futureValue mustBe StoreSubmissionRepositoryResult.SubmissionStored
+        await(
+          repository
+            .storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
+        ) mustBe StoreSubmissionRepositoryResult.SubmissionStored
 
-        val stored = repository.get(zReference, taxYear, month).futureValue.value
+        val stored = await(repository.get(zReference, taxYear, month)).value
         stored.submissions.map(_.reference) must contain theSameElementsInOrderAs List(
           existingReference,
           uploadReference
         )
-        stored.submissions.last.status mustBe SubmissionStatus.Stored
+        stored.submissions.last.status mustBe MonthlyReturnSubmissionStatus.Stored
         stored.submissions.last.submissionDetails mustBe Some(fileUploadDetails)
         stored.lastUpdated mustBe fixedNow
       }
@@ -287,11 +313,12 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
           )
         )
 
-        repository
-          .storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
-          .futureValue mustBe StoreSubmissionRepositoryResult.SubmissionStored
+        await(
+          repository
+            .storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
+        ) mustBe StoreSubmissionRepositoryResult.SubmissionStored
 
-        val submissions = repository.get(zReference, taxYear, month).futureValue.value.submissions
+        val submissions = await(repository.get(zReference, taxYear, month)).value.submissions
         submissions.size mustBe 1
         val submission  = submissions.head
         submission mustBe storedSubmission(uploadReference)
@@ -301,33 +328,37 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
       "must return SubmissionConflict when the submission is already STORED" in {
         insertMonthlyReturn(buildMonthlyReturn(submissions = List(storedSubmission(uploadReference))))
 
-        repository
-          .storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
-          .futureValue mustBe StoreSubmissionRepositoryResult.SubmissionConflict
+        await(
+          repository
+            .storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
+        ) mustBe StoreSubmissionRepositoryResult.SubmissionConflict
 
-        repository.get(zReference, taxYear, month).futureValue.value.submissions.size mustBe 1
+        await(repository.get(zReference, taxYear, month)).value.submissions.size mustBe 1
       }
 
       "must return SubmissionConflict for a missing submission after declaration" in {
         insertMonthlyReturn(buildMonthlyReturn(declaredOn = Some(existingUpdated)))
 
-        repository
-          .storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
-          .futureValue mustBe StoreSubmissionRepositoryResult.SubmissionConflict
+        await(
+          repository
+            .storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
+        ) mustBe StoreSubmissionRepositoryResult.SubmissionConflict
       }
 
       "must return SubmissionConflict for a nil return" in {
         insertMonthlyReturn(buildMonthlyReturn(nilReturn = true))
 
-        repository
-          .storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
-          .futureValue mustBe StoreSubmissionRepositoryResult.SubmissionConflict
+        await(
+          repository
+            .storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
+        ) mustBe StoreSubmissionRepositoryResult.SubmissionConflict
       }
 
       "must return MonthlyReturnNotFound when the return does not exist" in {
-        repository
-          .storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
-          .futureValue mustBe StoreSubmissionRepositoryResult.MonthlyReturnNotFound
+        await(
+          repository
+            .storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
+        ) mustBe StoreSubmissionRepositoryResult.MonthlyReturnNotFound
       }
 
       "must preserve concurrent submission creates for different references" in {
@@ -335,37 +366,39 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
         val secondReference = "22222222-2222-4222-8222-222222222222"
         insertMonthlyReturn(buildMonthlyReturn())
 
-        Future
-          .sequence(
-            Seq(
-              repository.storeSubmission(zReference, taxYear, month, firstReference, fileUploadDetails),
-              repository.storeSubmission(zReference, taxYear, month, secondReference, fileUploadDetails)
+        await(
+          Future
+            .sequence(
+              Seq(
+                repository.storeSubmission(zReference, taxYear, month, firstReference, fileUploadDetails),
+                repository.storeSubmission(zReference, taxYear, month, secondReference, fileUploadDetails)
+              )
             )
-          )
-          .futureValue must contain theSameElementsAs Seq(
+        ) must contain theSameElementsAs Seq(
           StoreSubmissionRepositoryResult.SubmissionStored,
           StoreSubmissionRepositoryResult.SubmissionStored
         )
 
-        val stored = repository.get(zReference, taxYear, month).futureValue.value
+        val stored = await(repository.get(zReference, taxYear, month)).value
         stored.submissions.map(_.reference) must contain theSameElementsAs Seq(firstReference, secondReference)
       }
 
       "must only store one concurrent submission for the same reference" in {
         insertMonthlyReturn(buildMonthlyReturn())
 
-        val results = Future
-          .sequence(
-            Seq(
-              repository.storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails),
-              repository.storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
+        val results = await(
+          Future
+            .sequence(
+              Seq(
+                repository.storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails),
+                repository.storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
+              )
             )
-          )
-          .futureValue
+        )
 
         results.count(_ == StoreSubmissionRepositoryResult.SubmissionStored) mustBe 1
         results.count(_ == StoreSubmissionRepositoryResult.SubmissionConflict) mustBe 1
-        repository.get(zReference, taxYear, month).futureValue.value.submissions.size mustBe 1
+        await(repository.get(zReference, taxYear, month)).value.submissions.size mustBe 1
       }
 
       "must store a submission concurrently registered as pending by declaration" in {
@@ -376,24 +409,24 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
         val storage     =
           repository.storeSubmission(zReference, taxYear, month, uploadReference, fileUploadDetails)
 
-        declaration.futureValue mustBe DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared
-        storage.futureValue mustBe StoreSubmissionRepositoryResult.SubmissionStored
+        await(declaration) mustBe DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared
+        await(storage) mustBe StoreSubmissionRepositoryResult.SubmissionStored
 
-        val stored = repository.get(zReference, taxYear, month).futureValue.value
+        val stored = await(repository.get(zReference, taxYear, month)).value
         stored.declaredOn mustBe Some(fixedNow)
         stored.submissions.size mustBe 1
-        stored.submissions.head.status mustBe SubmissionStatus.Stored
+        stored.submissions.head.status mustBe MonthlyReturnSubmissionStatus.Stored
       }
     }
 
   }
 
   private def insertMonthlyReturn(monthlyReturn: MonthlyReturn): Unit =
-    repository.collection.insertOne(monthlyReturn).toFuture().futureValue
+    await(repository.collection.insertOne(monthlyReturn).toFuture())
 
   private def buildMonthlyReturn(
     nilReturn: Boolean = false,
-    submissions: List[Submission] = Nil,
+    submissions: List[MonthlyReturnSubmission] = Nil,
     declaredOn: Option[Instant] = None,
     lastUpdated: Instant = existingUpdated
   ): MonthlyReturn =
@@ -411,19 +444,19 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
 
   private def createdSubmission(
     reference: String = uploadReference
-  ): Submission =
-    Submission(
+  ): MonthlyReturnSubmission =
+    MonthlyReturnSubmission(
       reference = reference,
-      status = SubmissionStatus.Created,
+      status = MonthlyReturnSubmissionStatus.Created,
       createdOn = createdOn
     )
 
   private def storedSubmission(
     reference: String = uploadReference
-  ): Submission =
-    Submission(
+  ): MonthlyReturnSubmission =
+    MonthlyReturnSubmission(
       reference = reference,
-      status = SubmissionStatus.Stored,
+      status = MonthlyReturnSubmissionStatus.Stored,
       createdOn = createdOn,
       submissionDetails = Some(fileUploadDetails)
     )

@@ -20,29 +20,31 @@ import base.TestConstants
 import com.github.tomakehurst.wiremock.client.WireMock.*
 import org.mongodb.scala.ObservableFuture
 import org.mongodb.scala.model.Filters
-import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
+import org.scalatest.concurrent.*
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
+import org.scalatest.*
 import org.scalatestplus.mockito.MockitoSugar
 import org.scalatestplus.play.guice.GuiceOneServerPerSuite
 import play.api.Application
-import play.api.http.HeaderNames.AUTHORIZATION
-import play.api.http.Status.{CREATED, FORBIDDEN, OK, UNAUTHORIZED}
+import play.api.http.HeaderNames.*
+import play.api.http.MimeTypes.JSON
+import play.api.http.Status.*
 import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
-import play.api.libs.json.{JsObject, Json}
+import play.api.libs.json.*
 import play.api.libs.ws.WSClient
 import play.api.test.DefaultAwaitTimeout
 import play.api.test.Helpers.await
 import uk.gov.hmrc.disareturnssubmission.services.TimeSource
+import uk.gov.hmrc.disareturnssubmission.utils.Constants.MONTHLY_RETURN_SUBMISSION_WORK_ITEMS_COLLECTION_NAME
 import uk.gov.hmrc.disareturnssubmission.utils.RequestUtils
 import uk.gov.hmrc.http.test.WireMockSupport
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.play.audit.http.connector.DatastreamMetrics
 
-import java.time.{Clock, Instant, ZoneOffset}
-import scala.concurrent.{ExecutionContext, Future}
+import java.time.*
+import scala.concurrent.*
 import scala.reflect.ClassTag
 
 trait BaseIntegrationSpec
@@ -60,11 +62,12 @@ trait BaseIntegrationSpec
     with RequestUtils {
 
   protected val integrationTestNow: Instant = Instant.parse("2026-06-17T12:00:00Z")
+  protected def clock: Clock                = Clock.fixed(integrationTestNow, ZoneOffset.UTC)
 
   override lazy val app: Application = new GuiceApplicationBuilder()
     .configure(config)
     .overrides(
-      bind[Clock].toInstance(Clock.fixed(integrationTestNow, ZoneOffset.UTC)),
+      bind[Clock].toInstance(clock),
       bind[TimeSource].toInstance((_: String) => Future.successful(integrationTestNow)),
       bind[DatastreamMetrics].toInstance(DatastreamMetrics.disabled)
     )
@@ -72,19 +75,23 @@ trait BaseIntegrationSpec
 
   def config: Map[String, Any] =
     Map(
-      "auditing.enabled"                                       -> false,
-      "create-internal-auth-token-on-start"                    -> false,
-      "mongodb.uri"                                            -> "mongodb://localhost:27017/disa-returns-submission-it",
-      "microservice.services.disa-returns-submission.protocol" -> "http",
-      "microservice.services.disa-returns-submission.host"     -> "localhost",
-      "microservice.services.disa-returns-submission.port"     -> wireMockPort,
-      "microservice.services.object-store.protocol"            -> "http",
-      "microservice.services.object-store.host"                -> "localhost",
-      "microservice.services.object-store.port"                -> wireMockPort,
-      "microservice.services.internal-auth.protocol"           -> "http",
-      "microservice.services.internal-auth.host"               -> "localhost",
-      "microservice.services.internal-auth.port"               -> wireMockPort,
-      "http-verbs.retries.intervals"                           -> Seq("1ms", "1ms", "1ms")
+      "auditing.enabled"                                             -> false,
+      "create-internal-auth-token-on-start"                          -> false,
+      "monthly-return-submission-work-item-job.enabled"              -> false,
+      "mongodb.uri"                                                  -> "mongodb://localhost:27017/disa-returns-submission-it",
+      "microservice.services.disa-returns-submission.protocol"       -> "http",
+      "microservice.services.disa-returns-submission.host"           -> "localhost",
+      "microservice.services.disa-returns-submission.port"           -> wireMockPort,
+      "microservice.services.object-store.protocol"                  -> "http",
+      "microservice.services.object-store.host"                      -> "localhost",
+      "microservice.services.object-store.port"                      -> wireMockPort,
+      "microservice.services.nps-monthly-return-submission.protocol" -> "http",
+      "microservice.services.nps-monthly-return-submission.host"     -> "localhost",
+      "microservice.services.nps-monthly-return-submission.port"     -> wireMockPort,
+      "microservice.services.internal-auth.protocol"                 -> "http",
+      "microservice.services.internal-auth.host"                     -> "localhost",
+      "microservice.services.internal-auth.port"                     -> wireMockPort,
+      "http-verbs.retries.intervals"                                 -> Seq("1ms", "1ms", "1ms")
     )
 
   protected def inject[T: ClassTag]: T =
@@ -107,7 +114,7 @@ trait BaseIntegrationSpec
         .willReturn(
           aResponse()
             .withStatus(OK)
-            .withHeader("Content-Type", "application/json")
+            .withHeader(CONTENT_TYPE, JSON)
             .withBody("""{"retrievals":{}}""")
         )
     )
@@ -140,7 +147,7 @@ trait BaseIntegrationSpec
         .willReturn(
           aResponse()
             .withStatus(status)
-            .withHeader("Content-Type", "application/json")
+            .withHeader(CONTENT_TYPE, JSON)
             .withBody(Json.obj(submissionIdFieldName -> submissionId).toString())
         )
     )
@@ -156,6 +163,7 @@ trait BaseIntegrationSpec
     Seq(
       monthlyReturnsCollectionName,
       monthlyReturnFileUploadWorkItemsCollectionName,
+      MONTHLY_RETURN_SUBMISSION_WORK_ITEMS_COLLECTION_NAME,
       "testOverrides"
     )
       .foreach { collectionName =>

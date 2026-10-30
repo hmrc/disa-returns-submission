@@ -27,4 +27,7 @@ lazy val it = project
   .settings(libraryDependencies ++= AppDependencies.it)
 
 addCommandAlias("prePrChecks", ";scalafmtCheckAll;scalafmtSbtCheck")
-addCommandAlias("precommit", ";scalafmtAll;test:scalafmtAll;it/test:scalafmtAll;coverage;test;it/test;coverageReport")
+addCommandAlias(
+  "precommit",
+  ";scalafmtAll;Test / scalafmtAll;it / Test / scalafmtAll;coverage;test;it/test;coverageReport"
+)

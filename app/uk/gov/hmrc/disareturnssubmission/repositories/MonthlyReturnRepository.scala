@@ -20,19 +20,19 @@ import org.bson.BsonDocument
 import org.bson.conversions.Bson
 import org.mongodb.scala.result.UpdateResult
 import org.mongodb.scala.model.*
-import play.api.libs.json.{JsArray, Json}
+import play.api.libs.json.*
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
-import uk.gov.hmrc.disareturnssubmission.models.*
+import uk.gov.hmrc.disareturnssubmission.models.monthly.*
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.MongoUtils.DuplicateKey
 import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
-import java.time.{Clock, Instant}
+import java.time.*
 import java.util.UUID
 import java.util.concurrent.TimeUnit
-import javax.inject.{Inject, Singleton}
-import scala.concurrent.{ExecutionContext, Future}
+import javax.inject.*
+import scala.concurrent.*
 
 private val declaredOnField  = "declaredOn"
 private val lastUpdatedField = "lastUpdated"
@@ -109,12 +109,12 @@ class MonthlyReturnRepository @Inject() (
     taxYear: String,
     month: Int,
     reference: String,
-    submissionDetails: SubmissionDetails
+    submissionDetails: MonthlyReturnSubmissionDetails
   ): Future[StoreSubmissionRepositoryResult] = {
     val storedOn         = now()
-    val storedSubmission = Submission(
+    val storedSubmission = MonthlyReturnSubmission(
       reference = reference,
-      status = SubmissionStatus.Stored,
+      status = MonthlyReturnSubmissionStatus.Stored,
       createdOn = storedOn,
       submissionDetails = Some(submissionDetails)
     )
@@ -123,7 +123,7 @@ class MonthlyReturnRepository @Inject() (
       submissionsField,
       Filters.and(
         Filters.equal(referenceField, reference),
-        Filters.equal(statusField, SubmissionStatus.Created.value)
+        Filters.equal(statusField, MonthlyReturnSubmissionStatus.Created.value)
       )
     )
     val canCreateStoredSubmission = Filters.and(
@@ -151,6 +151,32 @@ class MonthlyReturnRepository @Inject() (
           }
       }
   }
+
+  def markSubmissionNpsSubmitted(
+    zReference: String,
+    taxYear: String,
+    month: Int,
+    reference: String
+  ): Future[Boolean] =
+    collection
+      .updateOne(
+        filter = Filters.and(
+          byKey(zReference, taxYear, month),
+          Filters.elemMatch(
+            submissionsField,
+            Filters.and(
+              Filters.equal(referenceField, reference),
+              Filters.equal(statusField, MonthlyReturnSubmissionStatus.Stored.value)
+            )
+          )
+        ),
+        update = Updates.combine(
+          Updates.set(s"$submissionsField.$$.$statusField", MonthlyReturnSubmissionStatus.NpsSubmitted.value),
+          Updates.set(lastUpdatedField, now())
+        )
+      )
+      .toFuture()
+      .map(_.getMatchedCount > 0)
 
   def declare(
     zReference: String,
@@ -192,7 +218,7 @@ class MonthlyReturnRepository @Inject() (
 
     val updateDeclarationAndClearSubmissions = Updates.combine(
       Updates.set(nilReturnField, true),
-      Updates.set(submissionsField, List.empty[Submission]),
+      Updates.set(submissionsField, List.empty[MonthlyReturnSubmission]),
       Updates.set(declaredOnField, declaredOn),
       Updates.set(lastUpdatedField, declaredOn)
     )
@@ -221,8 +247,8 @@ class MonthlyReturnRepository @Inject() (
   private def now(): Instant = Instant.now(clock)
 
   private def storeSubmissionUpdatePipeline(
-    submission: Submission,
-    submissionDetails: SubmissionDetails,
+    submission: MonthlyReturnSubmission,
+    submissionDetails: MonthlyReturnSubmissionDetails,
     storedOn: Instant
   ): Seq[Bson] = {
 
@@ -232,7 +258,7 @@ class MonthlyReturnRepository @Inject() (
     val isMatchingCreatedExpression    = Json.obj(
       "$and" -> Json.arr(
         Json.obj("$eq" -> Json.arr("$$existingSubmission.reference", referenceLiteral)),
-        Json.obj("$eq" -> Json.arr("$$existingSubmission.status", SubmissionStatus.Created.value))
+        Json.obj("$eq" -> Json.arr("$$existingSubmission.status", MonthlyReturnSubmissionStatus.Created.value))
       )
     )
     val hasMatchingCreatedExpression   = Json.obj(
@@ -246,8 +272,8 @@ class MonthlyReturnRepository @Inject() (
     )
     val storedFieldsLiteral            = Json.obj(
       "$literal" -> Json.obj(
-        statusField         -> SubmissionStatus.Stored.value,
-        "submissionDetails" -> Json.toJson(submissionDetails)(SubmissionDetails.mongoFormat)
+        statusField         -> MonthlyReturnSubmissionStatus.Stored.value,
+        "submissionDetails" -> Json.toJson(submissionDetails)(MonthlyReturnSubmissionDetails.mongoFormat)
       )
     )
     val fulfilledSubmissionsExpression = Json.obj(
@@ -266,7 +292,7 @@ class MonthlyReturnRepository @Inject() (
     val appendedSubmissionExpression   = Json.obj(
       "$concatArrays" -> Json.arr(
         existingSubmissionsExpression,
-        Json.obj("$literal" -> Json.arr(Json.toJson(submission)(Submission.mongoFormat)))
+        Json.obj("$literal" -> Json.arr(Json.toJson(submission)(MonthlyReturnSubmission.mongoFormat)))
       )
     )
     val submissionsExpression          = Json.obj(
@@ -297,9 +323,9 @@ class MonthlyReturnRepository @Inject() (
     pendingSubmissionIds: List[String]
   ): Seq[Bson] = {
     val pendingSubmissions = pendingSubmissionIds.distinct.map(reference =>
-      Submission(
+      MonthlyReturnSubmission(
         reference = reference,
-        status = SubmissionStatus.Created,
+        status = MonthlyReturnSubmissionStatus.Created,
         createdOn = declaredOn
       )
     )
@@ -318,7 +344,7 @@ class MonthlyReturnRepository @Inject() (
     val missingPendingSubmissionsExpression = Json.obj(
       "$filter" -> Json.obj(
         "input" -> Json.obj(
-          "$literal" -> JsArray(pendingSubmissions.map(Json.toJson(_)(Submission.mongoFormat)))
+          "$literal" -> JsArray(pendingSubmissions.map(Json.toJson(_)(MonthlyReturnSubmission.mongoFormat)))
         ),
         "as"    -> "pendingSubmission",
         "cond"  -> Json.obj(

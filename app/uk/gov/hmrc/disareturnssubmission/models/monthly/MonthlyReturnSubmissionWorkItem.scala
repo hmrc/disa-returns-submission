@@ -14,16 +14,12 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.disareturnssubmission.models
+package uk.gov.hmrc.disareturnssubmission.models.monthly
 
-import play.api.libs.json.{Json, OFormat}
+import play.api.libs.json.*
 
-final case class DeclarationRequest(
-  nilReturn: Boolean,
-  pendingSubmissionIds: List[String] = Nil
-)
+final case class MonthlyReturnSubmissionWorkItem(zReference: String, taxYear: String, month: Int, reference: String)
 
-object DeclarationRequest {
-  implicit val format: OFormat[DeclarationRequest] =
-    Json.using[Json.WithDefaultValues].format[DeclarationRequest]
+object MonthlyReturnSubmissionWorkItem {
+  implicit val format: OFormat[MonthlyReturnSubmissionWorkItem] = Json.format[MonthlyReturnSubmissionWorkItem]
 }

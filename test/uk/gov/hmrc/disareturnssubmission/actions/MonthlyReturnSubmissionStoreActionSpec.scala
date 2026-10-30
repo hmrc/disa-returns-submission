@@ -18,26 +18,27 @@ package uk.gov.hmrc.disareturnssubmission.actions
 
 import base.SpecBase
 import org.apache.pekko.actor.ActorSystem
-import org.mockito.ArgumentMatchers.{any, argThat, eq as eqTo}
-import org.mockito.Mockito.{reset, verify, verifyNoInteractions, when}
+import org.mockito.ArgumentMatchers.{eq as eqTo, *}
+import org.mockito.Mockito.*
 import org.scalatest.BeforeAndAfterEach
+import play.api.test.Helpers.*
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
-import uk.gov.hmrc.disareturnssubmission.models.SubmissionDetails
-import uk.gov.hmrc.disareturnssubmission.repositories.{MonthlyReturnRepository, StoreSubmissionRepositoryResult}
-import uk.gov.hmrc.disareturnssubmission.services.{ObjectStoreService, SubmitReturnResult}
+import uk.gov.hmrc.disareturnssubmission.models.monthly.MonthlyReturnSubmissionDetails
+import uk.gov.hmrc.disareturnssubmission.repositories.*
+import uk.gov.hmrc.disareturnssubmission.services.*
 import uk.gov.hmrc.disareturnssubmission.utils.NdjsonRecordCounterImpl
 
 import java.nio.file.Files
 import scala.concurrent.Future
 import scala.language.postfixOps
 
-class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
+class MonthlyReturnSubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
 
   private val mockMonthlyReturnRepository = mock[MonthlyReturnRepository]
   private val mockObjectStoreService      = mock[ObjectStoreService]
   private val appConfig                   = inject[AppConfig]
 
-  val action = new SubmissionStoreAction(
+  val action = new MonthlyReturnSubmissionStoreAction(
     mockMonthlyReturnRepository,
     mockObjectStoreService,
     appConfig,
@@ -50,7 +51,7 @@ class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
     reset(mockMonthlyReturnRepository, mockObjectStoreService)
   }
 
-  "SubmissionStoreAction" - {
+  "MonthlyReturnSubmissionStoreAction" - {
     "must return UpdateSuccessful when successfully storing in Mongo" in {
       when(mockObjectStoreService.uploadFileToObjectStore(any(), any(), any(), any(), any()))
         .thenReturn(Future("test/test"))
@@ -60,7 +61,7 @@ class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
 
       val result = action.store(testTempFile, monthlyReturn, testUploadReference)
 
-      result.futureValue mustBe SubmitReturnResult.UpdateSuccessful
+      await(result) mustBe SubmitReturnResult.UpdateSuccessful
       verify(mockObjectStoreService)
         .uploadFileToObjectStore(eqTo(testUploadReference), any(), any(), any(), any())
       verify(mockMonthlyReturnRepository)
@@ -69,7 +70,7 @@ class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
           any(),
           any(),
           eqTo(testUploadReference),
-          argThat[SubmissionDetails](_.numberOfEntries == testNumberOfEntries)
+          argThat[MonthlyReturnSubmissionDetails](_.numberOfEntries == testNumberOfEntries)
         )
     }
 
@@ -82,12 +83,13 @@ class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
       when(mockMonthlyReturnRepository.storeSubmission(any(), any(), any(), any(), any()))
         .thenReturn(Future.successful(StoreSubmissionRepositoryResult.SubmissionStored))
 
-      action
-        .store(fileWithBlankLines, monthlyReturn, testUploadReference)
-        .futureValue mustBe SubmitReturnResult.UpdateSuccessful
+      await(
+        action
+          .store(fileWithBlankLines, monthlyReturn, testUploadReference)
+      ) mustBe SubmitReturnResult.UpdateSuccessful
 
       verify(mockMonthlyReturnRepository)
-        .storeSubmission(any(), any(), any(), any(), argThat[SubmissionDetails](_.numberOfEntries == 3L))
+        .storeSubmission(any(), any(), any(), any(), argThat[MonthlyReturnSubmissionDetails](_.numberOfEntries == 3L))
     }
 
     "must return SubmissionConflict when the repository reports a conflict" in {
@@ -97,9 +99,10 @@ class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
       when(mockMonthlyReturnRepository.storeSubmission(any(), any(), any(), any(), any()))
         .thenReturn(Future.successful(StoreSubmissionRepositoryResult.SubmissionConflict))
 
-      action
-        .store(testTempFile, monthlyReturn, testUploadReference)
-        .futureValue mustBe SubmitReturnResult.SubmissionConflict
+      await(
+        action
+          .store(testTempFile, monthlyReturn, testUploadReference)
+      ) mustBe SubmitReturnResult.SubmissionConflict
     }
 
     "must return MonthlyReturnNotFound when the repository can no longer find the return" in {
@@ -108,18 +111,20 @@ class SubmissionStoreActionSpec extends SpecBase with BeforeAndAfterEach {
       when(mockMonthlyReturnRepository.storeSubmission(any(), any(), any(), any(), any()))
         .thenReturn(Future.successful(StoreSubmissionRepositoryResult.MonthlyReturnNotFound))
 
-      action
-        .store(testTempFile, monthlyReturn, testUploadReference)
-        .futureValue mustBe SubmitReturnResult.MonthlyReturnNotFound
+      await(
+        action
+          .store(testTempFile, monthlyReturn, testUploadReference)
+      ) mustBe SubmitReturnResult.MonthlyReturnNotFound
     }
 
     "must return NoBody without calling object store or Mongo when the body is empty" in {
       val emptyFile = play.api.libs.Files.SingletonTemporaryFileCreator.create("empty", ".ndjson")
       Files.size(emptyFile.path) mustBe 0L
 
-      action
-        .store(emptyFile, monthlyReturn, testUploadReference)
-        .futureValue mustBe SubmitReturnResult.NoBody
+      await(
+        action
+          .store(emptyFile, monthlyReturn, testUploadReference)
+      ) mustBe SubmitReturnResult.NoBody
 
       verifyNoInteractions(mockObjectStoreService, mockMonthlyReturnRepository)
     }

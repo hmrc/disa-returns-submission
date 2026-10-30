@@ -17,25 +17,26 @@
 package uk.gov.hmrc.disareturnssubmission.testOnly.services
 
 import base.SpecBase
-import org.mockito.Mockito.{verify, when}
+import org.mockito.Mockito.*
+import play.api.test.Helpers.*
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.services.ResolvedInstant
 import uk.gov.hmrc.disareturnssubmission.testOnly.OverrideTimeSource
-import uk.gov.hmrc.disareturnssubmission.testOnly.models.{ClockOverride, ReportingWindowOverride, TestOverrideDocument}
+import uk.gov.hmrc.disareturnssubmission.testOnly.models.*
 import uk.gov.hmrc.disareturnssubmission.testOnly.repositories.TestOverrideRepository
 
-import java.time.{Instant, LocalDate, ZoneOffset}
+import java.time.*
 import scala.concurrent.Future
 
-class OverrideReportingWindowServiceSpec extends SpecBase {
+class OverrideMonthlyReturnReportingWindowServiceSpec extends SpecBase {
 
   private val now        = Instant.parse("2026-04-01T12:00:00Z")
   private val timeSource = mock[OverrideTimeSource]
   private val repository = mock[TestOverrideRepository]
   private val appConfig  = inject[AppConfig]
-  private val service    = new OverrideReportingWindowService(appConfig, timeSource, repository)
+  private val service    = new OverrideMonthlyReturnReportingWindowService(appConfig, timeSource, repository)
 
-  "OverrideReportingWindowService" - {
+  "OverrideMonthlyReturnReportingWindowService" - {
 
     "must evaluate clock and window from one aggregate snapshot" in {
       val supplied  = now.plusSeconds(120)
@@ -53,7 +54,7 @@ class OverrideReportingWindowServiceSpec extends SpecBase {
         Future.successful(ResolvedInstant(supplied, overridden = true))
       )
 
-      val result = service.resolve(testZReference).futureValue
+      val result = await(service.resolve(testZReference))
 
       result.instant mustBe supplied
       result.windowStart mustBe now.plusSeconds(60)
@@ -78,7 +79,7 @@ class OverrideReportingWindowServiceSpec extends SpecBase {
         Future.successful(ResolvedInstant(now, overridden = false))
       )
 
-      val result = service.resolve(testZReference).futureValue
+      val result = await(service.resolve(testZReference))
 
       result.isOpen mustBe false
       result.windowStart mustBe
@@ -107,7 +108,10 @@ class OverrideReportingWindowServiceSpec extends SpecBase {
       )
 
       val result =
-        new OverrideReportingWindowService(config, timeSource, repository).resolve(testZReference).futureValue
+        await(
+          new OverrideMonthlyReturnReportingWindowService(config, timeSource, repository)
+            .resolve(testZReference)
+        )
 
       result.windowEnd mustBe Instant.parse("2026-09-30T23:59:59Z")
       result.isOpen mustBe true

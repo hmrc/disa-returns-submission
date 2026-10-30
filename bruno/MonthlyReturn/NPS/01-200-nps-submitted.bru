@@ -1,0 +1,49 @@
+meta {
+  name: 01-200-nps-submitted
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}{{servicePath}}/monthly/{{zReference}}/{{taxYear}}/{{month}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+script:pre-request {
+  let stored;
+  do {
+    stored = await bru.runRequest("MonthlyReturn/Submissions/01-200-store-new-submission");
+  } while (["Z1400", "Z1503"].includes(bru.getVar("zReference")));
+
+  if (stored.status !== 200) {
+    throw new Error(`Expected submission storage to respond with 200, got ${stored.status}`);
+  }
+
+  const url = `${bru.getEnvVar("baseUrl")}${bru.getEnvVar("servicePath")}/monthly/${bru.getVar("zReference")}/${bru.getEnvVar("taxYear")}/${bru.getEnvVar("month")}`;
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const response = await bru.sendRequest({
+      method: "GET",
+      url,
+      headers: { Authorization: bru.getEnvVar("internalAuthToken") },
+      timeout: 3000
+    });
+    const body = typeof response.data === "string" ? JSON.parse(response.data) : response.data;
+    if (body?.submissions?.some(s => s.reference === bru.getVar("putSubmissionId") && s.status === "NPS_SUBMITTED")) {
+      return;
+    }
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  throw new Error("Submission did not reach NPS_SUBMITTED within 30 seconds; check job configuration and dependencies");
+}
+
+tests {
+  test("submission was sent to NPS", function() {
+    const body = typeof res.body === "string" ? JSON.parse(res.body) : res.body;
+    expect(body.submissions.find(s => s.reference === bru.getVar("putSubmissionId")).status).to.equal("NPS_SUBMITTED");
+  });
+}

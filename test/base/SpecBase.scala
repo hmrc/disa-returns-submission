@@ -18,7 +18,7 @@ package base
 
 import org.scalatest.OptionValues
 import org.scalatest.TryValues
-import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
+import org.scalatest.concurrent.*
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
 import org.scalatestplus.mockito.MockitoSugar
@@ -26,14 +26,14 @@ import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import play.api.Application
 import play.api.mvc.ControllerComponents
 import play.api.inject.bind
-import play.api.inject.guice.{GuiceApplicationBuilder, GuiceableModule}
-import uk.gov.hmrc.disareturnssubmission.config.{InternalAuthTokenInitialiser, NoOpInternalAuthTokenInitialiser}
+import play.api.inject.guice.*
+import uk.gov.hmrc.disareturnssubmission.config.*
 import org.apache.pekko.stream.Materializer
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 import play.api.test.Helpers.stubControllerComponents
-import uk.gov.hmrc.internalauth.client.{BackendAuthComponents, Predicate}
-import uk.gov.hmrc.internalauth.client.test.{BackendAuthComponentsStub, StubBehaviour}
+import uk.gov.hmrc.internalauth.client.*
+import uk.gov.hmrc.internalauth.client.test.*
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
@@ -51,12 +51,12 @@ trait SpecBase
     with MockitoSugar {
 
   implicit val ec: ExecutionContext =
-    scala.concurrent.ExecutionContext.Implicits.global
+    ExecutionContext.Implicits.global
 
   protected val mockStubBehaviour: StubBehaviour = mock[StubBehaviour]
 
   when(mockStubBehaviour.stubAuth(any[Option[Predicate]], any()))
-    .thenAnswer(_ => Future.successful(()))
+    .thenAnswer(_ => Future.unit)
 
   override lazy val app: Application = applicationBuilder().build()
 
@@ -80,6 +80,7 @@ trait SpecBase
 
     val builder = new GuiceApplicationBuilder()
       .configure("create-internal-auth-token-on-start" -> false)
+      .configure("monthly-return-submission-work-item-job.enabled" -> false)
       .overrides(defaultOverrides ++ additionalOverrides: _*)
 
     builder

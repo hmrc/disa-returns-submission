@@ -17,21 +17,21 @@
 package uk.gov.hmrc.disareturnssubmission.testOnly.services
 
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
-import uk.gov.hmrc.disareturnssubmission.services.{ReportingWindowService, ResolvedReportingWindow}
+import uk.gov.hmrc.disareturnssubmission.services.*
 import uk.gov.hmrc.disareturnssubmission.testOnly.OverrideTimeSource
 import uk.gov.hmrc.disareturnssubmission.testOnly.repositories.TestOverrideRepository
 
 import java.time.Instant
-import javax.inject.{Inject, Singleton}
-import scala.concurrent.{ExecutionContext, Future}
+import javax.inject.*
+import scala.concurrent.*
 
 @Singleton
-class OverrideReportingWindowService @Inject() (
+class OverrideMonthlyReturnReportingWindowService @Inject() (
   appConfig: AppConfig,
   timeSource: OverrideTimeSource,
   repository: TestOverrideRepository
 )(implicit ec: ExecutionContext)
-    extends ReportingWindowService(appConfig, timeSource) {
+    extends MonthlyReturnReportingWindowService(appConfig, timeSource) {
 
   override def resolve(zReference: String): Future[ResolvedReportingWindow] =
     repository.getActive(zReference).flatMap { aggregate =>

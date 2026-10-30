@@ -18,7 +18,10 @@ package uk.gov.hmrc.disareturnssubmission
 
 import base.SpecBase
 import org.apache.pekko.Done
-import uk.gov.hmrc.disareturnssubmission.config.InternalAuthTokenInitialiser
+import org.mockito.Mockito.*
+import play.api.test.Helpers.*
+import uk.gov.hmrc.disareturnssubmission.config.*
+import uk.gov.hmrc.disareturnssubmission.jobs.MonthlyReturnSubmissionWorkItemJob
 
 import scala.concurrent.Future
 
@@ -28,9 +31,9 @@ class AppInitialiserSpec extends SpecBase {
     "must complete construction when internal-auth initialisation succeeds" in {
       val initialiser = internalAuthTokenInitialiser(Future.successful(Done))
 
-      val appInitialiser = new AppInitialiser(initialiser)
+      val appInitialiser = new AppInitialiser(initialiser, mock[AppConfig], mock[MonthlyReturnSubmissionWorkItemJob])
 
-      appInitialiser.initialised.futureValue mustBe Done
+      await(appInitialiser.initialised) mustBe Done
     }
 
     "must fail construction when internal-auth initialisation fails" in {
@@ -38,10 +41,36 @@ class AppInitialiserSpec extends SpecBase {
       val initialiser = internalAuthTokenInitialiser(Future.failed(exception))
 
       val thrown = intercept[RuntimeException] {
-        new AppInitialiser(initialiser)
+        new AppInitialiser(initialiser, mock[AppConfig], mock[MonthlyReturnSubmissionWorkItemJob])
       }
 
       thrown mustBe exception
+    }
+
+    "must start the submission job only when enabled" in
+      Seq(false, true).foreach { enabled =>
+        val config = mock[AppConfig]
+        val job    = mock[MonthlyReturnSubmissionWorkItemJob]
+        when(config.monthlyReturnSubmissionJobEnabled).thenReturn(enabled)
+
+        new AppInitialiser(internalAuthTokenInitialiser(Future.successful(Done)), config, job)
+
+        if (enabled) verify(job).start() else verifyNoInteractions(job)
+      }
+
+    "must not start the job if internal-auth initialization fails" in {
+      val config = mock[AppConfig]
+      val job    = mock[MonthlyReturnSubmissionWorkItemJob]
+      when(config.monthlyReturnSubmissionJobEnabled).thenReturn(true)
+
+      intercept[RuntimeException] {
+        new AppInitialiser(
+          internalAuthTokenInitialiser(Future.failed(new RuntimeException("auth unavailable"))),
+          config,
+          job
+        )
+      }
+      verifyNoInteractions(job)
     }
   }
 

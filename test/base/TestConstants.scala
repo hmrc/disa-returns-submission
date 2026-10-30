@@ -18,9 +18,13 @@ package base
 
 import play.api.libs.Files as PlayFiles
 import play.api.libs.Files.SingletonTemporaryFileCreator
-import uk.gov.hmrc.disareturnssubmission.models.{MonthlyReturn, SubmissionDetails}
+import play.api.libs.json.*
+import uk.gov.hmrc.disareturnssubmission.models.monthly.*
+import uk.gov.hmrc.disareturnssubmission.utils.Constants.NDJSON_MIME_TYPE
 import uk.gov.hmrc.objectstore.client.Md5Hash
 
+import java.nio.charset.StandardCharsets.UTF_8
+import java.nio.file.Files
 import java.time.Instant
 import java.util.UUID
 
@@ -75,13 +79,15 @@ trait TestConstants {
   val testNumberOfEntries = 2L
 
   protected val ndjsonContent: String =
-    """{"id": "1", "name": "test"}
-      |{"id": "2", "name": "test2"}
+    """{"accountNumber":"ACC123","nino":"AB123456C","firstName":"Ada","lastName":"Lovelace","dateOfBirth":"1980-01-02","amountTransferredIn":10,"amountTransferredOut":0,"dateOfLastSubscription":"2026-05-01","totalCurrentYearSubscriptionsToDate":20,"marketValueOfAccount":100,"isaType":"CASH","flexibleIsa":true}
+      |{"accountNumber":"ACC789","nino":"AB123456C","firstName":"Ada","lastName":"Lovelace","dateOfBirth":"1980-01-02","amountTransferredIn":10,"amountTransferredOut":0,"dateOfLastSubscription":"2026-05-01","totalCurrentYearSubscriptionsToDate":20,"marketValueOfAccount":100,"isaType":"LIFETIME","dateOfFirstSubscription":"2026-04-07","lisaQualifyingAddition":-3,"lisaBonusClaim":4}
       |""".stripMargin
+
+  protected val npsSubmissionJson: JsArray = JsArray(ndjsonContent.linesIterator.map(Json.parse).toSeq)
 
   protected val testTempFile: PlayFiles.TemporaryFile = {
     val file = SingletonTemporaryFileCreator.create("test", ".ndjson")
-    java.nio.file.Files.write(file.path, ndjsonContent.getBytes)
+    Files.write(file.path, ndjsonContent.getBytes(UTF_8))
     file
   }
 
@@ -95,9 +101,9 @@ trait TestConstants {
     lastUpdated = testCreatedOn
   )
 
-  protected val fileUploadDetails = SubmissionDetails(
+  protected val fileUploadDetails = MonthlyReturnSubmissionDetails(
     fileName = testUploadReference,
-    fileMimeType = "application/x-ndjson",
+    fileMimeType = NDJSON_MIME_TYPE,
     checksum = testMd5Hash.toString,
     size = testFileLength,
     numberOfEntries = testNumberOfEntries,

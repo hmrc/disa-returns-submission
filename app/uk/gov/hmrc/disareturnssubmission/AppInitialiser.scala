@@ -18,16 +18,20 @@ package uk.gov.hmrc.disareturnssubmission
 
 import org.apache.pekko.Done
 import play.api.Logging
-import uk.gov.hmrc.disareturnssubmission.config.InternalAuthTokenInitialiser
+import uk.gov.hmrc.disareturnssubmission.config.*
+import uk.gov.hmrc.disareturnssubmission.jobs.MonthlyReturnSubmissionWorkItemJob
 
-import javax.inject.{Inject, Singleton}
+import javax.inject.*
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.{Await, Future}
+import scala.concurrent.*
 import scala.util.control.NonFatal
+import scala.util.Try
 
 @Singleton
 class AppInitialiser @Inject() (
-  internalAuthTokenInitialiser: InternalAuthTokenInitialiser
+  internalAuthTokenInitialiser: InternalAuthTokenInitialiser,
+  appConfig: AppConfig,
+  monthlyReturnSubmissionWorkItemJob: MonthlyReturnSubmissionWorkItemJob
 ) extends Logging {
 
   val initialised: Future[Done] =
@@ -36,6 +40,12 @@ class AppInitialiser @Inject() (
   try {
     Await.result(initialised, 31.seconds)
     logger.info("[AppInitialiser] Internal auth initialiser completed")
+
+    if (appConfig.monthlyReturnSubmissionJobEnabled) {
+      Try(monthlyReturnSubmissionWorkItemJob.start()).failed.foreach { exception =>
+        logger.error("[AppInitialiser] Monthly return submission work item job failed to start", exception)
+      }
+    }
   } catch {
     case NonFatal(exception) =>
       logger.error("[AppInitialiser] Internal auth initialiser failed", exception)

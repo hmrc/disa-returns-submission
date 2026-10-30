@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.disareturnssubmission.models
+package uk.gov.hmrc.disareturnssubmission.models.monthly
 
 import base.SpecBase
-import play.api.libs.json.{JsObject, JsString, Json}
+import play.api.libs.json.*
 
 class MonthlyReturnSpec extends SpecBase {
 
@@ -99,14 +99,20 @@ class MonthlyReturnSpec extends SpecBase {
     "must report whether the reference belongs to a STORED submission" in {
       val monthlyReturn = emptyMonthlyReturn.copy(
         submissions = List(
-          Submission(
+          MonthlyReturnSubmission(
             reference = testUploadReference,
-            status = SubmissionStatus.Created,
+            status = MonthlyReturnSubmissionStatus.Created,
             createdOn = testCreatedOn
           ),
-          Submission(
+          MonthlyReturnSubmission(
             reference = "stored-reference",
-            status = SubmissionStatus.Stored,
+            status = MonthlyReturnSubmissionStatus.Stored,
+            createdOn = testCreatedOn,
+            submissionDetails = Some(fileUploadDetails)
+          ),
+          MonthlyReturnSubmission(
+            reference = "nps-submitted-reference",
+            status = MonthlyReturnSubmissionStatus.NpsSubmitted,
             createdOn = testCreatedOn,
             submissionDetails = Some(fileUploadDetails)
           )
@@ -115,11 +121,58 @@ class MonthlyReturnSpec extends SpecBase {
 
       monthlyReturn.hasStoredSubmission(testUploadReference) mustBe false
       monthlyReturn.hasStoredSubmission("stored-reference") mustBe true
+      monthlyReturn.hasStoredSubmission("nps-submitted-reference") mustBe false
       monthlyReturn.hasStoredSubmission("missing-reference") mustBe false
     }
   }
 
+  "hasNpsSubmittedSubmission" - {
+
+    "must match only the requested NPS_SUBMITTED submission" in {
+      val monthlyReturn = emptyMonthlyReturn.copy(submissions =
+        List(
+          MonthlyReturnSubmission("created-reference", MonthlyReturnSubmissionStatus.Created, testCreatedOn),
+          MonthlyReturnSubmission(
+            "stored-reference",
+            MonthlyReturnSubmissionStatus.Stored,
+            testCreatedOn,
+            Some(fileUploadDetails)
+          ),
+          MonthlyReturnSubmission(
+            testUploadReference,
+            MonthlyReturnSubmissionStatus.NpsSubmitted,
+            testCreatedOn,
+            Some(fileUploadDetails)
+          )
+        )
+      )
+
+      monthlyReturn.hasNpsSubmittedSubmission(testUploadReference) mustBe true
+      monthlyReturn.hasNpsSubmittedSubmission("created-reference") mustBe false
+      monthlyReturn.hasNpsSubmittedSubmission("stored-reference") mustBe false
+      monthlyReturn.hasNpsSubmittedSubmission("missing-reference") mustBe false
+    }
+  }
+
   "hasCreatedSubmission" - {
+
+    "must not allow an NPS_SUBMITTED submission to be uploaded again" in {
+      val submitted = emptyMonthlyReturn.copy(submissions =
+        List(
+          MonthlyReturnSubmission(
+            testUploadReference,
+            MonthlyReturnSubmissionStatus.NpsSubmitted,
+            testCreatedOn,
+            Some(fileUploadDetails)
+          )
+        )
+      )
+
+      submitted.hasStoredSubmission(testUploadReference) mustBe false
+      submitted.hasNpsSubmittedSubmission(testUploadReference) mustBe true
+      submitted.hasCreatedSubmission(testUploadReference) mustBe false
+      submitted.storeSubmission(testUploadReference, testUpscanCompletedOn, fileUploadDetails) mustBe submitted
+    }
 
     "must allow a missing submission before declaration" in {
       emptyMonthlyReturn.hasCreatedSubmission(testUploadReference) mustBe true
@@ -128,9 +181,9 @@ class MonthlyReturnSpec extends SpecBase {
     "must allow a CREATED submission after declaration" in {
       val monthlyReturn = emptyMonthlyReturn.copy(
         submissions = List(
-          Submission(
+          MonthlyReturnSubmission(
             reference = testUploadReference,
-            status = SubmissionStatus.Created,
+            status = MonthlyReturnSubmissionStatus.Created,
             createdOn = testCreatedOn
           )
         ),
@@ -170,14 +223,14 @@ class MonthlyReturnSpec extends SpecBase {
         )
 
       result.submissions mustBe List(
-        Submission(
+        MonthlyReturnSubmission(
           reference = testUploadReference,
-          status = SubmissionStatus.Created,
+          status = MonthlyReturnSubmissionStatus.Created,
           createdOn = testCreatedOn
         ),
-        Submission(
+        MonthlyReturnSubmission(
           reference = secondReference,
-          status = SubmissionStatus.Created,
+          status = MonthlyReturnSubmissionStatus.Created,
           createdOn = testCreatedOn
         )
       )
@@ -206,9 +259,9 @@ class MonthlyReturnSpec extends SpecBase {
       val result = pending.storeSubmission(testUploadReference, testUpscanCompletedOn, fileUploadDetails)
 
       result.submissions mustBe List(
-        Submission(
+        MonthlyReturnSubmission(
           reference = testUploadReference,
-          status = SubmissionStatus.Stored,
+          status = MonthlyReturnSubmissionStatus.Stored,
           createdOn = testCreatedOn,
           submissionDetails = Some(fileUploadDetails)
         )
@@ -220,9 +273,9 @@ class MonthlyReturnSpec extends SpecBase {
       val result = emptyMonthlyReturn.storeSubmission(testUploadReference, testCreatedOn, fileUploadDetails)
 
       result.submissions mustBe List(
-        Submission(
+        MonthlyReturnSubmission(
           reference = testUploadReference,
-          status = SubmissionStatus.Stored,
+          status = MonthlyReturnSubmissionStatus.Stored,
           createdOn = testCreatedOn,
           submissionDetails = Some(fileUploadDetails)
         )

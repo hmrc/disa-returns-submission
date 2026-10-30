@@ -14,12 +14,16 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.disareturnssubmission.models
+package uk.gov.hmrc.disareturnssubmission.models.monthly
 
-import play.api.libs.json.{Json, OFormat}
+import play.api.libs.json.*
 
-final case class CreateMonthlyReturnRequest(nilReturn: Boolean)
+final case class DeclareMonthlyReturnRequest(
+  nilReturn: Boolean,
+  pendingSubmissionIds: List[String] = Nil
+)
 
-object CreateMonthlyReturnRequest {
-  implicit val format: OFormat[CreateMonthlyReturnRequest] = Json.format[CreateMonthlyReturnRequest]
+object DeclareMonthlyReturnRequest {
+  implicit val format: OFormat[DeclareMonthlyReturnRequest] =
+    Json.using[Json.WithDefaultValues].format[DeclareMonthlyReturnRequest]
 }
