@@ -44,18 +44,20 @@ class NpsConnector @Inject() (
     BodyWritable(SourceBody(_), JSON)
 
   def sendSubmission(zReference: String, body: Source[ByteString, ?]): Future[Unit] =
-    retryFor[Unit](s"send NPS submission for zReference [$zReference]")(retryCondition) {
+    retryFor[Unit](s"[NpsConnector][sendSubmission] send NPS submission for zReference [$zReference]")(retryCondition) {
       httpClient
         .post(url"${appConfig.npsMonthlyReturnSubmissionService}/nps/submit/$zReference")(HeaderCarrier())
         .setHeader(AUTHORIZATION -> s"Bearer ${appConfig.npsMonthlyReturnBearerToken}")
         .withBody(body)
         .execute[HttpResponse]
         .flatMap { response =>
-          if (response.status == NO_CONTENT) Future.unit
-          else
+          if (response.status == NO_CONTENT) {
+            Future.unit
+          } else {
             Future.failed(
               UpstreamErrorResponse(s"NPS submission returned status [${response.status}]", response.status)
             )
+          }
         }
     }
 }

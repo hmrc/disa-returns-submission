@@ -37,11 +37,17 @@ import java.util.UUID
 import scala.concurrent.*
 class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
 
-  private val zReference        = testZReference
-  private val taxYear           = testTaxYear
-  private val month             = testMonth
-  private val submissionContext =
+  private val zReference              = testZReference
+  private val taxYear                 = testTaxYear
+  private val month                   = testMonth
+  private val submissionContext       =
     s"submission [$testUploadReference] for zReference [$zReference], taxYear [$taxYear], month [$month]"
+  private val previousTaxYear         = "2025-26"
+  private val futureTaxYear           = "2027-28"
+  private val now                     = Instant.parse("2026-06-17T12:00:00Z")
+  private val beforeDeclarationPeriod = Instant.parse("2026-06-05T23:59:59Z")
+  private val enqueueConfirmedMessage = "Confirmed NPS transfer work item"
+  private val enqueueFailureMessage   = s"Failed to store or enqueue $submissionContext"
 
   private val generatedSubmissionId = UUID.randomUUID()
 
@@ -61,7 +67,6 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
     "create" - {
 
       "must evaluate the reporting window at its already-resolved instant" in new TestSetup {
-        val now                    = Instant.parse("2026-06-17T12:00:00Z")
         val reportingWindowService = mock[MonthlyReturnReportingWindowService]
         val resolvedService        = new MonthlyReturnService(
           monthlyReturnRepository = mockMonthlyReturnRepository,
@@ -166,11 +171,11 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
       }
 
       "must return OutsideDeclarationPeriod if creating a return on April 2026 for April 2026" in new TestSetup {
-        val startDate = buildService(Instant.parse(s"2026-04-0${appConfig.declarationPeriodStart}T00:00:00Z"))
+        val startDate = buildService(aprilDeclarationStart)
 
         await(
           startDate
-            .create(zReference, "2025-26", 4, nilReturn = false)
+            .create(zReference, previousTaxYear, 4, nilReturn = false)
         ) mustBe
           CreateMonthlyReturnResult.OutsideDeclarationPeriod
 
@@ -178,30 +183,30 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
       }
 
       "must allow creating a return on April 2026 for March 2026 in the 2025-26 tax year" in new TestSetup {
-        val startDate = buildService(Instant.parse(s"2026-04-0${appConfig.declarationPeriodStart}T00:00:00Z"))
+        val startDate = buildService(aprilDeclarationStart)
         when(mockUuidGenerator.randomUuid()).thenReturn(testSubmissionId)
         when(
           mockMonthlyReturnRepository.create(
             eqTo(zReference),
-            eqTo("2025-26"),
+            eqTo(previousTaxYear),
             eqTo(3),
             eqTo(testSubmissionId),
             eqTo(false)
           )
-        ).thenReturn(Future.successful(Some(monthlyReturn.copy(taxYear = "2025-26", month = 3))))
+        ).thenReturn(Future.successful(Some(monthlyReturn.copy(taxYear = previousTaxYear, month = 3))))
 
         await(
           startDate
-            .create(zReference, "2025-26", 3, nilReturn = false)
+            .create(zReference, previousTaxYear, 3, nilReturn = false)
         ) mustBe CreateMonthlyReturnResult.Created(testSubmissionId)
       }
 
       "must return OutsideDeclarationPeriod if creating a return on April 2026 for the 2027-28 tax year" in new TestSetup {
-        val startDate = buildService(Instant.parse(s"2026-04-0${appConfig.declarationPeriodStart}T00:00:00Z"))
+        val startDate = buildService(aprilDeclarationStart)
 
         await(
           startDate
-            .create(zReference, "2027-28", 4, nilReturn = false)
+            .create(zReference, futureTaxYear, 4, nilReturn = false)
         ) mustBe
           CreateMonthlyReturnResult.OutsideDeclarationPeriod
 
@@ -209,11 +214,11 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
       }
 
       "must return OutsideDeclarationPeriod if creating a return on July 2026 for August 2026" in new TestSetup {
-        val startDate = buildService(Instant.parse(s"2026-07-0${appConfig.declarationPeriodStart}T00:00:00Z"))
+        val startDate = buildService(julyDeclarationStart)
 
         await(
           startDate
-            .create(zReference, "2026-27", 8, nilReturn = false)
+            .create(zReference, taxYear, 8, nilReturn = false)
         ) mustBe
           CreateMonthlyReturnResult.OutsideDeclarationPeriod
 
@@ -221,12 +226,12 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
       }
 
       "must allow creating a return on July 2026 for June 2026" in new TestSetup {
-        val startDate = buildService(Instant.parse(s"2026-07-0${appConfig.declarationPeriodStart}T00:00:00Z"))
+        val startDate = buildService(julyDeclarationStart)
         when(mockUuidGenerator.randomUuid()).thenReturn(testSubmissionId)
         when(
           mockMonthlyReturnRepository.create(
             eqTo(zReference),
-            eqTo("2026-27"),
+            eqTo(taxYear),
             eqTo(6),
             eqTo(testSubmissionId),
             eqTo(false)
@@ -235,7 +240,7 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
 
         await(
           startDate
-            .create(zReference, "2026-27", 6, nilReturn = false)
+            .create(zReference, taxYear, 6, nilReturn = false)
         ) mustBe CreateMonthlyReturnResult.Created(testSubmissionId)
       }
     }
@@ -272,10 +277,13 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
             Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared)
           )
 
-        await(
-          service
-            .declare(zReference, taxYear, month, nilReturn = false)
-        ) mustBe DeclareMonthlyReturnResult.Declared
+        withCaptureOfLoggingFrom(Logger(service.getClass)) { events =>
+          await(
+            service
+              .declare(zReference, taxYear, month, nilReturn = false)
+          ) mustBe DeclareMonthlyReturnResult.Declared
+          events.last.getMessage must startWith("[MonthlyReturnService][declareExistingReturn] Declared monthly return")
+        }
 
         verify(mockMonthlyReturnRepository).declare(eqTo(zReference), eqTo(taxYear), eqTo(month), eqTo(List.empty))
       }
@@ -336,7 +344,7 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
       }
 
       "must return OutsideDeclarationPeriod and not call the repository before the configured start day" in new TestSetup {
-        val beforeStartDayService = buildService(Instant.parse("2026-06-05T23:59:59Z"))
+        val beforeStartDayService = buildService(beforeDeclarationPeriod)
 
         await(beforeStartDayService.declare(zReference, taxYear, month, nilReturn = false)) mustBe
           DeclareMonthlyReturnResult.OutsideDeclarationPeriod
@@ -366,38 +374,38 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
       }
 
       "must return OutsideDeclarationPeriod if declaring on April 2026 for April 2026" in new TestSetup {
-        val startDate = buildService(Instant.parse(s"2026-04-0${appConfig.declarationPeriodStart}T00:00:00Z"))
+        val startDate = buildService(aprilDeclarationStart)
 
-        await(startDate.declare(zReference, "2025-26", 4, nilReturn = false)) mustBe
+        await(startDate.declare(zReference, previousTaxYear, 4, nilReturn = false)) mustBe
           DeclareMonthlyReturnResult.OutsideDeclarationPeriod
 
         verifyNoInteractions(mockMonthlyReturnRepository)
       }
 
       "must allow declaring on April 2026 for March 2026 in the 2025-26 tax year" in new TestSetup {
-        val startDate = buildService(Instant.parse(s"2026-04-0${appConfig.declarationPeriodStart}T00:00:00Z"))
-        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo("2025-26"), eqTo(3), eqTo(List.empty)))
+        val startDate = buildService(aprilDeclarationStart)
+        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo(previousTaxYear), eqTo(3), eqTo(List.empty)))
           .thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared))
 
-        await(startDate.declare(zReference, "2025-26", 3, nilReturn = false)) mustBe
+        await(startDate.declare(zReference, previousTaxYear, 3, nilReturn = false)) mustBe
           DeclareMonthlyReturnResult.Declared
       }
 
       "must return OutsideDeclarationPeriod if declaring on April 2026 for the 2027-28 tax year" in new TestSetup {
-        val startDate = buildService(Instant.parse(s"2026-04-0${appConfig.declarationPeriodStart}T00:00:00Z"))
+        val startDate = buildService(aprilDeclarationStart)
 
-        await(startDate.declare(zReference, "2027-28", 4, nilReturn = false)) mustBe
+        await(startDate.declare(zReference, futureTaxYear, 4, nilReturn = false)) mustBe
           DeclareMonthlyReturnResult.OutsideDeclarationPeriod
 
         verifyNoInteractions(mockMonthlyReturnRepository)
       }
 
       "must return OutsideDeclarationPeriod if declaring on July 2026 for August 2026" in new TestSetup {
-        val startDate = buildService(Instant.parse(s"2026-07-0${appConfig.declarationPeriodStart}T00:00:00Z"))
+        val startDate = buildService(julyDeclarationStart)
 
         await(
           startDate
-            .declare(zReference, "2026-27", 8, nilReturn = false)
+            .declare(zReference, taxYear, 8, nilReturn = false)
         ) mustBe
           DeclareMonthlyReturnResult.OutsideDeclarationPeriod
 
@@ -405,13 +413,13 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
       }
 
       "must allow declaring on July 2026 for June 2026" in new TestSetup {
-        val startDate = buildService(Instant.parse(s"2026-07-0${appConfig.declarationPeriodStart}T00:00:00Z"))
-        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo("2026-27"), eqTo(6), eqTo(List.empty)))
+        val startDate = buildService(julyDeclarationStart)
+        when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo(taxYear), eqTo(6), eqTo(List.empty)))
           .thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared))
 
         await(
           startDate
-            .declare(zReference, "2026-27", 6, nilReturn = false)
+            .declare(zReference, taxYear, 6, nilReturn = false)
         ) mustBe DeclareMonthlyReturnResult.Declared
       }
     }
@@ -481,7 +489,7 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
           await(service.storeSubmission(zReference, taxYear, month, testUploadReference, testTempFile)) mustBe
             SubmitReturnResult.SubmissionConflict
           events.last.getLevel mustBe INFO
-          events.last.getMessage must include(s"Confirmed NPS transfer work item for $submissionContext")
+          events.last.getMessage must include(s"$enqueueConfirmedMessage for $submissionContext")
         }
 
         verifyNoInteractions(mockSubStoreAction)
@@ -507,8 +515,8 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
           await(service.storeSubmission(zReference, taxYear, month, testUploadReference, testTempFile)) mustBe
             SubmitReturnResult.SubmissionConflict
           events.last.getLevel mustBe INFO
-          events.last.getMessage must include(s"already submitted to NPS; skipping enqueue for $submissionContext")
-          events.exists(_.getMessage.contains("Confirmed NPS transfer work item")) mustBe false
+          events.last.getMessage must include(s"already submitted to NPS - skipping enqueue for $submissionContext")
+          events.exists(_.getMessage.contains(enqueueConfirmedMessage)) mustBe false
         }
 
         verifyNoInteractions(mockSubStoreAction, mockWorkItemRepository)
@@ -525,12 +533,12 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
           val result = service.storeSubmission(zReference, taxYear, month, testUploadReference, testTempFile)
           verify(mockWorkItemRepository, mockitoTimeout(1000)).enqueue(any())
           result.isCompleted mustBe false
-          events.exists(_.getMessage.contains("Confirmed NPS transfer work item")) mustBe false
+          events.exists(_.getMessage.contains(enqueueConfirmedMessage)) mustBe false
           enqueued.success(())
 
           await(result) mustBe SubmitReturnResult.UpdateSuccessful
           events.last.getLevel mustBe INFO
-          events.last.getMessage must include(s"Confirmed NPS transfer work item for $submissionContext")
+          events.last.getMessage must include(s"$enqueueConfirmedMessage for $submissionContext")
         }
       }
 
@@ -538,7 +546,7 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
         when(mockMonthlyReturnRepository.get(any(), any(), any())).thenReturn(Future.successful(Some(monthlyReturn)))
         when(mockSubStoreAction.store(any(), any(), any()))
           .thenReturn(Future.successful(SubmitReturnResult.UpdateSuccessful))
-        when(mockWorkItemRepository.enqueue(any())).thenReturn(Future.failed(new MongoException("mongo unavailable")))
+        when(mockWorkItemRepository.enqueue(any())).thenReturn(Future.failed(enqueueFailure))
 
         withCaptureOfLoggingFrom(Logger(service.getClass)) { events =>
           await(service.storeSubmission(zReference, taxYear, month, testUploadReference, testTempFile).failed) mustBe
@@ -547,11 +555,11 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
           retries.size mustBe appConfig.monthlyReturnSubmissionEnqueueAttempts - 1
           retries.map(_.getMessage) mustBe (appConfig.monthlyReturnSubmissionEnqueueAttempts - 1 to 1 by -1).map {
             remaining =>
-              s"[MonthlyReturnService][retryMongo] Retrying NPS enqueue for $submissionContext in [1 second]; attempts remaining [$remaining], error [MongoException]"
+              s"[MonthlyReturnService][retryMongo] Retrying NPS enqueue for $submissionContext in [1 second] - attempts remaining [$remaining], error [MongoException]"
           }.toList
           events.last.getLevel mustBe ERROR
-          events.last.getMessage must include(s"Failed to store or enqueue $submissionContext")
-          events.exists(_.getMessage.contains("Confirmed NPS transfer work item")) mustBe false
+          events.last.getMessage must include(enqueueFailureMessage)
+          events.exists(_.getMessage.contains(enqueueConfirmedMessage)) mustBe false
         }
         verify(mockWorkItemRepository, times(appConfig.monthlyReturnSubmissionEnqueueAttempts)).enqueue(any())
       }
@@ -561,7 +569,7 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
         when(mockSubStoreAction.store(any(), any(), any()))
           .thenReturn(Future.successful(SubmitReturnResult.UpdateSuccessful))
         when(mockWorkItemRepository.enqueue(any()))
-          .thenReturn(Future.failed(new MongoException("mongo unavailable")), Future.unit)
+          .thenReturn(Future.failed(enqueueFailure), Future.unit)
 
         withCaptureOfLoggingFrom(Logger(service.getClass)) { events =>
           await(service.storeSubmission(zReference, taxYear, month, testUploadReference, testTempFile)) mustBe
@@ -569,7 +577,7 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
           events.count(_.getLevel == WARN) mustBe 1
           events.find(_.getLevel == WARN).value.getMessage must include(s"Retrying NPS enqueue for $submissionContext")
           events.last.getLevel mustBe INFO
-          events.last.getMessage                           must include(s"Confirmed NPS transfer work item for $submissionContext")
+          events.last.getMessage                           must include(s"$enqueueConfirmedMessage for $submissionContext")
         }
         verify(mockWorkItemRepository, times(2)).enqueue(any())
         verify(mockSubStoreAction).store(any(), any(), any())
@@ -587,9 +595,9 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
             service.storeSubmission(zReference, taxYear, month, testUploadReference, testTempFile).failed
           ) mustBe failure
           events.last.getLevel mustBe ERROR
-          events.last.getMessage must include(s"Failed to store or enqueue $submissionContext")
+          events.last.getMessage must include(enqueueFailureMessage)
           events.exists(_.getMessage.contains("Retrying NPS enqueue")) mustBe false
-          events.exists(_.getMessage.contains("Confirmed NPS transfer work item")) mustBe false
+          events.exists(_.getMessage.contains(enqueueConfirmedMessage)) mustBe false
         }
         verify(mockWorkItemRepository).enqueue(any())
         verify(mockSubStoreAction).store(any(), any(), any())
@@ -824,7 +832,7 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
       }
 
       "must return OutsideDeclarationPeriod when outside declaration period" in new TestSetup {
-        val beforeStartDayService = buildService(Instant.parse("2026-06-05T23:59:59Z"))
+        val beforeStartDayService = buildService(beforeDeclarationPeriod)
 
         await(beforeStartDayService.declare(zReference, taxYear, month, nilReturn = true)) mustBe
           DeclareMonthlyReturnResult.OutsideDeclarationPeriod
@@ -852,7 +860,7 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
 
       "must fail when repository throws an exception" in new TestSetup {
         when(mockMonthlyReturnRepository.declareNilReturn(eqTo(zReference), eqTo(taxYear), eqTo(month)))
-          .thenReturn(Future.failed(new RuntimeException("mongodb down")))
+          .thenReturn(Future.failed(new RuntimeException(testMongoDownMessage)))
 
         await(service.declare(zReference, taxYear, month, nilReturn = true).failed) mustBe a[RuntimeException]
       }
@@ -866,7 +874,10 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
     val appConfig                   = inject[AppConfig]
     val mockUuidGenerator           = mock[UuidGenerator]
     val mockWorkItemRepository      = mock[MonthlyReturnSubmissionWorkItemRepository]
-    val service                     = buildService(Instant.parse("2026-06-17T12:00:00Z"))
+    val aprilDeclarationStart       = Instant.parse(s"2026-04-0${appConfig.declarationPeriodStart}T00:00:00Z")
+    val julyDeclarationStart        = Instant.parse(s"2026-07-0${appConfig.declarationPeriodStart}T00:00:00Z")
+    val enqueueFailure              = new MongoException("mongo unavailable")
+    val service                     = buildService(now)
 
     when(mockWorkItemRepository.enqueue(any[MonthlyReturnSubmissionWorkItem])).thenReturn(Future.unit)
 

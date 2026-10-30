@@ -27,7 +27,11 @@ import scala.concurrent.Future
 
 class MonthlyReturnReportingWindowServiceSpec extends SpecBase {
 
-  private val appConfig = inject[AppConfig]
+  private val appConfig               = inject[AppConfig]
+  private val withinDeclarationPeriod = Instant.parse("2026-04-12T00:00:00Z")
+  private val endOfDay                = LocalTime.of(23, 59, 59)
+  private val configuredStartDay      = 6
+  private val configuredEndDay        = 31
 
   private def buildService(now: Instant, config: AppConfig = appConfig): MonthlyReturnReportingWindowService =
     new MonthlyReturnReportingWindowService(
@@ -41,9 +45,8 @@ class MonthlyReturnReportingWindowServiceSpec extends SpecBase {
 
       "must resolve time once and evaluate that exact instant" in {
         val timeSource = mock[TimeSource]
-        val instant    = Instant.parse("2026-04-12T00:00:00Z")
         when(timeSource.resolve(testZReference)).thenReturn(
-          Future.successful(ResolvedInstant(instant, overridden = true))
+          Future.successful(ResolvedInstant(withinDeclarationPeriod, overridden = true))
         )
 
         await(new MonthlyReturnReportingWindowService(appConfig, timeSource).isOpen(testZReference)) mustBe true
@@ -66,7 +69,7 @@ class MonthlyReturnReportingWindowServiceSpec extends SpecBase {
       }
 
       "must return true when today's day of month is between declarationPeriodStart and declarationPeriodEnd" in {
-        await(buildService(Instant.parse("2026-04-12T00:00:00Z")).isOpen(testZReference)) mustBe true
+        await(buildService(withinDeclarationPeriod).isOpen(testZReference)) mustBe true
       }
 
       "must return false when today's day of month is before declarationPeriodStart" in {
@@ -79,15 +82,14 @@ class MonthlyReturnReportingWindowServiceSpec extends SpecBase {
     }
 
     "resolve must return the default window bounds for the instant's calendar month" in {
-      val instant       = Instant.parse("2026-04-12T00:00:00Z")
       val expectedStart =
         LocalDate.of(2026, 4, appConfig.declarationPeriodStart).atStartOfDay(ZoneOffset.UTC).toInstant
       val expectedEnd   =
-        LocalDate.of(2026, 4, appConfig.declarationPeriodEnd).atTime(23, 59, 59).atZone(ZoneOffset.UTC).toInstant
+        LocalDate.of(2026, 4, appConfig.declarationPeriodEnd).atTime(endOfDay).atZone(ZoneOffset.UTC).toInstant
 
-      val result = await(buildService(instant).resolve(testZReference))
+      val result = await(buildService(withinDeclarationPeriod).resolve(testZReference))
 
-      result.instant mustBe instant
+      result.instant mustBe withinDeclarationPeriod
       result.windowStart mustBe expectedStart
       result.windowEnd mustBe expectedEnd
       result.isOpen mustBe true
@@ -95,8 +97,8 @@ class MonthlyReturnReportingWindowServiceSpec extends SpecBase {
 
     "resolve must cap a configured end day of 31 at the last day of shorter months" in {
       val config = mock[AppConfig]
-      when(config.declarationPeriodStart).thenReturn(6)
-      when(config.declarationPeriodEnd).thenReturn(31)
+      when(config.declarationPeriodStart).thenReturn(configuredStartDay)
+      when(config.declarationPeriodEnd).thenReturn(configuredEndDay)
 
       Seq(
         ("2026-09-25", "2026-09-30"),
@@ -106,16 +108,20 @@ class MonthlyReturnReportingWindowServiceSpec extends SpecBase {
       ).foreach { (today, lastDay) =>
         val result = await(buildService(Instant.parse(s"${today}T12:00:00Z"), config).resolve(testZReference))
 
-        result.windowStart mustBe LocalDate.parse(today).withDayOfMonth(6).atStartOfDay(ZoneOffset.UTC).toInstant
-        result.windowEnd mustBe LocalDate.parse(lastDay).atTime(23, 59, 59).atZone(ZoneOffset.UTC).toInstant
+        result.windowStart mustBe LocalDate
+          .parse(today)
+          .withDayOfMonth(configuredStartDay)
+          .atStartOfDay(ZoneOffset.UTC)
+          .toInstant
+        result.windowEnd mustBe LocalDate.parse(lastDay).atTime(endOfDay).atZone(ZoneOffset.UTC).toInstant
         result.isOpen mustBe true
       }
     }
 
     "resolve must cap a configured start and end day of 31 and open only on the last day" in {
       val config = mock[AppConfig]
-      when(config.declarationPeriodStart).thenReturn(31)
-      when(config.declarationPeriodEnd).thenReturn(31)
+      when(config.declarationPeriodStart).thenReturn(configuredEndDay)
+      when(config.declarationPeriodEnd).thenReturn(configuredEndDay)
 
       Seq(
         ("2026-09-30", "2026-09-29"),
@@ -127,7 +133,7 @@ class MonthlyReturnReportingWindowServiceSpec extends SpecBase {
         val result   = await(buildService(Instant.parse(s"${lastDay}T12:00:00Z"), config).resolve(testZReference))
 
         result.windowStart mustBe lastDate.atStartOfDay(ZoneOffset.UTC).toInstant
-        result.windowEnd mustBe lastDate.atTime(23, 59, 59).atZone(ZoneOffset.UTC).toInstant
+        result.windowEnd mustBe lastDate.atTime(endOfDay).atZone(ZoneOffset.UTC).toInstant
         result.isOpen mustBe true
         await(buildService(Instant.parse(s"${previousDay}T12:00:00Z"), config).isOpen(testZReference)) mustBe false
       }

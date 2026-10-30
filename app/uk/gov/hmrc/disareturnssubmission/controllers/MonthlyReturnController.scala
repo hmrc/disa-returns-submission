@@ -52,7 +52,7 @@ class MonthlyReturnController @Inject() (
       withValidMonthlyReturnParams(zReference, taxYear, month) { (validZReference, validTaxYear, validMonth) =>
         withJsonBody[CreateMonthlyReturnRequest] { createRequest =>
           logger.info(
-            s"[MonthlyReturnController][createMonthlyReturn] Create monthly return request for zReference [$validZReference], taxYear [$validTaxYear], month [$validMonth], nilReturn [${createRequest.nilReturn}]"
+            s"[MonthlyReturnController][create] Create monthly return request for zReference [$validZReference], taxYear [$validTaxYear], month [$validMonth], nilReturn [${createRequest.nilReturn}]"
           )
 
           monthlyReturnService
@@ -75,7 +75,7 @@ class MonthlyReturnController @Inject() (
   def get(zReference: String, taxYear: String, month: Int): Action[AnyContent] =
     auth.authorizedAction(readPermission).async {
       logger.info(
-        s"[MonthlyReturnController][getMonthlyReturn] Get monthly return request for zReference [$zReference], taxYear [$taxYear], month [$month]"
+        s"[MonthlyReturnController][get] Get monthly return request for zReference [$zReference], taxYear [$taxYear], month [$month]"
       )
 
       withValidMonthlyReturnParams(zReference, taxYear, month) { (validZReference, validTaxYear, validMonth) =>

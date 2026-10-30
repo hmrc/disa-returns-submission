@@ -42,19 +42,33 @@ class AppConfigSpec extends SpecBase {
       config.npsMonthlyReturnSubmissionService mustBe "http://localhost:1204"
       config.npsMonthlyReturnBearerToken mustBe "nps-stub-token"
     }
+
+    "must default to 3000 records per submission and accept an override" in {
+      val overriddenLimit = 2500
+      inject[AppConfig].monthlyReturnMaxRecordsPerSubmission mustBe 3000
+      configured(
+        "monthly-return.max-records-per-submission",
+        overriddenLimit
+      ).monthlyReturnMaxRecordsPerSubmission mustBe overriddenLimit
+    }
   }
 
   "submission work item configuration" - {
     "must read the configured polling and retry settings" in {
-      val config = inject[AppConfig]
+      val enabledKey                = "monthly-return-submission-work-item-job.enabled"
+      val overriddenEnqueueAttempts = 2
+      val config                    = inject[AppConfig]
       config.monthlyReturnSubmissionEnqueueAttempts mustBe 3
       config.monthlyReturnSubmissionJobFailedRetryAfter mustBe Duration.ofMinutes(10)
       config.monthlyReturnSubmissionJobInProgressRetryAfter mustBe Duration.ofMinutes(15)
       config.monthlyReturnSubmissionJobPollInterval mustBe 10.seconds
       config.monthlyReturnSubmissionJobWorkerCount mustBe 2
-      configured("enabled", true).monthlyReturnSubmissionJobEnabled mustBe true
-      configured("enabled", false).monthlyReturnSubmissionJobEnabled mustBe false
-      configured("enqueueAttempts", 2).monthlyReturnSubmissionEnqueueAttempts mustBe 2
+      configured(enabledKey, true).monthlyReturnSubmissionJobEnabled mustBe true
+      configured(enabledKey, false).monthlyReturnSubmissionJobEnabled mustBe false
+      configured(
+        "monthly-return-submission-work-item-job.enqueueAttempts",
+        overriddenEnqueueAttempts
+      ).monthlyReturnSubmissionEnqueueAttempts mustBe overriddenEnqueueAttempts
     }
 
   }
@@ -63,7 +77,7 @@ class AppConfigSpec extends SpecBase {
     new AppConfig(
       Configuration(
         app.configuration.underlying.withValue(
-          s"monthly-return-submission-work-item-job.$key",
+          key,
           ConfigValueFactory.fromAnyRef(value)
         )
       ),

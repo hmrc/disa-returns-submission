@@ -19,32 +19,40 @@ package uk.gov.hmrc.disareturnssubmission
 import base.SpecBase
 import org.apache.pekko.Done
 import org.mockito.Mockito.*
+import play.api.Logger
 import play.api.test.Helpers.*
 import uk.gov.hmrc.disareturnssubmission.config.*
 import uk.gov.hmrc.disareturnssubmission.jobs.MonthlyReturnSubmissionWorkItemJob
+import uk.gov.hmrc.play.bootstrap.tools.LogCapturing
 
 import scala.concurrent.Future
 
-class AppInitialiserSpec extends SpecBase {
+class AppInitialiserSpec extends SpecBase with LogCapturing {
 
   "AppInitialiser" - {
     "must complete construction when internal-auth initialisation succeeds" in {
       val initialiser = internalAuthTokenInitialiser(Future.successful(Done))
 
-      val appInitialiser = new AppInitialiser(initialiser, mock[AppConfig], mock[MonthlyReturnSubmissionWorkItemJob])
+      withCaptureOfLoggingFrom(Logger(classOf[AppInitialiser])) { events =>
+        val appInitialiser = new AppInitialiser(initialiser, mock[AppConfig], mock[MonthlyReturnSubmissionWorkItemJob])
 
-      await(appInitialiser.initialised) mustBe Done
+        await(appInitialiser.initialised) mustBe Done
+        events.map(_.getMessage) must contain("[AppInitialiser][<init>] Internal auth initialiser completed")
+      }
     }
 
     "must fail construction when internal-auth initialisation fails" in {
       val exception   = new RuntimeException("Internal-auth initialisation failed")
       val initialiser = internalAuthTokenInitialiser(Future.failed(exception))
 
-      val thrown = intercept[RuntimeException] {
-        new AppInitialiser(initialiser, mock[AppConfig], mock[MonthlyReturnSubmissionWorkItemJob])
-      }
+      withCaptureOfLoggingFrom(Logger(classOf[AppInitialiser])) { events =>
+        val thrown = intercept[RuntimeException] {
+          new AppInitialiser(initialiser, mock[AppConfig], mock[MonthlyReturnSubmissionWorkItemJob])
+        }
 
-      thrown mustBe exception
+        thrown mustBe exception
+        events.last.getMessage mustBe "[AppInitialiser][<init>] Internal auth initialiser failed"
+      }
     }
 
     "must start the submission job only when enabled" in

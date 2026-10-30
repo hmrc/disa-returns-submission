@@ -165,28 +165,38 @@ return `409`. Repeating a stored submission retries enqueueing without uploading
 
 ### NPS submissions
 
-The job downloads NDJSON from Object Store, converts it to a JSON array and streams it to NPS. The payload models
+The job downloads NDJSON from Object Store, converts it to JSON-array batches and streams them sequentially to NPS. The payload models
 currently match the four submission types in `disa-returns-backend` and `disa-returns`; the NPS schema will follow later.
-Conversion reads one record at a time using Play's JSON defaults and sends only model fields. Invalid records
-prevent the request. An NPS `204` sets `NPS_SUBMITTED` and completes the work item; completed submissions are skipped.
+Conversion reads one record at a time using Play's JSON defaults and sends only model fields. The entire input is
+validated before any batch is sent; an invalid later record prevents all requests. Only after every batch receives
+NPS `204` is `NPS_SUBMITTED` set and the work item completed; completed submissions are skipped.
+
+`monthly-return.max-records-per-submission = 3000` in `conf/application.conf` and `app-config-base` controls the
+positive maximum record count per request. Batches preserve record order and never split a record. For example,
+3,001 records produce batches of 3,000 and 1. This is not a byte cap: larger fields or schema changes increase payload size.
 
 Job settings are under `monthly-return-submission-work-item-job` in `conf/application.conf`. Enqueue attempts are
 one second apart. Connector 5xx retries use `http-verbs.retries.intervals`; failed work items, including 4xx failures,
-retry after `failedRetryAfter`. Set `inProgressRetryAfter` longer than the longest transfer to avoid concurrent processing.
+retry after `failedRetryAfter`. A failed batch stops later batches; the delayed retry downloads and replays the whole
+submission from its first batch. No batch progress is persisted because NPS accepts repeated account records for a ZREF.
+Set `inProgressRetryAfter` longer than the complete download, conversion and all batch requests, including connector
+retries, to avoid concurrent processing.
 
 Set `monthly-return-submission-work-item-job.enabled=false` and restart all instances to pause workers.
 Submissions still queue while paused. Retries and pauses must stay within the return and Object Store retention periods.
 
-Temporary files are deleted after use; allow disk space for both NDJSON and JSON per worker. The reaper scans every
-five minutes and removes files unmodified for ten minutes, even if still in use. Increase
-`play.temporaryFile.reaper.olderThan` for longer transfers. Object Store files remain NDJSON.
+Payloads stay on disk; memory holds one record, bounded I/O buffers and batch paths/counts rather than a batch of
+account objects. Allow disk space for both NDJSON and all converted JSON per worker. The source is deleted after
+conversion, accepted batches after sending, and remaining files after success or failure. The reaper scans every
+five minutes and removes files unmodified for ten minutes, even if still in use. Set
+`play.temporaryFile.reaper.olderThan` longer than the complete attempt, including time later batches wait to send.
+Object Store files remain NDJSON.
 
 NPS settings are under `microservice.services.nps-monthly-return-submission`, including the bearer token. Locally the
 endpoint is `http://localhost:1204/nps/submit/:zReference`. Deployment config must use `disa-returns-stubs.protected.mdtp`
 over HTTPS. Incoming credentials are not forwarded.
 
-A crash after NPS accepts a request but before Mongo records success can cause a resend. NPS idempotency is not
-implemented. Files aren't split, so the stub's request-size limit still applies.
+A crash after NPS accepts batches but before Mongo records success also replays the whole submission.
 
 #### Checking locally
 
@@ -194,8 +204,10 @@ Start Object Store, internal-auth and `disa-returns-stubs`, then run submission 
 
 - `MonthlyReturn/NPS/01-200-nps-submitted`: expect `NPS_SUBMITTED` and a `succeeded` item in
   `monthlyReturnSubmissionWorkItems`.
-- `MonthlyReturn/NPS/02-200-nps-failure`: `Z1503` returns `503`; expect `STORED` and a `failed` item. Check retries respect
+- `MonthlyReturn/NPS/02-200-nps-failure`: `Z1503` returns `503` - expect `STORED` and a `failed` item. Check retries respect
   `failedRetryAfter`. `Z1400` returns `400` and also uses delayed work-item retries.
+- `MonthlyReturn/NPS/03-200-nps-batched`: generates 3,001 records - expect two NPS requests (3,000 and 1),
+  `NPS_SUBMITTED` and a `succeeded` item with the default limit.
 - With the job disabled, upload a submission and check it stays `STORED` with a `todo` item. Re-enable and restart to
   process the backlog.
 
