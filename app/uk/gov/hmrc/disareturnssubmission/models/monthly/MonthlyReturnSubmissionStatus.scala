@@ -14,31 +14,35 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.disareturnssubmission.models
+package uk.gov.hmrc.disareturnssubmission.models.monthly
 
 import play.api.libs.json.*
 
-sealed trait SubmissionStatus {
+sealed trait MonthlyReturnSubmissionStatus {
   val value: String
 }
 
-object SubmissionStatus {
+object MonthlyReturnSubmissionStatus {
 
-  case object Created extends SubmissionStatus {
+  case object Created extends MonthlyReturnSubmissionStatus {
     override val value: String = "CREATED"
   }
 
-  case object Stored extends SubmissionStatus {
+  case object Stored extends MonthlyReturnSubmissionStatus {
     override val value: String = "STORED"
   }
 
-  val values: Seq[SubmissionStatus] =
-    Seq(Created, Stored)
+  case object NpsSubmitted extends MonthlyReturnSubmissionStatus {
+    override val value: String = "NPS_SUBMITTED"
+  }
 
-  private def fromString(value: String): Option[SubmissionStatus] =
+  val values: Seq[MonthlyReturnSubmissionStatus] =
+    Seq(Created, Stored, NpsSubmitted)
+
+  private def fromString(value: String): Option[MonthlyReturnSubmissionStatus] =
     values.find(_.value == value)
 
-  implicit val reads: Reads[SubmissionStatus] = Reads {
+  implicit val reads: Reads[MonthlyReturnSubmissionStatus] = Reads {
     case JsString(value) =>
       fromString(value)
         .map(JsSuccess(_))
@@ -47,9 +51,9 @@ object SubmissionStatus {
       JsError("Submission status must be a string")
   }
 
-  implicit val writes: Writes[SubmissionStatus] =
+  implicit val writes: Writes[MonthlyReturnSubmissionStatus] =
     Writes(status => JsString(status.value))
 
-  implicit val format: Format[SubmissionStatus] =
+  implicit val format: Format[MonthlyReturnSubmissionStatus] =
     Format(reads, writes)
 }

@@ -1,0 +1,53 @@
+meta {
+  name: 02-200-nps-failure
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}{{servicePath}}/monthly/Z1503/{{taxYear}}/{{month}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+script:pre-request {
+  const root = `${bru.getEnvVar("baseUrl")}${bru.getEnvVar("servicePath")}`;
+  const headers = { Authorization: bru.getEnvVar("internalAuthToken"), "Content-Type": "application/json" };
+  const monthlyUrl = `${root}/monthly/Z1503/${bru.getEnvVar("taxYear")}/${bru.getEnvVar("month")}`;
+  const override = await bru.sendRequest({
+    method: "PUT", url: `${root}/test-only/overrides`, headers,
+    data: { zReferences: ["Z1503"], clock: { date: bru.getEnvVar("declarationPeriodDate") } }
+  });
+  if (override.status !== 204) throw new Error(`Clock setup failed: ${override.status}`);
+
+  const created = await bru.sendRequest({
+    method: "POST", url: monthlyUrl, headers, data: { nilReturn: false }, validateStatus: null
+  });
+  if (![201, 409].includes(created.status)) throw new Error(`Monthly return setup failed: ${created.status}`);
+
+  const reference = `nps-failure-${Date.now()}`;
+  bru.setVar("npsFailedSubmissionId", reference);
+  const stored = await bru.sendRequest({
+    method: "PUT", url: `${monthlyUrl}/submissions/${reference}`,
+    headers: { ...headers, "Content-Type": "application/x-ndjson" },
+    data: '{"accountNumber":"ACC123","nino":"AB123456C","firstName":"Ada","lastName":"Lovelace","dateOfBirth":"1980-01-02","amountTransferredIn":10.00,"amountTransferredOut":0.00,"dateOfLastSubscription":"2026-05-01","totalCurrentYearSubscriptionsToDate":20.00,"marketValueOfAccount":100.00,"isaType":"CASH","flexibleIsa":true}\n'
+  });
+  if (stored.status !== 200) throw new Error(`Submission storage failed: ${stored.status}`);
+}
+
+tests {
+  test("submission remains stored when NPS rejects the transfer", function() {
+    const body = typeof res.body === "string" ? JSON.parse(res.body) : res.body;
+    expect(body.submissions.find(s => s.reference === bru.getVar("npsFailedSubmissionId")).status).to.equal("STORED");
+  });
+}
+
+docs {
+  The stub returns 503 for Z1503. In local Mongo, find this submission reference in
+  monthlyReturnSubmissionWorkItems and verify status Failed. Its failureCount must
+  not increase again before monthly-return-submission-work-item-job.failedRetryAfter.
+}

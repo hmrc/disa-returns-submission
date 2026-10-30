@@ -17,7 +17,7 @@
 package uk.gov.hmrc.disareturnssubmission.controllers
 
 import base.SpecBase
-import org.mockito.Mockito.{reset, when}
+import org.mockito.Mockito.*
 import org.scalatest.BeforeAndAfterEach
 import play.api.Application
 import play.api.http.HeaderNames.AUTHORIZATION
@@ -25,23 +25,23 @@ import play.api.inject.bind
 import play.api.libs.json.Json
 import play.api.test.FakeRequest
 import play.api.test.Helpers.*
-import uk.gov.hmrc.disareturnssubmission.models.ReportingWindowStatus
-import uk.gov.hmrc.disareturnssubmission.services.{ReportingWindowService, ResolvedReportingWindow}
+import uk.gov.hmrc.disareturnssubmission.models.monthly.MonthlyReturnReportingWindowStatus
+import uk.gov.hmrc.disareturnssubmission.services.*
 
 import java.time.Instant
 import scala.concurrent.Future
 
-class ReportingWindowControllerSpec extends SpecBase with BeforeAndAfterEach {
+class MonthlyReturnReportingWindowControllerSpec extends SpecBase with BeforeAndAfterEach {
 
-  private val mockReportingWindowService = mock[ReportingWindowService]
+  private val mockReportingWindowService = mock[MonthlyReturnReportingWindowService]
 
   override lazy val app: Application = applicationBuilder(
     Seq(
-      bind[ReportingWindowService].toInstance(mockReportingWindowService)
+      bind[MonthlyReturnReportingWindowService].toInstance(mockReportingWindowService)
     )
   ).build()
 
-  private lazy val controller = inject[ReportingWindowController]
+  private lazy val controller = inject[MonthlyReturnReportingWindowController]
 
   private val path                   = s"/reporting-window/status/$testZReference"
   private val validInternalAuthToken = "valid-internal-auth-token-disa-returns-backend"
@@ -58,7 +58,7 @@ class ReportingWindowControllerSpec extends SpecBase with BeforeAndAfterEach {
   private val testWindowStart = Instant.parse("2026-04-06T00:00:00Z")
   private val testWindowEnd   = Instant.parse("2026-04-19T23:59:59Z")
 
-  "ReportingWindowController" - {
+  "MonthlyReturnReportingWindowController" - {
 
     "status" - {
 
@@ -71,7 +71,7 @@ class ReportingWindowControllerSpec extends SpecBase with BeforeAndAfterEach {
 
         status(result) mustBe OK
         contentAsJson(result) mustBe Json.toJson(
-          ReportingWindowStatus(
+          MonthlyReturnReportingWindowStatus(
             reportingWindowOpen = true,
             reportingWindowStart = testWindowStart,
             reportingWindowEnd = testWindowEnd,
@@ -89,7 +89,7 @@ class ReportingWindowControllerSpec extends SpecBase with BeforeAndAfterEach {
 
         status(result) mustBe OK
         contentAsJson(result) mustBe Json.toJson(
-          ReportingWindowStatus(
+          MonthlyReturnReportingWindowStatus(
             reportingWindowOpen = false,
             reportingWindowStart = testWindowStart,
             reportingWindowEnd = testWindowEnd,

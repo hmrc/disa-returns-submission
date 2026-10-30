@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.disareturnssubmission.models
+package uk.gov.hmrc.disareturnssubmission.models.monthly
 
 import play.api.libs.json.*
 import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
@@ -41,20 +41,27 @@ final case class MonthlyReturn(
   month: Int,
   createdOn: Instant,
   nilReturn: Boolean = false,
-  submissions: List[Submission] = List(),
+  submissions: List[MonthlyReturnSubmission] = List(),
   declaredOn: Option[Instant] = None,
   lastUpdated: Instant
 ) {
   def hasDeclaration: Boolean = declaredOn.isDefined
 
   def hasStoredSubmission(reference: String): Boolean =
-    submissions.exists(submission => submission.reference == reference && submission.status == SubmissionStatus.Stored)
+    submissions.exists(submission =>
+      submission.reference == reference && submission.status == MonthlyReturnSubmissionStatus.Stored
+    )
+
+  def hasNpsSubmittedSubmission(reference: String): Boolean =
+    submissions.exists(submission =>
+      submission.reference == reference && submission.status == MonthlyReturnSubmissionStatus.NpsSubmitted
+    )
 
   def hasCreatedSubmission(reference: String): Boolean =
-    !hasStoredSubmission(reference) &&
-      (submissions.exists(submission =>
-        submission.reference == reference && submission.status == SubmissionStatus.Created
-      ) || (!hasDeclaration && !nilReturn))
+    submissions.find(_.reference == reference) match {
+      case Some(submission) => submission.status == MonthlyReturnSubmissionStatus.Created
+      case None             => !hasDeclaration && !nilReturn
+    }
 
   def declare(declaredOn: Instant): MonthlyReturn =
     if (hasDeclaration) {
@@ -71,9 +78,9 @@ final case class MonthlyReturn(
     val pendingSubmissions = references.distinct
       .filterNot(existingReferences)
       .map(reference =>
-        Submission(
+        MonthlyReturnSubmission(
           reference = reference,
-          status = SubmissionStatus.Created,
+          status = MonthlyReturnSubmissionStatus.Created,
           createdOn = createdOn
         )
       )
@@ -88,16 +95,20 @@ final case class MonthlyReturn(
     }
   }
 
-  def storeSubmission(reference: String, storedOn: Instant, submissionDetails: SubmissionDetails): MonthlyReturn = {
+  def storeSubmission(
+    reference: String,
+    storedOn: Instant,
+    submissionDetails: MonthlyReturnSubmissionDetails
+  ): MonthlyReturn = {
     val matchingSubmission = submissions.find(_.reference == reference)
 
     matchingSubmission match {
-      case Some(submission) if submission.status == SubmissionStatus.Created =>
+      case Some(submission) if submission.status == MonthlyReturnSubmissionStatus.Created =>
         copy(
           submissions = submissions.map {
             case existing if existing.reference == reference =>
               existing.copy(
-                status = SubmissionStatus.Stored,
+                status = MonthlyReturnSubmissionStatus.Stored,
                 submissionDetails = Some(submissionDetails)
               )
             case existing                                    => existing
@@ -107,9 +118,9 @@ final case class MonthlyReturn(
 
       case None if !nilReturn && !hasDeclaration =>
         copy(
-          submissions = submissions :+ Submission(
+          submissions = submissions :+ MonthlyReturnSubmission(
             reference = reference,
-            status = SubmissionStatus.Stored,
+            status = MonthlyReturnSubmissionStatus.Stored,
             createdOn = storedOn,
             submissionDetails = Some(submissionDetails)
           ),
@@ -154,7 +165,7 @@ object MonthlyReturn {
   val mongoFormat: OFormat[MonthlyReturn] = {
     import MonthlyReturnFormats.mongoInstantFormat
 
-    implicit val submissionFormat: OFormat[Submission] = Submission.mongoFormat
+    implicit val submissionFormat: OFormat[MonthlyReturnSubmission] = MonthlyReturnSubmission.mongoFormat
 
     val derivedMongoFormat: OFormat[MonthlyReturn] =
       Json.using[Json.WithDefaultValues].format[MonthlyReturn]

@@ -18,13 +18,13 @@ package uk.gov.hmrc.disareturnssubmission.testOnly.controllers
 
 import play.api.Logging
 import play.api.libs.json.JsValue
-import play.api.mvc.{Action, ControllerComponents}
+import play.api.mvc.*
 import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository
 import uk.gov.hmrc.disareturnssubmission.validators.ZReferenceValidator
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
-import javax.inject.{Inject, Singleton}
-import scala.concurrent.{ExecutionContext, Future}
+import javax.inject.*
+import scala.concurrent.*
 import scala.util.control.NonFatal
 
 @Singleton

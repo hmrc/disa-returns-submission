@@ -17,18 +17,17 @@
 package uk.gov.hmrc.disareturnssubmission.controllers
 
 import base.SpecBase
-import org.mockito.ArgumentMatchers.{any, eq as eqTo}
-import org.mockito.Mockito.{reset, verify, verifyNoInteractions, when}
+import org.mockito.ArgumentMatchers.{eq as eqTo, *}
+import org.mockito.Mockito.*
 import org.scalatest.BeforeAndAfterEach
 import play.api.Application
-import play.api.http.HeaderNames.{AUTHORIZATION, LOCATION}
 import play.api.inject.bind
 import play.api.libs.json.Json
 import play.api.test.FakeRequest
 import play.api.test.Helpers.*
-import uk.gov.hmrc.disareturnssubmission.models.*
+import uk.gov.hmrc.disareturnssubmission.models.monthly.*
 import uk.gov.hmrc.disareturnssubmission.services.CreateMonthlyReturnResult.*
-import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, MonthlyReturnService, SubmitReturnResult}
+import uk.gov.hmrc.disareturnssubmission.services.*
 
 import scala.concurrent.Future
 

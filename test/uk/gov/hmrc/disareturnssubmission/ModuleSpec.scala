@@ -17,18 +17,18 @@
 package uk.gov.hmrc.disareturnssubmission
 
 import base.SpecBase
-import play.api.test.Helpers.{await, defaultAwaitTimeout}
-import uk.gov.hmrc.disareturnssubmission.services.{ReportingWindowService, SystemClock, TimeSource}
+import play.api.test.Helpers.*
+import uk.gov.hmrc.disareturnssubmission.services.*
 import uk.gov.hmrc.disareturnssubmission.testOnly.OverrideTimeSource
-import uk.gov.hmrc.disareturnssubmission.testOnly.services.OverrideReportingWindowService
-import uk.gov.hmrc.disareturnssubmission.validators.{LooseZReferenceValidator, StrictZReferenceValidator, ZReferenceValidator}
+import uk.gov.hmrc.disareturnssubmission.testOnly.services.OverrideMonthlyReturnReportingWindowService
+import uk.gov.hmrc.disareturnssubmission.validators.*
 
 class ModuleSpec extends SpecBase {
 
   "Module" - {
 
     "must bind production services when test-only routes are disabled" in {
-      inject[ReportingWindowService].getClass mustBe classOf[ReportingWindowService]
+      inject[MonthlyReturnReportingWindowService].getClass mustBe classOf[MonthlyReturnReportingWindowService]
       inject[TimeSource] mustBe a[SystemClock]
     }
 
@@ -38,7 +38,8 @@ class ModuleSpec extends SpecBase {
         .build()
 
       try {
-        overrideApp.injector.instanceOf[ReportingWindowService] mustBe a[OverrideReportingWindowService]
+        overrideApp.injector
+          .instanceOf[MonthlyReturnReportingWindowService] mustBe a[OverrideMonthlyReturnReportingWindowService]
         overrideApp.injector.instanceOf[TimeSource] mustBe a[OverrideTimeSource]
       } finally await(overrideApp.stop())
     }

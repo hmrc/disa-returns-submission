@@ -16,9 +16,13 @@
 
 package uk.gov.hmrc.disareturnssubmission.config
 
-import javax.inject.{Inject, Singleton}
+import javax.inject.*
 import play.api.Configuration
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
+
+import java.time.Duration
+import scala.concurrent.duration.FiniteDuration
+import scala.jdk.DurationConverters.*
 
 @Singleton
 class AppConfig @Inject() (
@@ -30,6 +34,23 @@ class AppConfig @Inject() (
 
   val internalAuthService: String = servicesConfig.baseUrl("internal-auth")
   val internalAuthToken: String   = config.get[String]("internal-auth.token")
+
+  val npsMonthlyReturnSubmissionService: String = servicesConfig.baseUrl("nps-monthly-return-submission")
+  val npsMonthlyReturnBearerToken: String       =
+    config.get[String]("microservice.services.nps-monthly-return-submission.bearer-token")
+
+  val monthlyReturnSubmissionJobEnabled: Boolean               =
+    config.get[Boolean]("monthly-return-submission-work-item-job.enabled")
+  val monthlyReturnSubmissionEnqueueAttempts: Int              =
+    config.get[Int]("monthly-return-submission-work-item-job.enqueueAttempts")
+  val monthlyReturnSubmissionJobFailedRetryAfter: Duration     =
+    config.get[Duration]("monthly-return-submission-work-item-job.failedRetryAfter")
+  val monthlyReturnSubmissionJobInProgressRetryAfter: Duration =
+    config.get[Duration]("monthly-return-submission-work-item-job.inProgressRetryAfter")
+  val monthlyReturnSubmissionJobPollInterval: FiniteDuration   =
+    config.get[Duration]("monthly-return-submission-work-item-job.pollInterval").toScala
+  val monthlyReturnSubmissionJobWorkerCount: Int               =
+    config.get[Int]("monthly-return-submission-work-item-job.workerCount")
 
   val monthlyReturnTimeToLiveInDays: Long = config.get[Long]("mongodb.monthlyReturnTimeToLiveInDays")
   val testOverrideTtlHours: Int           = config.get[Int]("testOverrideTtlHours")

@@ -17,7 +17,12 @@
 package uk.gov.hmrc.disareturnssubmission.utils
 
 import com.github.tomakehurst.wiremock.client.WireMock.*
-import play.api.http.Status.INTERNAL_SERVER_ERROR
+import play.api.http.HeaderNames.*
+import play.api.http.MimeTypes.JSON
+import play.api.http.Status.*
+import uk.gov.hmrc.disareturnssubmission.utils.Constants.NDJSON_MIME_TYPE
+
+import java.nio.charset.StandardCharsets.UTF_8
 
 trait ObjectStoreWireMockStubs {
 
@@ -28,8 +33,8 @@ trait ObjectStoreWireMockStubs {
       put(urlPathMatching(objectStorePath))
         .willReturn(
           aResponse()
-            .withStatus(200)
-            .withHeader("Content-Type", "application/json")
+            .withStatus(OK)
+            .withHeader(CONTENT_TYPE, JSON)
             .withBody(
               """{
                 |  "location": "object-store/object/disa-returns-submission/file",
@@ -45,6 +50,20 @@ trait ObjectStoreWireMockStubs {
     stubFor(
       put(urlPathMatching(objectStorePath))
         .willReturn(aResponse().withStatus(INTERNAL_SERVER_ERROR))
+    )
+
+  protected def stubObjectStoreGet(body: String): Unit =
+    stubFor(
+      get(urlPathMatching(objectStorePath))
+        .willReturn(
+          aResponse()
+            .withStatus(OK)
+            .withHeader(CONTENT_TYPE, NDJSON_MIME_TYPE)
+            .withHeader(CONTENT_LENGTH, body.getBytes(UTF_8).length.toString)
+            .withHeader(CONTENT_MD5, "CY9rzUYh03PK3k6DJie09g==")
+            .withHeader(LAST_MODIFIED, "Sun, 17 May 2026 12:00:00 GMT")
+            .withBody(body)
+        )
     )
 
 }

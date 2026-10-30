@@ -66,7 +66,7 @@ Authorization: valid-internal-auth-token-disa-returns-backend
 That token must exist in local internal-auth with `READ` and `WRITE` permissions for `disa-returns-submission/*`.
 The test-only routes above remain unauthenticated.
 
-Enabling this router also changes dependency bindings. `TimeSource` and `ReportingWindowService` are bound to
+Enabling this router also changes dependency bindings. `TimeSource` and `MonthlyReturnReportingWindowService` are bound to
 aggregate-backed test implementations. Production monthly-return and reporting-window
 status routes therefore observe test-only clock and reporting-window overrides while this router is active. With the
 normal router, they use `SystemClock` and the configured declaration-period boundaries only and never query overrides.
@@ -159,9 +159,48 @@ PUT /disa-returns-submission/monthly/:zReference/:taxYear/:month/submissions/:su
 Content-Type: application/x-ndjson
 ```
 
-A successful PUT updates an existing `CREATED` submission, or creates a missing submission before declaration, with
-`STORED` status. A `CREATED` submission remains uploadable after declaration. An already `STORED` submission, or an
-unknown submission after declaration, returns `409 Conflict`.
+A successful PUT stores the submission as `STORED` and queues it for NPS transfer. `CREATED` submissions can still be
+uploaded after declaration. Existing `STORED` or `NPS_SUBMITTED` references, and unknown references after declaration,
+return `409`. Repeating a stored submission retries enqueueing without uploading again; enqueue failure returns `503`.
+
+### NPS submissions
+
+The job downloads NDJSON from Object Store, converts it to a JSON array and streams it to NPS. The payload models
+currently match the four submission types in `disa-returns-backend` and `disa-returns`; the NPS schema will follow later.
+Conversion reads one record at a time using Play's JSON defaults and sends only model fields. Invalid records
+prevent the request. An NPS `204` sets `NPS_SUBMITTED` and completes the work item; completed submissions are skipped.
+
+Job settings are under `monthly-return-submission-work-item-job` in `conf/application.conf`. Enqueue attempts are
+one second apart. Connector 5xx retries use `http-verbs.retries.intervals`; failed work items, including 4xx failures,
+retry after `failedRetryAfter`. Set `inProgressRetryAfter` longer than the longest transfer to avoid concurrent processing.
+
+Set `monthly-return-submission-work-item-job.enabled=false` and restart all instances to pause workers.
+Submissions still queue while paused. Retries and pauses must stay within the return and Object Store retention periods.
+
+Temporary files are deleted after use; allow disk space for both NDJSON and JSON per worker. The reaper scans every
+five minutes and removes files unmodified for ten minutes, even if still in use. Increase
+`play.temporaryFile.reaper.olderThan` for longer transfers. Object Store files remain NDJSON.
+
+NPS settings are under `microservice.services.nps-monthly-return-submission`, including the bearer token. Locally the
+endpoint is `http://localhost:1204/nps/submit/:zReference`. Deployment config must use `disa-returns-stubs.protected.mdtp`
+over HTTPS. Incoming credentials are not forwarded.
+
+A crash after NPS accepts a request but before Mongo records success can cause a resend. NPS idempotency is not
+implemented. Files aren't split, so the stub's request-size limit still applies.
+
+#### Checking locally
+
+Start Object Store, internal-auth and `disa-returns-stubs`, then run submission with test-only routes enabled.
+
+- `MonthlyReturn/NPS/01-200-nps-submitted`: expect `NPS_SUBMITTED` and a `succeeded` item in
+  `monthlyReturnSubmissionWorkItems`.
+- `MonthlyReturn/NPS/02-200-nps-failure`: `Z1503` returns `503`; expect `STORED` and a `failed` item. Check retries respect
+  `failedRetryAfter`. `Z1400` returns `400` and also uses delayed work-item retries.
+- With the job disabled, upload a submission and check it stays `STORED` with a `todo` item. Re-enable and restart to
+  process the backlog.
+
+Use new submission references for each run. The monthly-return cleanup route does not remove work items; clear old
+test items from the local database separately.
 
 For example, set the clock to `2026-06-17` to create and declare May 2026 monthly returns inside the configured declaration period, or `2026-06-20` to test declaration attempts outside the configured declaration period.
 

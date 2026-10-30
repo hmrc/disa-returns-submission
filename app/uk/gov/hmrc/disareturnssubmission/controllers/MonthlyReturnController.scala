@@ -18,22 +18,22 @@ package uk.gov.hmrc.disareturnssubmission.controllers
 
 import org.apache.pekko.stream.Materializer
 import play.api.Logging
-import play.api.libs.json.{JsValue, Json}
-import play.api.mvc.{Action, AnyContent, ControllerComponents, Result}
+import play.api.libs.json.*
+import play.api.mvc.*
 
-import uk.gov.hmrc.disareturnssubmission.models.{CreateMonthlyReturnRequest, CreateMonthlyReturnResponse, DeclarationRequest}
-import uk.gov.hmrc.disareturnssubmission.services.{CreateMonthlyReturnResult, DeclareMonthlyReturnResult, MonthlyReturnService, SubmitReturnResult}
+import uk.gov.hmrc.disareturnssubmission.models.monthly.*
+import uk.gov.hmrc.disareturnssubmission.services.*
 
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.play.bootstrap.controller.WithJsonBody
 import uk.gov.hmrc.disareturnssubmission.validators.ValidationHelper
 
 import javax.inject.Inject
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.*
 import scala.util.control.NonFatal
 import play.api.libs.Files
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
-import uk.gov.hmrc.internalauth.client.{BackendAuthComponents, IAAction, Predicate, Resource, ResourceLocation, ResourceType}
+import uk.gov.hmrc.internalauth.client.*
 
 class MonthlyReturnController @Inject() (
   cc: ControllerComponents,
@@ -92,7 +92,7 @@ class MonthlyReturnController @Inject() (
   def declare(zReference: String, taxYear: String, month: Int): Action[JsValue] =
     auth.authorizedAction(writePermission).async(parse.json) { implicit request =>
       withValidMonthlyReturnParams(zReference, taxYear, month) { (validZReference, validTaxYear, validMonth) =>
-        withJsonBody[DeclarationRequest] { declarationRequest =>
+        withJsonBody[DeclareMonthlyReturnRequest] { declarationRequest =>
           monthlyReturnService
             .declare(
               validZReference,

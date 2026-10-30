@@ -14,27 +14,27 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.disareturnssubmission.models
+package uk.gov.hmrc.disareturnssubmission.models.monthly
 
-import play.api.libs.json.{Format, JsError, JsString, JsSuccess, Json, OFormat, Reads, Writes}
+import play.api.libs.json.*
 
 import java.time.Instant
 import scala.util.Try
 
-final case class ReportingWindowStatus(
+final case class MonthlyReturnReportingWindowStatus(
   reportingWindowOpen: Boolean,
   reportingWindowStart: Instant,
   reportingWindowEnd: Instant,
   resolvedAt: Instant
 )
 
-object ReportingWindowStatus {
-  implicit val instantFormat: Format[Instant]         = Format(
+object MonthlyReturnReportingWindowStatus {
+  implicit val instantFormat: Format[Instant]                      = Format(
     Reads {
       case JsString(value) => Try(Instant.parse(value)).fold(_ => JsError("invalid instant"), JsSuccess(_))
       case _               => JsError("instant must be a string")
     },
     Writes(instant => JsString(instant.toString))
   )
-  implicit val format: OFormat[ReportingWindowStatus] = Json.format[ReportingWindowStatus]
+  implicit val format: OFormat[MonthlyReturnReportingWindowStatus] = Json.format[MonthlyReturnReportingWindowStatus]
 }
