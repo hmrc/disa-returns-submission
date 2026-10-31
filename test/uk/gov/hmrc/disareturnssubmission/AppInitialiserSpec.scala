@@ -37,7 +37,7 @@ class AppInitialiserSpec extends SpecBase with LogCapturing {
         val appInitialiser = new AppInitialiser(initialiser, mock[AppConfig], mock[MonthlyReturnSubmissionWorkItemJob])
 
         await(appInitialiser.initialised) mustBe Done
-        events.map(_.getMessage) must contain("[AppInitialiser][<init>] Internal auth initialiser completed")
+        events.map(_.getMessage) must contain("[AppInitialiser] Internal auth initialiser completed")
       }
     }
 
@@ -51,7 +51,7 @@ class AppInitialiserSpec extends SpecBase with LogCapturing {
         }
 
         thrown mustBe exception
-        events.last.getMessage mustBe "[AppInitialiser][<init>] Internal auth initialiser failed"
+        events.last.getMessage mustBe "[AppInitialiser] Internal auth initialiser failed"
       }
     }
 
