@@ -64,7 +64,10 @@ class MonthlyReturnController @Inject() (
                 Conflict(Json.toJson(CreateMonthlyReturnResponse(submissionId)))
               case CreateMonthlyReturnResult.OutsideDeclarationPeriod    =>
                 UnprocessableEntity(
-                  Json.obj("ERROR" -> "It is not possible to create a monthly return outside its declaration period")
+                  Json.obj(
+                    "code"    -> "DECLARATION_PERIOD_CLOSED",
+                    "message" -> "It is not possible to create a monthly return outside its declaration period"
+                  )
                 )
             }
             .recover { case NonFatal(_) => ServiceUnavailable }
@@ -148,15 +151,22 @@ class MonthlyReturnController @Inject() (
                   bodyPath = request.body.path
                 )
                 .map {
-                  case SubmitReturnResult.UpdateSuccessful      =>
+                  case SubmitReturnResult.UpdateSuccessful             =>
                     Ok
-                  case SubmitReturnResult.SubmissionConflict    =>
+                  case SubmitReturnResult.SubmissionConflict           =>
                     Conflict(
-                      Json.obj("ERROR" -> "Submission has already been stored or the monthly return has been declared")
+                      Json.obj("ERROR" -> "Submission has already been stored or the monthly return cannot accept it")
                     )
-                  case SubmitReturnResult.MonthlyReturnNotFound =>
+                  case SubmitReturnResult.MonthlyReturnAlreadyDeclared =>
+                    Conflict(
+                      Json.obj(
+                        "code"    -> "MONTHLY_RETURN_ALREADY_DECLARED",
+                        "message" -> "This monthly return was already declared"
+                      )
+                    )
+                  case SubmitReturnResult.MonthlyReturnNotFound        =>
                     NotFound(Json.obj("ERROR" -> "Monthly return not found"))
-                  case SubmitReturnResult.NoBody                =>
+                  case SubmitReturnResult.NoBody                       =>
                     BadRequest(Json.obj("ERROR" -> "Request body must not be empty"))
                 }
                 .recover { case NonFatal(_) =>

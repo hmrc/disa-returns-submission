@@ -708,9 +708,21 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
         verifyNoInteractions(mockWorkItemRepository)
       }
 
-      "must return SubmissionConflict for a missing submission after declaration" in new TestSetup {
+      "must return MonthlyReturnAlreadyDeclared when a new submission arrives after declaration" in new TestSetup {
         when(mockMonthlyReturnRepository.get(any(), any(), any()))
           .thenReturn(Future.successful(Some(monthlyReturn.copy(declaredOn = Some(testCreatedOn)))))
+
+        await(
+          service
+            .storeSubmission(zReference, taxYear, month, testUploadReference, testTempFile)
+        ) mustBe SubmitReturnResult.MonthlyReturnAlreadyDeclared
+
+        verifyNoInteractions(mockSubStoreAction)
+      }
+
+      "must return SubmissionConflict when a new submission arrives for an undeclared nil return" in new TestSetup {
+        when(mockMonthlyReturnRepository.get(any(), any(), any()))
+          .thenReturn(Future.successful(Some(monthlyReturn.copy(nilReturn = true))))
 
         await(
           service
@@ -718,6 +730,21 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
         ) mustBe SubmitReturnResult.SubmissionConflict
 
         verifyNoInteractions(mockSubStoreAction)
+      }
+
+      "must return MonthlyReturnAlreadyDeclared if the monthly return is declared while storing" in new TestSetup {
+        when(mockMonthlyReturnRepository.get(any(), any(), any()))
+          .thenReturn(
+            Future.successful(Some(monthlyReturn)),
+            Future.successful(Some(monthlyReturn.copy(declaredOn = Some(testCreatedOn))))
+          )
+        when(mockSubStoreAction.store(any(), any(), eqTo(testUploadReference)))
+          .thenReturn(Future.successful(SubmitReturnResult.SubmissionConflict))
+
+        await(
+          service
+            .storeSubmission(zReference, taxYear, month, testUploadReference, testTempFile)
+        ) mustBe SubmitReturnResult.MonthlyReturnAlreadyDeclared
       }
 
       "must return SubmissionConflict if the state changes while storing" in new TestSetup {

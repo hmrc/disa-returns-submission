@@ -127,6 +127,7 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach with 
         )
 
         status(result) mustBe UNPROCESSABLE_ENTITY
+        (contentAsJson(result) \ "code").as[String] mustBe "DECLARATION_PERIOD_CLOSED"
       }
 
       "must return SERVICE_UNAVAILABLE when the service fails" in {
@@ -442,6 +443,27 @@ class MonthlyReturnControllerSpec extends SpecBase with BeforeAndAfterEach with 
       )
 
       status(result) mustBe CONFLICT
+    }
+
+    "must return CONFLICT with the already declared code when the monthly return has been declared" in {
+      when(
+        mockMonthlyReturnService.storeSubmission(
+          any(),
+          any(),
+          any(),
+          eqTo(testUploadReference),
+          any()
+        )
+      ).thenReturn(Future.successful(SubmitReturnResult.MonthlyReturnAlreadyDeclared))
+
+      val result = controller.storeSubmission(lowercaseTestZReference, testTaxYear, testMonth, testUploadReference)(
+        authorizedRequest("PUT", submissionsPath)
+          .withHeaders("Content-Type" -> "application/x-ndjson")
+          .withBody(testTempFile)
+      )
+
+      status(result) mustBe CONFLICT
+      (contentAsJson(result) \ "code").as[String] mustBe "MONTHLY_RETURN_ALREADY_DECLARED"
     }
 
     "must return SERVICE_UNAVAILABLE when storing fails" in {

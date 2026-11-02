@@ -40,6 +40,7 @@ class AppConfig @Inject() (
     config.get[String]("microservice.services.nps-monthly-return-submission.bearer-token")
 
   val monthlyReturnMaxRecordsPerSubmission: Int = config.get[Int]("monthly-return.max-records-per-submission")
+  val etmpBaseUrl: String                       = servicesConfig.baseUrl("etmp")
 
   val monthlyReturnSubmissionJobEnabled: Boolean               =
     config.get[Boolean]("monthly-return-submission-work-item-job.enabled")

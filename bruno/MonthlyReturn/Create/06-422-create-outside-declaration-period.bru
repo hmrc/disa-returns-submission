@@ -46,6 +46,7 @@ tests {
     const responseBody = res.body ?? res.getBody();
     const body = typeof responseBody === "string" ? JSON.parse(responseBody) : responseBody;
   
-    expect(body.ERROR).to.equal("It is not possible to create a monthly return outside its declaration period");
+    expect(body.code).to.equal("DECLARATION_PERIOD_CLOSED");
+    expect(body.message).to.equal("It is not possible to create a monthly return outside its declaration period");
   });
 }
