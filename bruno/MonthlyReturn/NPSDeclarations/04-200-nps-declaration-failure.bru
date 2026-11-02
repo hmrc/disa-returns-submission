@@ -1,0 +1,54 @@
+meta {
+  name: 04-200-nps-declaration-failure
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}{{servicePath}}/monthly/Z1500/{{taxYear}}/{{month}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+script:pre-request {
+  const root = `${bru.getEnvVar("baseUrl")}${bru.getEnvVar("servicePath")}`;
+  const url = `${root}/monthly/Z1500/${bru.getEnvVar("taxYear")}/${bru.getEnvVar("month")}`;
+  const headers = { Authorization: bru.getEnvVar("internalAuthToken"), "Content-Type": "application/json" };
+  const cleanup = await bru.sendRequest({
+    method: "POST", url: `${root}/test-only/monthly-returns`, headers, data: { zReferences: ["Z1500"] }
+  });
+  if (cleanup.status !== 204) {
+    throw new Error(`Failure fixture cleanup failed: ${cleanup.status}`);
+  }
+  const override = await bru.sendRequest({
+    method: "PUT", url: `${root}/test-only/overrides`, headers,
+    data: { zReferences: ["Z1500"], clock: { date: bru.getEnvVar("declarationPeriodDate") } }
+  });
+  if (override.status !== 204) {
+    throw new Error(`Clock setup failed: ${override.status}`);
+  }
+
+  const declared = await bru.sendRequest({
+    method: "POST", url: `${url}/declarations`, headers, data: { nilReturn: true }, validateStatus: null
+  });
+  if (![200, 422].includes(declared.status)) {
+    throw new Error(`Declaration setup failed: ${declared.status}`);
+  }
+}
+
+tests {
+  test("an NPS declaration failure leaves npsDeclaredOn unset", function() {
+    const body = typeof res.body === "string" ? JSON.parse(res.body) : res.body;
+    expect(body.declaredOn).to.be.a("string");
+    expect(body.npsDeclaredOn).to.equal(undefined);
+  });
+}
+
+docs {
+  The declaration stub returns 500 for Z1500. Verify the monthlyReturnDeclarationWorkItems entry is failed,
+  failureCount is one, and no retry happens before monthly-return-declaration-work-item-job.failedRetryAfter.
+}

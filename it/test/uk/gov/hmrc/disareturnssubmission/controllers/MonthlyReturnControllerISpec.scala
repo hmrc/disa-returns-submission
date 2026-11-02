@@ -22,7 +22,7 @@ import play.api.test.Helpers.await
 import uk.gov.hmrc.disareturnssubmission.BaseIntegrationSpec
 import uk.gov.hmrc.disareturnssubmission.utils.Constants.NDJSON_MIME_TYPE
 import uk.gov.hmrc.disareturnssubmission.utils.ObjectStoreWireMockStubs
-import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnSubmissionWorkItemRepository
+import uk.gov.hmrc.disareturnssubmission.repositories.*
 import uk.gov.hmrc.mongo.workitem.ProcessingStatus
 
 class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreWireMockStubs {
@@ -130,6 +130,11 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
       val result = postJson(declarationPath, nilReturnFalseRequest)
 
       result.status shouldBe OK
+      val workItem = await(inject[MonthlyReturnDeclarationWorkItemRepository].collection.find().headOption()).get
+      workItem.item.zReference shouldBe testZReference
+      workItem.item.taxYear    shouldBe testTaxYear
+      workItem.item.month      shouldBe testMonth
+      workItem.status          shouldBe ProcessingStatus.ToDo
     }
 
     "create pending submissions with CREATED status when declaring" in {
@@ -165,11 +170,12 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
       postJson(declarationPath, nilReturnFalseRequest).status shouldBe OK
       val result = postJson(declarationPath, nilReturnFalseRequest)
 
-      result.status shouldBe UNPROCESSABLE_ENTITY
-      result.json   shouldBe Json.obj(
+      result.status                                                                                shouldBe UNPROCESSABLE_ENTITY
+      result.json                                                                                  shouldBe Json.obj(
         "code"    -> "MONTHLY_RETURN_ALREADY_DECLARED",
         "message" -> "This monthly return was already declared"
       )
+      await(inject[MonthlyReturnDeclarationWorkItemRepository].collection.countDocuments().head()) shouldBe 1L
     }
 
     "return 404 NotFound when the monthly return wasn't previously created" in {

@@ -20,8 +20,9 @@ import base.SpecBase
 import play.api.libs.json.*
 
 class MonthlyReturnSpec extends SpecBase {
-  private val storedReference  = "stored-reference"
-  private val missingReference = "missing-reference"
+  private val storedReference        = "stored-reference"
+  private val missingReference       = "missing-reference"
+  private val npsDeclaredOnFieldName = "npsDeclaredOn"
 
   private val emptyMonthlyReturn = MonthlyReturn(
     zReference = testZReference,
@@ -36,23 +37,37 @@ class MonthlyReturnSpec extends SpecBase {
   "MonthlyReturn format" - {
 
     "must write instants as ISO strings for API JSON" in {
-      val json = Json.toJson(emptyMonthlyReturn.copy(declaredOn = Some(testCreatedOn)))
+      val json =
+        Json.toJson(emptyMonthlyReturn.copy(declaredOn = Some(testCreatedOn), npsDeclaredOn = Some(testCreatedOn)))
 
       (json \ createdOnFieldName).as[JsString] mustBe JsString(testExistingUpdatedOnString)
       (json \ declaredOnFieldName).as[JsString] mustBe JsString(testCreatedOnString)
+      (json \ npsDeclaredOnFieldName).as[JsString] mustBe JsString(testCreatedOnString)
+      json.as[MonthlyReturn].npsDeclaredOn mustBe Some(testCreatedOn)
       (json \ lastUpdatedFieldName).as[JsString] mustBe JsString(testExistingUpdatedOnString)
     }
 
     "must write instants as Mongo date objects for Mongo JSON" in {
-      val json = Json.toJson(emptyMonthlyReturn.copy(declaredOn = Some(testCreatedOn)))(MonthlyReturn.mongoFormat)
+      val json = Json.toJson(
+        emptyMonthlyReturn.copy(declaredOn = Some(testCreatedOn), npsDeclaredOn = Some(testCreatedOn))
+      )(MonthlyReturn.mongoFormat)
 
       ((json \ createdOnFieldName) \ mongoDateFieldName \ mongoNumberLongFieldName).as[JsString] mustBe
         JsString(testExistingUpdatedOnEpochMillis)
       ((json \ declaredOnFieldName) \ mongoDateFieldName \ mongoNumberLongFieldName).as[JsString] mustBe
         JsString(testCreatedOn.toEpochMilli.toString)
+      ((json \ npsDeclaredOnFieldName) \ mongoDateFieldName \ mongoNumberLongFieldName).as[JsString] mustBe
+        JsString(testCreatedOn.toEpochMilli.toString)
+      json.as[MonthlyReturn](MonthlyReturn.mongoFormat).npsDeclaredOn mustBe Some(testCreatedOn)
       ((json \ lastUpdatedFieldName) \ mongoDateFieldName \ mongoNumberLongFieldName).as[JsString] mustBe
         JsString(testExistingUpdatedOnEpochMillis)
     }
+
+    "must default npsDeclaredOn to None when reading existing API and Mongo JSON" in
+      Seq(MonthlyReturn.format, MonthlyReturn.mongoFormat).foreach { format =>
+        val json = Json.toJson(emptyMonthlyReturn)(format).as[JsObject] - npsDeclaredOnFieldName
+        json.as[MonthlyReturn](format) mustBe emptyMonthlyReturn
+      }
 
     "must default nilReturn to false when reading existing JSON" in {
       val jsonWithoutNilReturn = Json.toJson(emptyMonthlyReturn).as[JsObject] - nilReturnFieldName

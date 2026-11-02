@@ -43,6 +43,25 @@ class NpsConnector @Inject() (
   private implicit val jsonBodyWritable: BodyWritable[Source[ByteString, ?]] =
     BodyWritable(SourceBody(_), JSON)
 
+  def sendDeclaration(zReference: String): Future[Unit] =
+    retryFor[Unit](s"[NpsConnector][sendDeclaration] send NPS declaration for zReference [$zReference]")(
+      retryCondition
+    ) {
+      httpClient
+        .post(url"${appConfig.npsMonthlyReturnSubmissionService}/nps/declaration/$zReference")(HeaderCarrier())
+        .setHeader(AUTHORIZATION -> s"Bearer ${appConfig.npsMonthlyReturnBearerToken}")
+        .execute[HttpResponse]
+        .flatMap { response =>
+          if (response.status == NO_CONTENT) {
+            Future.unit
+          } else {
+            Future.failed(
+              UpstreamErrorResponse(s"NPS declaration returned status [${response.status}]", response.status)
+            )
+          }
+        }
+    }
+
   def sendSubmission(zReference: String, body: Source[ByteString, ?]): Future[Unit] =
     retryFor[Unit](s"[NpsConnector][sendSubmission] send NPS submission for zReference [$zReference]")(retryCondition) {
       httpClient

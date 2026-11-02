@@ -43,7 +43,8 @@ final case class MonthlyReturn(
   nilReturn: Boolean = false,
   submissions: List[MonthlyReturnSubmission] = List(),
   declaredOn: Option[Instant] = None,
-  lastUpdated: Instant
+  lastUpdated: Instant,
+  npsDeclaredOn: Option[Instant] = None
 ) {
   def hasDeclaration: Boolean = declaredOn.isDefined
 
@@ -140,7 +141,11 @@ final case class MonthlyReturn(
         lastUpdated = updatedOn
       )
 
-      if (updatedReturn == this) this else updatedReturn
+      if (updatedReturn == this) {
+        this
+      } else {
+        updatedReturn
+      }
     } else if (this.nilReturn) {
       copy(
         nilReturn = false,

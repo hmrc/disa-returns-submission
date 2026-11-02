@@ -1,0 +1,70 @@
+meta {
+  name: 03-200-nps-declared-after-pending-upload
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}{{servicePath}}/monthly/{{npsDeclarationZReference}}/{{taxYear}}/{{month}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+script:pre-request {
+  const rejectedReferences = ["Z1400", "Z1500", "Z1503"];
+  let declared;
+  do {
+    declared = await bru.runRequest("MonthlyReturn/Declarations/01-200-declare-with-pending-submissions");
+  } while (rejectedReferences.includes(bru.getVar("zReference")));
+  if (declared.status !== 200) {
+    throw new Error(`Pending declaration setup failed: ${declared.status}`);
+  }
+
+  bru.setVar("npsDeclarationZReference", bru.getVar("zReference"));
+  const url = `${bru.getEnvVar("baseUrl")}${bru.getEnvVar("servicePath")}/monthly/${bru.getVar("npsDeclarationZReference")}/${bru.getEnvVar("taxYear")}/${bru.getEnvVar("month")}`;
+  const headers = { Authorization: bru.getEnvVar("internalAuthToken") };
+  const pendingResponse = await bru.sendRequest({ method: "GET", url, headers });
+  const pending = typeof pendingResponse.data === "string" ? JSON.parse(pendingResponse.data) : pendingResponse.data;
+  if (pending.npsDeclaredOn || pending.submissions.some(submission => submission.status !== "CREATED")) {
+    throw new Error("Declaration should be waiting for its pending upload");
+  }
+
+  const initialPollWaitMillis = 11000;
+  await new Promise(resolve => setTimeout(resolve, initialPollWaitMillis));
+  const record = {
+    accountNumber: "ACC123", nino: "AB123456C", firstName: "Ada", lastName: "Lovelace", dateOfBirth: "1980-01-02",
+    amountTransferredIn: 10, amountTransferredOut: 0, dateOfLastSubscription: "2026-05-01",
+    totalCurrentYearSubscriptionsToDate: 20, marketValueOfAccount: 100, isaType: "CASH", flexibleIsa: true
+  };
+  const stored = await bru.sendRequest({
+    method: "PUT", url: `${url}/submissions/${bru.getVar("putSubmissionId")}`,
+    headers: { ...headers, "Content-Type": "application/x-ndjson" }, data: `${JSON.stringify(record)}\n`
+  });
+  if (stored.status !== 200) {
+    throw new Error(`Pending submission storage failed: ${stored.status}`);
+  }
+
+  const maxAttempts = 720;
+  const pollIntervalMillis = 500;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const response = await bru.sendRequest({ method: "GET", url, headers, timeout: 3000 });
+    const body = typeof response.data === "string" ? JSON.parse(response.data) : response.data;
+    if (body?.npsDeclaredOn) {
+      return;
+    }
+    await new Promise(resolve => setTimeout(resolve, pollIntervalMillis));
+  }
+  throw new Error("Pending return did not acquire npsDeclaredOn within six minutes; check declaration retry and polling configuration");
+}
+
+tests {
+  test("the return was declared only after its pending upload reached NPS_SUBMITTED", function() {
+    const body = typeof res.body === "string" ? JSON.parse(res.body) : res.body;
+    expect(body.npsDeclaredOn).to.be.a("string");
+    expect(body.submissions.find(submission => submission.reference === bru.getVar("putSubmissionId")).status).to.equal("NPS_SUBMITTED");
+  });
+}
