@@ -16,8 +16,7 @@
 
 package base
 
-import org.scalatest.OptionValues
-import org.scalatest.TryValues
+import org.scalatest.*
 import org.scalatest.concurrent.*
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
@@ -35,8 +34,7 @@ import play.api.test.Helpers.stubControllerComponents
 import uk.gov.hmrc.internalauth.client.*
 import uk.gov.hmrc.internalauth.client.test.*
 
-import scala.concurrent.ExecutionContext
-import scala.concurrent.Future
+import scala.concurrent.*
 import scala.reflect.ClassTag
 
 trait SpecBase
@@ -81,6 +79,7 @@ trait SpecBase
     val builder = new GuiceApplicationBuilder()
       .configure("create-internal-auth-token-on-start" -> false)
       .configure("monthly-return-submission-work-item-job.enabled" -> false)
+      .configure("monthly-return-declaration-work-item-job.enabled" -> false)
       .overrides(defaultOverrides ++ additionalOverrides: _*)
 
     builder

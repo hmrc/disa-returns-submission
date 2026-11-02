@@ -22,7 +22,7 @@ import org.mockito.Mockito.*
 import play.api.Logger
 import play.api.test.Helpers.*
 import uk.gov.hmrc.disareturnssubmission.config.*
-import uk.gov.hmrc.disareturnssubmission.jobs.MonthlyReturnSubmissionWorkItemJob
+import uk.gov.hmrc.disareturnssubmission.jobs.*
 import uk.gov.hmrc.play.bootstrap.tools.LogCapturing
 
 import scala.concurrent.Future
@@ -34,7 +34,12 @@ class AppInitialiserSpec extends SpecBase with LogCapturing {
       val initialiser = internalAuthTokenInitialiser(Future.successful(Done))
 
       withCaptureOfLoggingFrom(Logger(classOf[AppInitialiser])) { events =>
-        val appInitialiser = new AppInitialiser(initialiser, mock[AppConfig], mock[MonthlyReturnSubmissionWorkItemJob])
+        val appInitialiser = new AppInitialiser(
+          initialiser,
+          mock[AppConfig],
+          mock[MonthlyReturnSubmissionWorkItemJob],
+          mock[MonthlyReturnDeclarationWorkItemJob]
+        )
 
         await(appInitialiser.initialised) mustBe Done
         events.map(_.getMessage) must contain("[AppInitialiser] Internal auth initialiser completed")
@@ -47,7 +52,12 @@ class AppInitialiserSpec extends SpecBase with LogCapturing {
 
       withCaptureOfLoggingFrom(Logger(classOf[AppInitialiser])) { events =>
         val thrown = intercept[RuntimeException] {
-          new AppInitialiser(initialiser, mock[AppConfig], mock[MonthlyReturnSubmissionWorkItemJob])
+          new AppInitialiser(
+            initialiser,
+            mock[AppConfig],
+            mock[MonthlyReturnSubmissionWorkItemJob],
+            mock[MonthlyReturnDeclarationWorkItemJob]
+          )
         }
 
         thrown mustBe exception
@@ -55,30 +65,48 @@ class AppInitialiserSpec extends SpecBase with LogCapturing {
       }
     }
 
-    "must start the submission job only when enabled" in
-      Seq(false, true).foreach { enabled =>
-        val config = mock[AppConfig]
-        val job    = mock[MonthlyReturnSubmissionWorkItemJob]
-        when(config.monthlyReturnSubmissionJobEnabled).thenReturn(enabled)
+    "must start each job independently only when enabled" in {
+      for {
+        submissionEnabled  <- Seq(false, true)
+        declarationEnabled <- Seq(false, true)
+      } {
+        val config         = mock[AppConfig]
+        val submissionJob  = mock[MonthlyReturnSubmissionWorkItemJob]
+        val declarationJob = mock[MonthlyReturnDeclarationWorkItemJob]
+        when(config.monthlyReturnSubmissionJobEnabled).thenReturn(submissionEnabled)
+        when(config.monthlyReturnDeclarationJobEnabled).thenReturn(declarationEnabled)
 
-        new AppInitialiser(internalAuthTokenInitialiser(Future.successful(Done)), config, job)
+        new AppInitialiser(internalAuthTokenInitialiser(Future.successful(Done)), config, submissionJob, declarationJob)
 
-        if (enabled) verify(job).start() else verifyNoInteractions(job)
+        if (submissionEnabled) {
+          verify(submissionJob).start()
+        } else {
+          verifyNoInteractions(submissionJob)
+        }
+        if (declarationEnabled) {
+          verify(declarationJob).start()
+        } else {
+          verifyNoInteractions(declarationJob)
+        }
       }
+    }
 
     "must not start the job if internal-auth initialization fails" in {
-      val config = mock[AppConfig]
-      val job    = mock[MonthlyReturnSubmissionWorkItemJob]
+      val config         = mock[AppConfig]
+      val job            = mock[MonthlyReturnSubmissionWorkItemJob]
+      val declarationJob = mock[MonthlyReturnDeclarationWorkItemJob]
       when(config.monthlyReturnSubmissionJobEnabled).thenReturn(true)
+      when(config.monthlyReturnDeclarationJobEnabled).thenReturn(true)
 
       intercept[RuntimeException] {
         new AppInitialiser(
           internalAuthTokenInitialiser(Future.failed(new RuntimeException("auth unavailable"))),
           config,
-          job
+          job,
+          declarationJob
         )
       }
-      verifyNoInteractions(job)
+      verifyNoInteractions(job, declarationJob)
     }
   }
 

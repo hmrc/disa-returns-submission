@@ -54,6 +54,21 @@ class AppConfig @Inject() (
   val monthlyReturnSubmissionJobWorkerCount: Int               =
     config.get[Int]("monthly-return-submission-work-item-job.workerCount")
 
+  val monthlyReturnDeclarationJobEnabled: Boolean                       =
+    config.get[Boolean]("monthly-return-declaration-work-item-job.enabled")
+  val monthlyReturnDeclarationEnqueueAttempts: Int                      =
+    config.get[Int]("monthly-return-declaration-work-item-job.enqueueAttempts")
+  val monthlyReturnDeclarationJobPendingSubmissionsRetryAfter: Duration =
+    config.get[Duration]("monthly-return-declaration-work-item-job.pendingSubmissionsRetryAfter")
+  val monthlyReturnDeclarationJobFailedRetryAfter: Duration             =
+    config.get[Duration]("monthly-return-declaration-work-item-job.failedRetryAfter")
+  val monthlyReturnDeclarationJobInProgressRetryAfter: Duration         =
+    config.get[Duration]("monthly-return-declaration-work-item-job.inProgressRetryAfter")
+  val monthlyReturnDeclarationJobPollInterval: FiniteDuration           =
+    config.get[Duration]("monthly-return-declaration-work-item-job.pollInterval").toScala
+  val monthlyReturnDeclarationJobWorkerCount: Int                       =
+    config.get[Int]("monthly-return-declaration-work-item-job.workerCount")
+
   val monthlyReturnTimeToLiveInDays: Long = config.get[Long]("mongodb.monthlyReturnTimeToLiveInDays")
   val testOverrideTtlHours: Int           = config.get[Int]("testOverrideTtlHours")
 

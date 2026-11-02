@@ -37,17 +37,19 @@ import java.util.UUID
 import scala.concurrent.*
 class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
 
-  private val zReference              = testZReference
-  private val taxYear                 = testTaxYear
-  private val month                   = testMonth
-  private val submissionContext       =
+  private val zReference                = testZReference
+  private val taxYear                   = testTaxYear
+  private val month                     = testMonth
+  private val submissionContext         =
     s"submission [$testUploadReference] for zReference [$zReference], taxYear [$taxYear], month [$month]"
-  private val previousTaxYear         = "2025-26"
-  private val futureTaxYear           = "2027-28"
-  private val now                     = Instant.parse("2026-06-17T12:00:00Z")
-  private val beforeDeclarationPeriod = Instant.parse("2026-06-05T23:59:59Z")
-  private val enqueueConfirmedMessage = "Confirmed NPS transfer work item"
-  private val enqueueFailureMessage   = s"Failed to store or enqueue $submissionContext"
+  private val previousTaxYear           = "2025-26"
+  private val futureTaxYear             = "2027-28"
+  private val now                       = Instant.parse("2026-06-17T12:00:00Z")
+  private val beforeDeclarationPeriod   = Instant.parse("2026-06-05T23:59:59Z")
+  private val enqueueConfirmedMessage   = "Confirmed NPS transfer work item"
+  private val enqueueFailureMessage     = s"Failed to store or enqueue $submissionContext"
+  private val declarationItem           = MonthlyReturnDeclarationWorkItem(zReference, taxYear, month)
+  private val verificationTimeoutMillis = 1000
 
   private val generatedSubmissionId = UUID.randomUUID()
 
@@ -74,6 +76,7 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
           reportingWindowService = reportingWindowService,
           uuidGenerator = mockUuidGenerator,
           workItemRepository = mockWorkItemRepository,
+          declarationWorkItemRepository = mockDeclarationWorkItemRepository,
           appConfig = appConfig,
           actorSystem = inject[ActorSystem]
         )
@@ -282,10 +285,13 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
             service
               .declare(zReference, taxYear, month, nilReturn = false)
           ) mustBe DeclareMonthlyReturnResult.Declared
-          events.last.getMessage must startWith("[MonthlyReturnService][declareExistingReturn] Declared monthly return")
+          events
+            .map(_.getMessage)
+            .exists(_.startsWith("[MonthlyReturnService][declareExistingReturn] Declared monthly return")) mustBe true
         }
 
         verify(mockMonthlyReturnRepository).declare(eqTo(zReference), eqTo(taxYear), eqTo(month), eqTo(List.empty))
+        verify(mockDeclarationWorkItemRepository).enqueue(declarationItem)
       }
 
       "must pass pending submission IDs to the repository" in new TestSetup {
@@ -311,6 +317,59 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
         ) mustBe DeclareMonthlyReturnResult.Declared
       }
 
+      "must await declaration enqueue confirmation before reporting success" in new TestSetup {
+        val enqueued = Promise[Unit]()
+        when(mockMonthlyReturnRepository.declare(any(), any(), anyInt(), any()))
+          .thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared))
+        when(mockDeclarationWorkItemRepository.enqueue(any())).thenReturn(enqueued.future)
+
+        val result = service.declare(zReference, taxYear, month, nilReturn = false)
+        verify(mockDeclarationWorkItemRepository, mockitoTimeout(verificationTimeoutMillis)).enqueue(declarationItem)
+        result.isCompleted mustBe false
+        enqueued.success(())
+        await(result) mustBe DeclareMonthlyReturnResult.Declared
+      }
+
+      "must retry a transient declaration enqueue failure without declaring again" in new TestSetup {
+        when(mockMonthlyReturnRepository.declare(any(), any(), anyInt(), any()))
+          .thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared))
+        when(mockDeclarationWorkItemRepository.enqueue(any())).thenReturn(Future.failed(enqueueFailure), Future.unit)
+
+        await(service.declare(zReference, taxYear, month, nilReturn = false)) mustBe DeclareMonthlyReturnResult.Declared
+        verify(mockDeclarationWorkItemRepository, times(2)).enqueue(declarationItem)
+        verify(mockMonthlyReturnRepository).declare(zReference, taxYear, month, Nil)
+      }
+
+      "must propagate exhausted declaration enqueue failures and repair the queue on a repeated declaration" in new TestSetup {
+        when(mockMonthlyReturnRepository.declare(any(), any(), anyInt(), any()))
+          .thenReturn(
+            Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared),
+            Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnAlreadyDeclared)
+          )
+        when(mockDeclarationWorkItemRepository.enqueue(any())).thenReturn(Future.failed(enqueueFailure))
+
+        await(service.declare(zReference, taxYear, month, nilReturn = false).failed) mustBe enqueueFailure
+        verify(mockDeclarationWorkItemRepository, times(appConfig.monthlyReturnDeclarationEnqueueAttempts))
+          .enqueue(declarationItem)
+
+        when(mockDeclarationWorkItemRepository.enqueue(any())).thenReturn(Future.unit)
+        await(
+          service.declare(zReference, taxYear, month, nilReturn = false)
+        ) mustBe DeclareMonthlyReturnResult.AlreadyDeclared
+        verify(mockDeclarationWorkItemRepository, times(appConfig.monthlyReturnDeclarationEnqueueAttempts + 1))
+          .enqueue(declarationItem)
+      }
+
+      "must not retry unrelated declaration enqueue failures" in new TestSetup {
+        val failure = new IllegalStateException("declaration enqueue failed")
+        when(mockMonthlyReturnRepository.declare(any(), any(), anyInt(), any()))
+          .thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared))
+        when(mockDeclarationWorkItemRepository.enqueue(any())).thenReturn(Future.failed(failure))
+
+        await(service.declare(zReference, taxYear, month, nilReturn = false).failed) mustBe failure
+        verify(mockDeclarationWorkItemRepository).enqueue(declarationItem)
+      }
+
       "must return AlreadyDeclared when the repository rejects a duplicate declaration" in new TestSetup {
         when(mockMonthlyReturnRepository.declare(eqTo(zReference), eqTo(taxYear), eqTo(month), eqTo(List.empty)))
           .thenReturn(Future.successful(DeclareMonthlyReturnRepositoryResult.MonthlyReturnAlreadyDeclared))
@@ -319,6 +378,7 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
           service
             .declare(zReference, taxYear, month, nilReturn = false)
         ) mustBe DeclareMonthlyReturnResult.AlreadyDeclared
+        verify(mockDeclarationWorkItemRepository).enqueue(declarationItem)
       }
 
       "must return MonthlyReturnNotFound when the repository cannot find the MonthlyReturn" in new TestSetup {
@@ -329,6 +389,7 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
           service
             .declare(zReference, taxYear, month, nilReturn = false)
         ) mustBe DeclareMonthlyReturnResult.MonthlyReturnNotFound
+        verifyNoInteractions(mockDeclarationWorkItemRepository)
       }
 
       "must allow declarations from the configured start day" in new TestSetup {
@@ -531,7 +592,7 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
 
         withCaptureOfLoggingFrom(Logger(service.getClass)) { events =>
           val result = service.storeSubmission(zReference, taxYear, month, testUploadReference, testTempFile)
-          verify(mockWorkItemRepository, mockitoTimeout(1000)).enqueue(any())
+          verify(mockWorkItemRepository, mockitoTimeout(verificationTimeoutMillis)).enqueue(any())
           result.isCompleted mustBe false
           events.exists(_.getMessage.contains(enqueueConfirmedMessage)) mustBe false
           enqueued.success(())
@@ -753,6 +814,7 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
         ) mustBe DeclareMonthlyReturnResult.Declared
 
         verify(mockUuidGenerator).randomUuid()
+        verify(mockDeclarationWorkItemRepository).enqueue(declarationItem)
         verify(mockMonthlyReturnRepository).declare(eqTo(zReference), eqTo(taxYear), eqTo(month), eqTo(List.empty))
       }
 
@@ -777,6 +839,7 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
           service
             .declare(zReference, taxYear, month, nilReturn = true)
         ) mustBe DeclareMonthlyReturnResult.AlreadyDeclared
+        verify(mockDeclarationWorkItemRepository).enqueue(declarationItem)
       }
 
       "must return MonthlyReturnNotFound when created nil return cannot be found by fallback declaration" in new TestSetup {
@@ -800,6 +863,7 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
           service
             .declare(zReference, taxYear, month, nilReturn = true)
         ) mustBe DeclareMonthlyReturnResult.MonthlyReturnNotFound
+        verifyNoInteractions(mockDeclarationWorkItemRepository)
       }
 
       "must return Declared and update existing monthly return to nil return" in new TestSetup {
@@ -812,6 +876,7 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
         ) mustBe DeclareMonthlyReturnResult.Declared
 
         verify(mockMonthlyReturnRepository).declareNilReturn(eqTo(zReference), eqTo(taxYear), eqTo(month))
+        verify(mockDeclarationWorkItemRepository).enqueue(declarationItem)
         verify(mockUuidGenerator, never()).randomUuid()
         verify(mockMonthlyReturnRepository, never()).create(any(), any(), any(), any(), any())
         verify(mockMonthlyReturnRepository, never()).declare(any(), any(), any(), any())
@@ -825,6 +890,7 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
           service
             .declare(zReference, taxYear, month, nilReturn = true)
         ) mustBe DeclareMonthlyReturnResult.AlreadyDeclared
+        verify(mockDeclarationWorkItemRepository).enqueue(declarationItem)
 
         verify(mockUuidGenerator, never()).randomUuid()
         verify(mockMonthlyReturnRepository, never()).create(any(), any(), any(), any(), any())
@@ -869,17 +935,19 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
   }
 
   private trait TestSetup {
-    val mockMonthlyReturnRepository = mock[MonthlyReturnRepository]
-    val mockSubStoreAction          = mock[MonthlyReturnSubmissionStoreAction]
-    val appConfig                   = inject[AppConfig]
-    val mockUuidGenerator           = mock[UuidGenerator]
-    val mockWorkItemRepository      = mock[MonthlyReturnSubmissionWorkItemRepository]
-    val aprilDeclarationStart       = Instant.parse(s"2026-04-0${appConfig.declarationPeriodStart}T00:00:00Z")
-    val julyDeclarationStart        = Instant.parse(s"2026-07-0${appConfig.declarationPeriodStart}T00:00:00Z")
-    val enqueueFailure              = new MongoException("mongo unavailable")
-    val service                     = buildService(now)
+    val mockMonthlyReturnRepository       = mock[MonthlyReturnRepository]
+    val mockSubStoreAction                = mock[MonthlyReturnSubmissionStoreAction]
+    val appConfig                         = inject[AppConfig]
+    val mockUuidGenerator                 = mock[UuidGenerator]
+    val mockWorkItemRepository            = mock[MonthlyReturnSubmissionWorkItemRepository]
+    val mockDeclarationWorkItemRepository = mock[MonthlyReturnDeclarationWorkItemRepository]
+    val aprilDeclarationStart             = Instant.parse(s"2026-04-0${appConfig.declarationPeriodStart}T00:00:00Z")
+    val julyDeclarationStart              = Instant.parse(s"2026-07-0${appConfig.declarationPeriodStart}T00:00:00Z")
+    val enqueueFailure                    = new MongoException("mongo unavailable")
+    val service                           = buildService(now)
 
     when(mockWorkItemRepository.enqueue(any[MonthlyReturnSubmissionWorkItem])).thenReturn(Future.unit)
+    when(mockDeclarationWorkItemRepository.enqueue(any[MonthlyReturnDeclarationWorkItem])).thenReturn(Future.unit)
 
     def buildService(now: Instant): MonthlyReturnService = {
       val timeSource: TimeSource = (_: String) => Future.successful(now)
@@ -889,6 +957,7 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
         reportingWindowService = new MonthlyReturnReportingWindowService(appConfig, timeSource),
         uuidGenerator = mockUuidGenerator,
         workItemRepository = mockWorkItemRepository,
+        declarationWorkItemRepository = mockDeclarationWorkItemRepository,
         appConfig = appConfig,
         actorSystem = inject[ActorSystem]
       )

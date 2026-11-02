@@ -96,6 +96,43 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
       }
     }
 
+    "markNpsDeclared" - {
+      "must record the first NPS declaration timestamp and preserve the rest of the return" in {
+        val original = buildMonthlyReturn(
+          declaredOn = Some(existingUpdated),
+          submissions = List(storedSubmission().copy(status = MonthlyReturnSubmissionStatus.NpsSubmitted))
+        )
+        insertMonthlyReturn(original)
+
+        await(repository.markNpsDeclared(zReference, taxYear, month)) mustBe true
+        await(repository.get(zReference, taxYear, month)).value mustBe original.copy(
+          npsDeclaredOn = Some(fixedNow),
+          lastUpdated = fixedNow
+        )
+        await(repository.markNpsDeclared(zReference, taxYear, month)) mustBe false
+      }
+
+      "must not overwrite an earlier NPS declaration timestamp" in {
+        val original = buildMonthlyReturn(declaredOn = Some(existingUpdated)).copy(npsDeclaredOn = Some(createdOn))
+        insertMonthlyReturn(original)
+
+        await(repository.markNpsDeclared(zReference, taxYear, month)) mustBe false
+        await(repository.get(zReference, taxYear, month)).value mustBe original
+      }
+
+      "must not update an undeclared or missing return or a different monthly key" in {
+        val otherZReference = "Z9999"
+        insertMonthlyReturn(buildMonthlyReturn())
+        await(repository.markNpsDeclared(zReference, taxYear, month)) mustBe false
+        await(repository.markNpsDeclared(otherZReference, taxYear, month)) mustBe false
+
+        await(
+          repository.declare(zReference, taxYear, month)
+        ) mustBe DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared
+        await(repository.markNpsDeclared(zReference, taxYear, month + 1)) mustBe false
+      }
+    }
+
     "get" - {
 
       "must return None when a MonthlyReturn does not exist" in {

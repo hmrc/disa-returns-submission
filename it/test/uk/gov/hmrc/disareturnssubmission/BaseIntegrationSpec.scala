@@ -37,7 +37,7 @@ import play.api.libs.ws.WSClient
 import play.api.test.DefaultAwaitTimeout
 import play.api.test.Helpers.await
 import uk.gov.hmrc.disareturnssubmission.services.TimeSource
-import uk.gov.hmrc.disareturnssubmission.utils.Constants.MONTHLY_RETURN_SUBMISSION_WORK_ITEMS_COLLECTION_NAME
+import uk.gov.hmrc.disareturnssubmission.utils.Constants.*
 import uk.gov.hmrc.disareturnssubmission.utils.RequestUtils
 import uk.gov.hmrc.http.test.WireMockSupport
 import uk.gov.hmrc.mongo.MongoComponent
@@ -78,6 +78,7 @@ trait BaseIntegrationSpec
       "auditing.enabled"                                             -> false,
       "create-internal-auth-token-on-start"                          -> false,
       "monthly-return-submission-work-item-job.enabled"              -> false,
+      "monthly-return-declaration-work-item-job.enabled"             -> false,
       "mongodb.uri"                                                  -> "mongodb://localhost:27017/disa-returns-submission-it",
       "microservice.services.disa-returns-submission.protocol"       -> "http",
       "microservice.services.disa-returns-submission.host"           -> "localhost",
@@ -164,6 +165,7 @@ trait BaseIntegrationSpec
       monthlyReturnsCollectionName,
       monthlyReturnFileUploadWorkItemsCollectionName,
       MONTHLY_RETURN_SUBMISSION_WORK_ITEMS_COLLECTION_NAME,
+      MONTHLY_RETURN_DECLARATION_WORK_ITEMS_COLLECTION_NAME,
       "testOverrides"
     )
       .foreach { collectionName =>

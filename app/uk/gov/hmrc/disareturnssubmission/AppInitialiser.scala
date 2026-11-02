@@ -19,7 +19,7 @@ package uk.gov.hmrc.disareturnssubmission
 import org.apache.pekko.Done
 import play.api.Logging
 import uk.gov.hmrc.disareturnssubmission.config.*
-import uk.gov.hmrc.disareturnssubmission.jobs.MonthlyReturnSubmissionWorkItemJob
+import uk.gov.hmrc.disareturnssubmission.jobs.*
 
 import javax.inject.*
 import scala.concurrent.duration.DurationInt
@@ -31,7 +31,8 @@ import scala.util.Try
 class AppInitialiser @Inject() (
   internalAuthTokenInitialiser: InternalAuthTokenInitialiser,
   appConfig: AppConfig,
-  monthlyReturnSubmissionWorkItemJob: MonthlyReturnSubmissionWorkItemJob
+  monthlyReturnSubmissionWorkItemJob: MonthlyReturnSubmissionWorkItemJob,
+  monthlyReturnDeclarationWorkItemJob: MonthlyReturnDeclarationWorkItemJob
 ) extends Logging {
 
   val initialised: Future[Done] =
@@ -44,6 +45,11 @@ class AppInitialiser @Inject() (
     if (appConfig.monthlyReturnSubmissionJobEnabled) {
       Try(monthlyReturnSubmissionWorkItemJob.start()).failed.foreach { exception =>
         logger.error("[AppInitialiser] Monthly return submission work item job failed to start", exception)
+      }
+    }
+    if (appConfig.monthlyReturnDeclarationJobEnabled) {
+      Try(monthlyReturnDeclarationWorkItemJob.start()).failed.foreach { exception =>
+        logger.error("[AppInitialiser] Monthly return declaration work item job failed to start", exception)
       }
     }
   } catch {

@@ -198,6 +198,24 @@ over HTTPS. Incoming credentials are not forwarded.
 
 A crash after NPS accepts batches but before Mongo records success also replays the whole submission.
 
+### NPS declarations
+
+Declaring a return queues a work item in `monthlyReturnDeclarationWorkItems`. It waits for all submissions to reach
+`NPS_SUBMITTED`, checking again after five minutes if any are still pending. Empty and nil returns don't need to wait.
+
+On success, the job sets `npsDeclaredOn` and completes the item. Failures retry after `failedRetryAfter`.
+Returns already declared to NPS are skipped, though a crash before saving the timestamp can cause a repeat declaration.
+
+Settings are under `monthly-return-declaration-work-item-job` in `conf/application.conf`.
+`pendingSubmissionsRetryAfter` controls the five-minute wait. To pause the job, set `enabled=false` and restart all
+instances. Declarations still queue and submission transfers keep running. Keep `inProgressRetryAfter` longer than
+a full NPS attempt, including connector retries.
+
+Run the Bruno cases under `MonthlyReturn/NPSDeclarations`. The local stub uses `POST /nps/declaration/:zReference`
+and returns `500` for `Z1500`. For quicker runs, start the service with
+`-Dmonthly-return-declaration-work-item-job.pendingSubmissionsRetryAfter=2s`.
+Matching the real NPS API is a separate ticket.
+
 #### Checking locally
 
 Start Object Store, internal-auth and `disa-returns-stubs`, then run submission with test-only routes enabled.

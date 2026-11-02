@@ -42,6 +42,7 @@ class MonthlyReturnService @Inject() (
   reportingWindowService: MonthlyReturnReportingWindowService,
   uuidGenerator: UuidGenerator,
   workItemRepository: MonthlyReturnSubmissionWorkItemRepository,
+  declarationWorkItemRepository: MonthlyReturnDeclarationWorkItemRepository,
   appConfig: AppConfig,
   actorSystem: ActorSystem
 )(implicit ec: ExecutionContext)
@@ -140,10 +141,17 @@ class MonthlyReturnService @Inject() (
           )
           Future.successful(DeclareMonthlyReturnResult.OutsideDeclarationPeriod)
         case true  =>
-          if (nilReturn) {
-            declareNilReturn(zReference, taxYear, month)
-          } else {
-            declareExistingReturn(zReference, taxYear, month, pendingSubmissionIds)
+          val declaration =
+            if (nilReturn) {
+              declareNilReturn(zReference, taxYear, month)
+            } else {
+              declareExistingReturn(zReference, taxYear, month, pendingSubmissionIds)
+            }
+
+          declaration.flatMap {
+            case result @ (DeclareMonthlyReturnResult.Declared | DeclareMonthlyReturnResult.AlreadyDeclared) =>
+              enqueueDeclarationForNps(zReference, taxYear, month).map(_ => result)
+            case result                                                                                      => Future.successful(result)
           }
       }
     }
@@ -314,17 +322,19 @@ class MonthlyReturnService @Inject() (
 
   private def enqueueSubmissionForNpsTransfer(monthlyReturn: MonthlyReturn, reference: String): Future[Unit] = {
     val hasAlreadySubmittedToNps = monthlyReturn.hasNpsSubmittedSubmission(reference)
-    val context                  =
+    val loggingContext           =
       s"submission [$reference] for zReference [${monthlyReturn.zReference}], taxYear [${monthlyReturn.taxYear}], month [${monthlyReturn.month}]"
 
     if (hasAlreadySubmittedToNps) {
       logger.info(
-        s"[MonthlyReturnService][enqueueSubmissionForNpsTransfer] Submission already submitted to NPS - skipping enqueue for $context"
+        s"[MonthlyReturnService][enqueueSubmissionForNpsTransfer] Submission already submitted to NPS - skipping enqueue for $loggingContext"
       )
       Future.unit
     } else {
-      logger.debug(s"[MonthlyReturnService][enqueueSubmissionForNpsTransfer] Enqueueing NPS transfer for $context")
-      retryMongo(appConfig.monthlyReturnSubmissionEnqueueAttempts, context) {
+      logger.debug(
+        s"[MonthlyReturnService][enqueueSubmissionForNpsTransfer] Enqueueing NPS transfer for $loggingContext"
+      )
+      retryMongo(appConfig.monthlyReturnSubmissionEnqueueAttempts, loggingContext) {
         workItemRepository.enqueue(
           MonthlyReturnSubmissionWorkItem(
             monthlyReturn.zReference,
@@ -335,19 +345,34 @@ class MonthlyReturnService @Inject() (
         )
       }.map { _ =>
         logger.info(
-          s"[MonthlyReturnService][enqueueSubmissionForNpsTransfer] Confirmed NPS transfer work item for $context"
+          s"[MonthlyReturnService][enqueueSubmissionForNpsTransfer] Confirmed NPS transfer work item for $loggingContext"
         )
       }
     }
   }
 
-  private def retryMongo[A](attemptsRemaining: Int, context: String)(operation: => Future[A]): Future[A] =
+  private def enqueueDeclarationForNps(zReference: String, taxYear: String, month: Int): Future[Unit] = {
+    val loggingContext = s"declaration for zReference [$zReference], taxYear [$taxYear], month [$month]"
+    logger.debug(s"[MonthlyReturnService][enqueueDeclarationForNps] Enqueueing NPS $loggingContext")
+    retryMongo(appConfig.monthlyReturnDeclarationEnqueueAttempts, loggingContext) {
+      declarationWorkItemRepository.enqueue(MonthlyReturnDeclarationWorkItem(zReference, taxYear, month))
+    }.map { _ =>
+      logger.info(
+        s"[MonthlyReturnService][enqueueDeclarationForNps] Confirmed NPS declaration work item for $loggingContext"
+      )
+    }.recoverWith { case NonFatal(exception) =>
+      logger.error(s"[MonthlyReturnService][enqueueDeclarationForNps] Failed to enqueue NPS $loggingContext", exception)
+      Future.failed(exception)
+    }
+  }
+
+  private def retryMongo[A](attemptsRemaining: Int, loggingContext: String)(operation: => Future[A]): Future[A] =
     operation.recoverWith {
       case exception: MongoException if attemptsRemaining > 1 =>
         logger.warn(
-          s"[MonthlyReturnService][retryMongo] Retrying NPS enqueue for $context in [1 second] - attempts remaining [${attemptsRemaining - 1}], error [${exception.getClass.getSimpleName}]"
+          s"[MonthlyReturnService][retryMongo] Retrying NPS enqueue for $loggingContext in [1 second] - attempts remaining [${attemptsRemaining - 1}], error [${exception.getClass.getSimpleName}]"
         )
-        after(1.second, actorSystem.scheduler)(retryMongo(attemptsRemaining - 1, context)(operation))
+        after(1.second, actorSystem.scheduler)(retryMongo(attemptsRemaining - 1, loggingContext)(operation))
     }
 
   private def isWithinDeclarationPeriod(zReference: String, taxYear: String, month: Int): Future[Boolean] =
@@ -362,7 +387,11 @@ class MonthlyReturnService @Inject() (
     }
 
   private def taxYearFor(period: YearMonth): String = {
-    val startYear = if (period.getMonthValue >= 4) period.getYear else period.getYear - 1
+    val startYear = if (period.getMonthValue >= 4) {
+      period.getYear
+    } else {
+      period.getYear - 1
+    }
     f"$startYear%04d-${(startYear + 1) % 100}%02d"
   }
 }

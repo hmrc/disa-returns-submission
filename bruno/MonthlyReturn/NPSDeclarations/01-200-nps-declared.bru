@@ -1,0 +1,54 @@
+meta {
+  name: 01-200-nps-declared
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}{{servicePath}}/monthly/{{npsDeclarationZReference}}/{{taxYear}}/{{month}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+script:pre-request {
+  let submitted;
+  do {
+    submitted = await bru.runRequest("MonthlyReturn/NPS/01-200-nps-submitted");
+  } while (bru.getVar("zReference") === "Z1500");
+  if (submitted.status !== 200) {
+    throw new Error(`Submission setup failed: ${submitted.status}`);
+  }
+
+  bru.setVar("npsDeclarationZReference", bru.getVar("zReference"));
+  const url = `${bru.getEnvVar("baseUrl")}${bru.getEnvVar("servicePath")}/monthly/${bru.getVar("npsDeclarationZReference")}/${bru.getEnvVar("taxYear")}/${bru.getEnvVar("month")}`;
+  const headers = { Authorization: bru.getEnvVar("internalAuthToken"), "Content-Type": "application/json" };
+  const declared = await bru.sendRequest({ method: "POST", url: `${url}/declarations`, headers, data: { nilReturn: false } });
+  if (declared.status !== 200) {
+    throw new Error(`Declaration setup failed: ${declared.status}`);
+  }
+
+  const maxAttempts = 60;
+  const pollIntervalMillis = 500;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const response = await bru.sendRequest({ method: "GET", url, headers, timeout: 3000 });
+    const body = typeof response.data === "string" ? JSON.parse(response.data) : response.data;
+    if (body?.npsDeclaredOn) {
+      return;
+    }
+    await new Promise(resolve => setTimeout(resolve, pollIntervalMillis));
+  }
+  throw new Error("Monthly return did not acquire npsDeclaredOn within 30 seconds");
+}
+
+tests {
+  test("the monthly return was declared to NPS after its submissions", function() {
+    const body = typeof res.body === "string" ? JSON.parse(res.body) : res.body;
+    expect(body.declaredOn).to.be.a("string");
+    expect(body.npsDeclaredOn).to.be.a("string");
+    expect(body.submissions.every(submission => submission.status === "NPS_SUBMITTED")).to.equal(true);
+  });
+}

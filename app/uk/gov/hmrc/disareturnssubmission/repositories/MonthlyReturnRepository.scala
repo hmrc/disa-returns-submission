@@ -34,15 +34,16 @@ import java.util.concurrent.TimeUnit
 import javax.inject.*
 import scala.concurrent.*
 
-private val declaredOnField  = "declaredOn"
-private val lastUpdatedField = "lastUpdated"
-private val monthField       = "month"
-private val nilReturnField   = "nilReturn"
-private val referenceField   = "reference"
-private val statusField      = "status"
-private val submissionsField = "submissions"
-private val taxYearField     = "taxYear"
-private val zReferenceField  = "zReference"
+private val declaredOnField    = "declaredOn"
+private val lastUpdatedField   = "lastUpdated"
+private val monthField         = "month"
+private val npsDeclaredOnField = "npsDeclaredOn"
+private val nilReturnField     = "nilReturn"
+private val referenceField     = "reference"
+private val statusField        = "status"
+private val submissionsField   = "submissions"
+private val taxYearField       = "taxYear"
+private val zReferenceField    = "zReference"
 
 @Singleton
 class MonthlyReturnRepository @Inject() (
@@ -177,6 +178,24 @@ class MonthlyReturnRepository @Inject() (
       )
       .toFuture()
       .map(_.getMatchedCount > 0)
+
+  def markNpsDeclared(zReference: String, taxYear: String, month: Int): Future[Boolean] = {
+    val npsDeclaredOn = now()
+    collection
+      .updateOne(
+        filter = Filters.and(
+          byKey(zReference, taxYear, month),
+          Filters.exists(declaredOnField, exists = true),
+          Filters.exists(npsDeclaredOnField, exists = false)
+        ),
+        update = Updates.combine(
+          Updates.set(npsDeclaredOnField, npsDeclaredOn),
+          Updates.set(lastUpdatedField, npsDeclaredOn)
+        )
+      )
+      .toFuture()
+      .map(_.getMatchedCount > 0)
+  }
 
   def declare(
     zReference: String,

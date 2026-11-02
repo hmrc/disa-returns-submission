@@ -73,6 +73,26 @@ class AppConfigSpec extends SpecBase {
 
   }
 
+  "declaration work item configuration" - {
+    "must read defaults and accept independent enablement and retry-delay overrides" in {
+      val prefix          = "monthly-return-declaration-work-item-job"
+      val config          = inject[AppConfig]
+      val overriddenDelay = "30 seconds"
+      config.monthlyReturnDeclarationEnqueueAttempts mustBe 3
+      config.monthlyReturnDeclarationJobPendingSubmissionsRetryAfter mustBe Duration.ofMinutes(5)
+      config.monthlyReturnDeclarationJobFailedRetryAfter mustBe Duration.ofMinutes(10)
+      config.monthlyReturnDeclarationJobInProgressRetryAfter mustBe Duration.ofMinutes(15)
+      config.monthlyReturnDeclarationJobPollInterval mustBe 10.seconds
+      config.monthlyReturnDeclarationJobWorkerCount mustBe 2
+      configured(s"$prefix.enabled", true).monthlyReturnDeclarationJobEnabled mustBe true
+      configured(s"$prefix.enabled", false).monthlyReturnDeclarationJobEnabled mustBe false
+      configured(
+        s"$prefix.pendingSubmissionsRetryAfter",
+        overriddenDelay
+      ).monthlyReturnDeclarationJobPendingSubmissionsRetryAfter mustBe Duration.ofSeconds(30)
+    }
+  }
+
   private def configured(key: String, value: Any): AppConfig =
     new AppConfig(
       Configuration(

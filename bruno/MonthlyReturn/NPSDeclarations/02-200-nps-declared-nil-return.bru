@@ -1,0 +1,54 @@
+meta {
+  name: 02-200-nps-declared-nil-return
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}{{servicePath}}/monthly/{{npsDeclarationZReference}}/{{taxYear}}/{{month}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+script:pre-request {
+  let created;
+  do {
+    created = await bru.runRequest("MonthlyReturn/Create/01-201-create-nil-return-false");
+  } while (bru.getVar("nilZReference") === "Z1500");
+  if (created.status !== 201) {
+    throw new Error(`Monthly return setup failed: ${created.status}`);
+  }
+
+  bru.setVar("npsDeclarationZReference", bru.getVar("nilZReference"));
+  const url = `${bru.getEnvVar("baseUrl")}${bru.getEnvVar("servicePath")}/monthly/${bru.getVar("npsDeclarationZReference")}/${bru.getEnvVar("taxYear")}/${bru.getEnvVar("month")}`;
+  const headers = { Authorization: bru.getEnvVar("internalAuthToken"), "Content-Type": "application/json" };
+  const declared = await bru.sendRequest({ method: "POST", url: `${url}/declarations`, headers, data: { nilReturn: true } });
+  if (declared.status !== 200) {
+    throw new Error(`Nil declaration setup failed: ${declared.status}`);
+  }
+
+  const maxAttempts = 60;
+  const pollIntervalMillis = 500;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const response = await bru.sendRequest({ method: "GET", url, headers, timeout: 3000 });
+    const body = typeof response.data === "string" ? JSON.parse(response.data) : response.data;
+    if (body?.npsDeclaredOn) {
+      return;
+    }
+    await new Promise(resolve => setTimeout(resolve, pollIntervalMillis));
+  }
+  throw new Error("Nil return did not acquire npsDeclaredOn within 30 seconds");
+}
+
+tests {
+  test("a nil return without submissions was declared to NPS", function() {
+    const body = typeof res.body === "string" ? JSON.parse(res.body) : res.body;
+    expect(body.nilReturn).to.equal(true);
+    expect(body.submissions).to.deep.equal([]);
+    expect(body.npsDeclaredOn).to.be.a("string");
+  });
+}
