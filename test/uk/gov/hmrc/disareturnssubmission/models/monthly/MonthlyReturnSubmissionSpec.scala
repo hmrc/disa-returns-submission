@@ -20,6 +20,9 @@ import base.SpecBase
 import play.api.libs.json.*
 
 class MonthlyReturnSubmissionSpec extends SpecBase {
+  private val createdStatus   = "CREATED"
+  private val storedStatus    = "STORED"
+  private val submittedStatus = "NPS_SUBMITTED"
 
   "MonthlyReturnSubmission format" - {
 
@@ -31,19 +34,23 @@ class MonthlyReturnSubmissionSpec extends SpecBase {
       )
       val stored  = created.copy(status = MonthlyReturnSubmissionStatus.Stored)
 
-      (Json.toJson(created) \ "status").as[JsString] mustBe JsString("CREATED")
-      (Json.toJson(stored) \ "status").as[JsString] mustBe JsString("STORED")
+      (Json.toJson(created) \ "status").as[JsString] mustBe JsString(createdStatus)
+      (Json.toJson(stored) \ "status").as[JsString] mustBe JsString(storedStatus)
       (Json.toJson(created.copy(status = MonthlyReturnSubmissionStatus.NpsSubmitted)) \ "status")
         .as[JsString] mustBe JsString(
-        "NPS_SUBMITTED"
+        submittedStatus
       )
     }
 
     "must read valid statuses" in {
-      Json.fromJson[MonthlyReturnSubmissionStatus](JsString("CREATED")).get mustBe MonthlyReturnSubmissionStatus.Created
-      Json.fromJson[MonthlyReturnSubmissionStatus](JsString("STORED")).get mustBe MonthlyReturnSubmissionStatus.Stored
       Json
-        .fromJson[MonthlyReturnSubmissionStatus](JsString("NPS_SUBMITTED"))
+        .fromJson[MonthlyReturnSubmissionStatus](JsString(createdStatus))
+        .get mustBe MonthlyReturnSubmissionStatus.Created
+      Json
+        .fromJson[MonthlyReturnSubmissionStatus](JsString(storedStatus))
+        .get mustBe MonthlyReturnSubmissionStatus.Stored
+      Json
+        .fromJson[MonthlyReturnSubmissionStatus](JsString(submittedStatus))
         .get mustBe MonthlyReturnSubmissionStatus.NpsSubmitted
     }
 

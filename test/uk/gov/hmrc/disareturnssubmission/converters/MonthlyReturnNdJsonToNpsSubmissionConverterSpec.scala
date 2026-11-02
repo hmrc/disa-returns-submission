@@ -25,14 +25,19 @@ import play.api.libs.json.*
 import java.math.BigDecimal as JavaBigDecimal
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.*
+import scala.collection.mutable.ArrayBuffer
 import scala.util.Using
 
 class MonthlyReturnNdJsonToNpsSubmissionConverterSpec extends AnyFreeSpec with Matchers {
-  private val converter      = new MonthlyReturnNdJsonToNpsSubmissionConverter()
-  private val backendContent = Files.readString(fixture("backend"), UTF_8)
-  private val records        = backendContent.linesIterator.toVector
-  private val expected       = Json.parse(records.mkString("[", ",", "]"))
-  private val standardRecord = Json.parse(records.head).as[JsObject]
+  private val converter            = new MonthlyReturnNdJsonToNpsSubmissionConverter()
+  private val backendContent       = Files.readString(fixture("backend"), UTF_8)
+  private val records              = backendContent.linesIterator.toVector
+  private val expected             = Json.parse(records.mkString("[", ",", "]"))
+  private val standardRecord       = Json.parse(records.head).as[JsObject]
+  private val defaultBatchLimit    = 3000
+  private val overriddenBatchLimit = 2500
+  private val highPrecisionAmount  = "1234567890123456789012345678901234567890.12"
+  private val privateAccountNumber = "private-account"
 
   "MonthlyReturnNdJsonToNpsSubmissionConverter" - {
     Seq("backend", "api").foreach { producer =>
@@ -47,7 +52,7 @@ class MonthlyReturnNdJsonToNpsSubmissionConverterSpec extends AnyFreeSpec with M
       Json.parse(converted(Json.stringify(input))) mustBe Json.arr(standardRecord)
     }
 
-    Seq("12345678901234567890.12", "1234567890123456789012345678901234567890.12").foreach { amount =>
+    Seq("12345678901234567890.12", highPrecisionAmount).foreach { amount =>
       s"must use Play's configured decimal precision for $amount" in {
         val record = standardRecord ++ Json.obj("amountTransferredIn" -> BigDecimal.exact(amount))
         val mapper = new ObjectMapper().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
@@ -70,8 +75,75 @@ class MonthlyReturnNdJsonToNpsSubmissionConverterSpec extends AnyFreeSpec with M
     }
 
     "must produce an empty array for empty or whitespace-only input" in {
-      converted("") mustBe "[]"
-      converted("\r\n \t\n") mustBe "[]"
+      convertedBatches("", defaultBatchLimit) mustBe Seq("[]" -> 0)
+      convertedBatches("\r\n \t\n", defaultBatchLimit) mustBe Seq("[]" -> 0)
+    }
+
+    Seq(
+      (defaultBatchLimit, overriddenBatchLimit, Seq(overriddenBatchLimit, defaultBatchLimit - overriddenBatchLimit)),
+      (overriddenBatchLimit, overriddenBatchLimit, Seq(overriddenBatchLimit)),
+      (2 * overriddenBatchLimit, overriddenBatchLimit, Seq(overriddenBatchLimit, overriddenBatchLimit)),
+      (defaultBatchLimit, defaultBatchLimit, Seq(defaultBatchLimit)),
+      (defaultBatchLimit + 1, defaultBatchLimit, Seq(defaultBatchLimit, 1)),
+      (2 * defaultBatchLimit, defaultBatchLimit, Seq(defaultBatchLimit, defaultBatchLimit)),
+      (4, 1, Seq(1, 1, 1, 1))
+    ).foreach { (count, limit, expectedCounts) =>
+      s"must split $count records into $expectedCounts with a $limit limit and preserve their order" in {
+        val input = (1 to count).iterator
+          .map { index =>
+            Json.stringify(
+              Json.parse(records((index - 1) % records.size)).as[JsObject] + ("accountNumber" -> JsString(s"ACC$index"))
+            )
+          }
+          .mkString("\n")
+
+        val batches = convertedBatches(input, limit)
+
+        batches.map(_._2) mustBe expectedCounts
+        batches.flatMap { (json, count) =>
+          val batch = Json.parse(json).as[JsArray].value
+          batch.size mustBe count
+          batch.map(record => (record \ "accountNumber").as[String])
+        } mustBe (1 to count).map(index => s"ACC$index")
+      }
+    }
+
+    "must count records rather than blank lines and not create a trailing empty batch" in {
+      val batches =
+        convertedBatches(s"\n${records.head}\n\n${records(1)}\r\n \t\n${records(2)}\n\n${records(3)}\n \t", 2)
+
+      batches.map(_._2) mustBe Seq(2, 2)
+      batches.flatMap(batch => Json.parse(batch._1).as[JsArray].value) mustBe expected.as[JsArray].value
+    }
+
+    Seq(0, -1).foreach { limit =>
+      s"must reject a non-positive batch limit of $limit without creating an output" in withFiles { (input, _) =>
+        intercept[IllegalArgumentException](converter.convert(input, limit, () => fail("Output must not be created")))
+      }
+    }
+
+    "must preserve Unicode and decimal precision across batch boundaries" in {
+      val firstName = "Zoë \"\n"
+      val record    =
+        standardRecord ++ Json.obj(
+          "firstName"           -> firstName,
+          "amountTransferredIn" -> BigDecimal.exact(highPrecisionAmount)
+        )
+      val batches   = convertedBatches(Seq.fill(3)(Json.stringify(record)).mkString("\n"), 2)
+      val mapper    = new ObjectMapper().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+
+      batches.map(_._2) mustBe Seq(2, 1)
+      batches.foreach { (json, _) =>
+        val batch = mapper.readTree(json)
+        batch.get(0).get("firstName").textValue() mustBe firstName
+        batch
+          .get(0)
+          .get("amountTransferredIn")
+          .decimalValue()
+          .compareTo(
+            new JavaBigDecimal(highPrecisionAmount, JsonConfig.settings.bigDecimalParseConfig.mathContext)
+          ) mustBe 0
+      }
     }
 
     Seq("[]", "null", "42", "\"text\"", "{}", "not JSON", "{\"accountNumber\":").foreach { input =>
@@ -99,20 +171,26 @@ class MonthlyReturnNdJsonToNpsSubmissionConverterSpec extends AnyFreeSpec with M
     }
 
     "must identify the failed line and fields without exposing record data" in {
-      val invalid = (standardRecord - "nino") + ("accountNumber" -> JsString("private-account"))
+      val invalid = (standardRecord - "nino") + ("accountNumber" -> JsString(privateAccountNumber))
       val failure = intercept[IllegalArgumentException](converted(s"\n${records.head}\n${Json.stringify(invalid)}"))
 
       failure.getMessage must include("line 3")
       failure.getMessage must include("nino")
-      failure.getMessage must not include "private-account"
+      failure.getMessage must not include privateAccountNumber
       failure.getCause mustBe null
     }
 
     "must not expose malformed record contents in parser errors" in {
-      val failure = intercept[IllegalArgumentException](converted("{\"accountNumber\":\"private-account\","))
+      val failure = intercept[IllegalArgumentException](converted(s"{\"accountNumber\":\"$privateAccountNumber\","))
 
       failure.getMessage mustBe "Invalid submission JSON at line 1"
       failure.getCause mustBe null
+    }
+
+    "must validate records in later batches and report the original line number" in {
+      val failure = intercept[IllegalArgumentException](convertedBatches(s"${records.head}\n\n${records(1)}\n\n{}", 1))
+
+      failure.getMessage must include("line 5")
     }
 
     "must handle a record larger than the file buffers" in {
@@ -121,44 +199,60 @@ class MonthlyReturnNdJsonToNpsSubmissionConverterSpec extends AnyFreeSpec with M
       Json.parse(converted(Json.stringify(record))) mustBe Json.arr(record)
     }
 
-    "must convert a large generated file without collecting records in memory" in withFiles { (input, output) =>
+    "must convert a large generated file without collecting records in memory" in withFiles { (input, createOutput) =>
       val count = 100000
       Using.resource(Files.newBufferedWriter(input, UTF_8)) { writer =>
         (1 to count).foreach { _ => writer.write(records.head); writer.newLine() }
       }
 
-      converter.convert(input, output)
+      val batches = converter.convert(input, defaultBatchLimit, createOutput)
 
-      Using.resource(new JsonFactory().createParser(output.toFile)) { parser =>
-        parser.nextToken() mustBe JsonToken.START_ARRAY
-        var convertedRecords = 0
-        while (parser.nextToken() != JsonToken.END_ARRAY) {
-          parser.currentToken() mustBe JsonToken.START_OBJECT
-          parser.skipChildren()
-          convertedRecords += 1
+      batches.map(_._2) mustBe Seq.fill(count / defaultBatchLimit)(defaultBatchLimit) :+ (count % defaultBatchLimit)
+      var convertedRecords = 0
+      batches.foreach { (output, expectedCount) =>
+        Using.resource(new JsonFactory().createParser(output.toFile)) { parser =>
+          parser.nextToken() mustBe JsonToken.START_ARRAY
+          var batchRecords = 0
+          while (parser.nextToken() != JsonToken.END_ARRAY) {
+            parser.currentToken() mustBe JsonToken.START_OBJECT
+            parser.skipChildren()
+            batchRecords += 1
+          }
+          batchRecords mustBe expectedCount
+          convertedRecords += batchRecords
+          parser.nextToken() mustBe null
         }
-        convertedRecords mustBe count
-        parser.nextToken() mustBe null
       }
+      convertedRecords mustBe count
     }
   }
 
   private def fixture(producer: String): Path =
     Path.of(getClass.getResource(s"/monthly-return-submissions/$producer.ndjson").toURI)
 
-  private def converted(content: String): String = withFiles { (input, output) =>
-    Files.writeString(input, content, UTF_8)
-    converter.convert(input, output)
-    Files.readString(output, UTF_8)
-  }
+  private def converted(content: String): String = convertedBatches(content, defaultBatchLimit).head._1
 
-  private def withFiles[A](use: (Path, Path) => A): A = {
-    val input  = Files.createTempFile("monthly-return-nps-converter-input", ".ndjson")
-    val output = Files.createTempFile("monthly-return-nps-converter-output", ".json")
-    try use(input, output)
+  private def convertedBatches(content: String, limit: Int): Seq[(String, Int)] =
+    withFiles { (input, createOutput) =>
+      Files.writeString(input, content, UTF_8)
+      converter.convert(input, limit, createOutput).map((output, count) => Files.readString(output, UTF_8) -> count)
+    }
+
+  private def withFiles[A](use: (Path, () => Path) => A): A = {
+    val input   = Files.createTempFile("monthly-return-nps-converter-input", ".ndjson")
+    val outputs = ArrayBuffer.empty[Path]
+    try
+      use(
+        input,
+        () => {
+          val output = Files.createTempFile("monthly-return-nps-converter-output", ".json")
+          outputs += output
+          output
+        }
+      )
     finally {
       Files.deleteIfExists(input)
-      Files.deleteIfExists(output)
+      outputs.foreach(Files.deleteIfExists)
     }
   }
 }

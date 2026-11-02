@@ -43,12 +43,13 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
     try dropDatabase()
     finally super.afterAll()
 
-  private val zReference      = testZReference
-  private val taxYear         = yearOnlyTestTaxYear
-  private val month           = testMonth
-  private val uploadReference = testUploadReference
-  private val existingUpdated = testExistingUpdatedOn
-  private val createdOn       = testRepositoryCreatedOn
+  private val zReference           = testZReference
+  private val taxYear              = yearOnlyTestTaxYear
+  private val month                = testMonth
+  private val uploadReference      = testUploadReference
+  private val otherUploadReference = "other"
+  private val existingUpdated      = testExistingUpdatedOn
+  private val createdOn            = testRepositoryCreatedOn
 
   "MonthlyReturnRepository" - {
 
@@ -71,7 +72,8 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
 
     "markSubmissionNpsSubmitted" - {
       "must update only the matching stored submission and preserve its details" in {
-        val original = buildMonthlyReturn(submissions = List(storedSubmission(), storedSubmission("other")))
+        val original =
+          buildMonthlyReturn(submissions = List(storedSubmission(), storedSubmission(otherUploadReference)))
         insertMonthlyReturn(original)
 
         await(repository.markSubmissionNpsSubmitted(zReference, taxYear, month, uploadReference)) mustBe true
@@ -84,11 +86,13 @@ class MonthlyReturnRepositorySpec extends SpecBase with DefaultPlayMongoReposito
       }
 
       "must not update a created submission or match another submission's status" in {
-        insertMonthlyReturn(buildMonthlyReturn(submissions = List(createdSubmission(), storedSubmission("other"))))
+        insertMonthlyReturn(
+          buildMonthlyReturn(submissions = List(createdSubmission(), storedSubmission(otherUploadReference)))
+        )
 
         await(repository.markSubmissionNpsSubmitted(zReference, taxYear, month, uploadReference)) mustBe false
         await(repository.markSubmissionNpsSubmitted(zReference, taxYear, month, "missing")) mustBe false
-        await(repository.markSubmissionNpsSubmitted("Z9999", taxYear, month, "other")) mustBe false
+        await(repository.markSubmissionNpsSubmitted("Z9999", taxYear, month, otherUploadReference)) mustBe false
       }
     }
 

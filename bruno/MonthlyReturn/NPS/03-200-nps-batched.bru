@@ -1,0 +1,63 @@
+meta {
+  name: 03-200-nps-batched
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}{{servicePath}}/monthly/{{zReference}}/{{taxYear}}/{{month}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+script:pre-request {
+  let created;
+  do {
+    created = await bru.runRequest("MonthlyReturn/Create/01-201-create-nil-return-false");
+  } while (["Z1400", "Z1503"].includes(bru.getVar("zReference")));
+  if (created.status !== 201) throw new Error(`Monthly return setup failed: ${created.status}`);
+
+  const url = `${bru.getEnvVar("baseUrl")}${bru.getEnvVar("servicePath")}/monthly/${bru.getVar("zReference")}/${bru.getEnvVar("taxYear")}/${bru.getEnvVar("month")}`;
+  const reference = `nps-batched-${Date.now()}`;
+  bru.setVar("npsBatchedSubmissionId", reference);
+  const record = {
+    nino: "AB123456C", firstName: "Ada", lastName: "Lovelace", dateOfBirth: "1980-01-02",
+    amountTransferredIn: 10, amountTransferredOut: 0, dateOfLastSubscription: "2026-05-01",
+    totalCurrentYearSubscriptionsToDate: 20, marketValueOfAccount: 100, isaType: "CASH", flexibleIsa: true
+  };
+  const data = Array.from({ length: 3001 }, (_, index) => JSON.stringify({ ...record, accountNumber: `BATCH${index + 1}` })).join("\n");
+  const stored = await bru.sendRequest({
+    method: "PUT", url: `${url}/submissions/${reference}`,
+    headers: { Authorization: bru.getEnvVar("internalAuthToken"), "Content-Type": "application/x-ndjson" },
+    data
+  });
+  if (stored.status !== 200) throw new Error(`Submission storage failed: ${stored.status}`);
+
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const response = await bru.sendRequest({
+      method: "GET", url, headers: { Authorization: bru.getEnvVar("internalAuthToken") }, timeout: 3000
+    });
+    const body = typeof response.data === "string" ? JSON.parse(response.data) : response.data;
+    if (body?.submissions?.some(s => s.reference === reference && s.status === "NPS_SUBMITTED")) return;
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  throw new Error("Batched submission did not reach NPS_SUBMITTED within 30 seconds");
+}
+
+tests {
+  test("all batches were sent before marking the submission NPS_SUBMITTED", function() {
+    const body = typeof res.body === "string" ? JSON.parse(res.body) : res.body;
+    const submission = body.submissions.find(s => s.reference === bru.getVar("npsBatchedSubmissionId"));
+    expect(submission.status).to.equal("NPS_SUBMITTED");
+    expect(submission.submissionDetails.numberOfEntries).to.equal(3001);
+  });
+}
+
+docs {
+  With monthly-return.max-records-per-submission=3000, check submission service debug logs for two accepted
+  batches with 3000 and 1 records. The matching monthlyReturnSubmissionWorkItems entry must be succeeded.
+}

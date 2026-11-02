@@ -218,25 +218,25 @@ class MonthlyReturnService @Inject() (
       .map {
         case DeclareMonthlyReturnRepositoryResult.MonthlyReturnDeclared =>
           logger.info(
-            s"[MonthlyReturnService][declare] Declared monthly return for zReference [$zReference], taxYear [$taxYear], month [$month]"
+            s"[MonthlyReturnService][declareExistingReturn] Declared monthly return for zReference [$zReference], taxYear [$taxYear], month [$month]"
           )
           DeclareMonthlyReturnResult.Declared
 
         case DeclareMonthlyReturnRepositoryResult.MonthlyReturnAlreadyDeclared =>
           logger.warn(
-            s"[MonthlyReturnService][declare] Monthly return already declared for zReference [$zReference], taxYear [$taxYear], month [$month]"
+            s"[MonthlyReturnService][declareExistingReturn] Monthly return already declared for zReference [$zReference], taxYear [$taxYear], month [$month]"
           )
           DeclareMonthlyReturnResult.AlreadyDeclared
 
         case DeclareMonthlyReturnRepositoryResult.MonthlyReturnNotFound =>
           logger.warn(
-            s"[MonthlyReturnService][declare] No monthly return found for zReference [$zReference], taxYear [$taxYear], month [$month]"
+            s"[MonthlyReturnService][declareExistingReturn] No monthly return found for zReference [$zReference], taxYear [$taxYear], month [$month]"
           )
           DeclareMonthlyReturnResult.MonthlyReturnNotFound
       }
       .recoverWith { case NonFatal(exception) =>
         logger.error(
-          s"[MonthlyReturnService][declare] Failed to declare monthly return for zReference [$zReference], taxYear [$taxYear], month [$month]",
+          s"[MonthlyReturnService][declareExistingReturn] Failed to declare monthly return for zReference [$zReference], taxYear [$taxYear], month [$month]",
           exception
         )
         Future.failed(exception)
@@ -319,7 +319,7 @@ class MonthlyReturnService @Inject() (
 
     if (hasAlreadySubmittedToNps) {
       logger.info(
-        s"[MonthlyReturnService][enqueueSubmissionForNpsTransfer] Submission already submitted to NPS; skipping enqueue for $context"
+        s"[MonthlyReturnService][enqueueSubmissionForNpsTransfer] Submission already submitted to NPS - skipping enqueue for $context"
       )
       Future.unit
     } else {
@@ -345,7 +345,7 @@ class MonthlyReturnService @Inject() (
     operation.recoverWith {
       case exception: MongoException if attemptsRemaining > 1 =>
         logger.warn(
-          s"[MonthlyReturnService][retryMongo] Retrying NPS enqueue for $context in [1 second]; attempts remaining [${attemptsRemaining - 1}], error [${exception.getClass.getSimpleName}]"
+          s"[MonthlyReturnService][retryMongo] Retrying NPS enqueue for $context in [1 second] - attempts remaining [${attemptsRemaining - 1}], error [${exception.getClass.getSimpleName}]"
         )
         after(1.second, actorSystem.scheduler)(retryMongo(attemptsRemaining - 1, context)(operation))
     }

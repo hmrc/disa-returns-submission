@@ -39,6 +39,8 @@ class AppConfig @Inject() (
   val npsMonthlyReturnBearerToken: String       =
     config.get[String]("microservice.services.nps-monthly-return-submission.bearer-token")
 
+  val monthlyReturnMaxRecordsPerSubmission: Int = config.get[Int]("monthly-return.max-records-per-submission")
+
   val monthlyReturnSubmissionJobEnabled: Boolean               =
     config.get[Boolean]("monthly-return-submission-work-item-job.enabled")
   val monthlyReturnSubmissionEnqueueAttempts: Int              =

@@ -35,6 +35,11 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
   private val declarationPath             = monthlyPath ++ "/declarations"
   private val submissionPath              = monthlyPath ++ s"/submissions/$testUploadReference"
   private val currentMonthDeclarationPath = currentMonthPath ++ "/declarations"
+  private val storedStatus                = "STORED"
+  private val pendingSubmissionRequest    = Json.obj(
+    nilReturnFieldName     -> false,
+    "pendingSubmissionIds" -> Json.arr(testUploadReference)
+  )
 
   "POST /monthly/:zReference/:taxYear/:month" should {
 
@@ -122,7 +127,7 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
 
     "return 200 Ok when the monthly return is declared successfully" in {
       postJson(monthlyPath, nilReturnFalseRequest).status shouldBe CREATED
-      val result = postJson(declarationPath, Json.obj("nilReturn" -> false))
+      val result = postJson(declarationPath, nilReturnFalseRequest)
 
       result.status shouldBe OK
     }
@@ -132,10 +137,7 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
 
       val result = postJson(
         declarationPath,
-        Json.obj(
-          "nilReturn"            -> false,
-          "pendingSubmissionIds" -> Json.arr(testUploadReference)
-        )
+        pendingSubmissionRequest
       )
 
       result.status shouldBe OK
@@ -159,9 +161,9 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
     }
 
     "return 422 UnprocessableEntity when the monthly return was already declared" in {
-      postJson(monthlyPath, nilReturnFalseRequest).status              shouldBe CREATED
-      postJson(declarationPath, Json.obj("nilReturn" -> false)).status shouldBe OK
-      val result = postJson(declarationPath, Json.obj("nilReturn" -> false))
+      postJson(monthlyPath, nilReturnFalseRequest).status     shouldBe CREATED
+      postJson(declarationPath, nilReturnFalseRequest).status shouldBe OK
+      val result = postJson(declarationPath, nilReturnFalseRequest)
 
       result.status shouldBe UNPROCESSABLE_ENTITY
       result.json   shouldBe Json.obj(
@@ -172,13 +174,13 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
 
     "return 404 NotFound when the monthly return wasn't previously created" in {
 
-      val result = postJson(declarationPath, Json.obj("nilReturn" -> false))
+      val result = postJson(declarationPath, nilReturnFalseRequest)
 
       result.status shouldBe NOT_FOUND
     }
 
     "return 422 UnprocessableEntity when the monthly return is not for the previous monthly period" in {
-      val result = postJson(currentMonthDeclarationPath, Json.obj("nilReturn" -> false))
+      val result = postJson(currentMonthDeclarationPath, nilReturnFalseRequest)
 
       result.status shouldBe UNPROCESSABLE_ENTITY
       result.json   shouldBe Json.obj(
@@ -188,20 +190,20 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
     }
 
     "return 401 Unauthorized when no internal auth token is provided" in {
-      val result = postJsonWithoutAuthorization(declarationPath, Json.obj("nilReturn" -> false))
+      val result = postJsonWithoutAuthorization(declarationPath, nilReturnFalseRequest)
 
       result.status shouldBe UNAUTHORIZED
     }
 
     "return 401 Unauthorized when the internal auth token is invalid" in {
-      val result = postJsonWithAuthorization(declarationPath, Json.obj("nilReturn" -> false), invalidInternalAuthToken)
+      val result = postJsonWithAuthorization(declarationPath, nilReturnFalseRequest, invalidInternalAuthToken)
 
       result.status shouldBe UNAUTHORIZED
     }
 
     "return 403 Forbidden when the internal auth token does not have permission" in {
       val result =
-        postJsonWithAuthorization(declarationPath, Json.obj("nilReturn" -> false), forbiddenInternalAuthToken)
+        postJsonWithAuthorization(declarationPath, nilReturnFalseRequest, forbiddenInternalAuthToken)
 
       result.status shouldBe FORBIDDEN
     }
@@ -221,7 +223,7 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
       val submissions = (get(monthlyPath).json \ "submissions").as[Seq[JsValue]]
       submissions.size                                                              shouldBe 1
       (submissions.head \ "reference").as[String]                                   shouldBe testUploadReference
-      (submissions.head \ "status").as[String]                                      shouldBe "STORED"
+      (submissions.head \ "status").as[String]                                      shouldBe storedStatus
       (submissions.head \ "submissionDetails" \ "objectStoreFileLocation").as[String] should not be empty
       (submissions.head \ "submissionDetails" \ "numberOfEntries").as[Long]         shouldBe testNumberOfEntries
       val workItem = await(inject[MonthlyReturnSubmissionWorkItemRepository].collection.find().headOption()).get
@@ -233,10 +235,7 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
       postJson(monthlyPath, nilReturnFalseRequest).status shouldBe CREATED
       postJson(
         declarationPath,
-        Json.obj(
-          "nilReturn"            -> false,
-          "pendingSubmissionIds" -> Json.arr(testUploadReference)
-        )
+        pendingSubmissionRequest
       ).status                                            shouldBe OK
       stubObjectStorePut()
 
@@ -244,7 +243,7 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
 
       result.status shouldBe OK
       val submission = (get(monthlyPath).json \ "submissions").as[Seq[JsValue]].head
-      (submission \ "status").as[String]        shouldBe "STORED"
+      (submission \ "status").as[String]        shouldBe storedStatus
       (submission \ "submissionDetails").toOption should not be empty
     }
 
@@ -259,8 +258,8 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
     }
 
     "return 409 Conflict for an unknown submission after declaration" in {
-      postJson(monthlyPath, nilReturnFalseRequest).status              shouldBe CREATED
-      postJson(declarationPath, Json.obj("nilReturn" -> false)).status shouldBe OK
+      postJson(monthlyPath, nilReturnFalseRequest).status     shouldBe CREATED
+      postJson(declarationPath, nilReturnFalseRequest).status shouldBe OK
       stubObjectStorePut()
 
       val result = putString(submissionPath, ndjsonContent, NDJSON_MIME_TYPE)

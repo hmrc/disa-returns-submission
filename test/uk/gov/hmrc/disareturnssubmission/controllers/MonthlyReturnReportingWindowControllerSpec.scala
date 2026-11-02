@@ -67,7 +67,7 @@ class MonthlyReturnReportingWindowControllerSpec extends SpecBase with BeforeAnd
           Future.successful(ResolvedReportingWindow(testInstant, testWindowStart, testWindowEnd, isOpen = true))
         )
 
-        val result = controller.status(testZReference)(authorizedRequest("GET", path))
+        val result = controller.status(testZReference)(authorizedRequest(GET, path))
 
         status(result) mustBe OK
         contentAsJson(result) mustBe Json.toJson(
@@ -85,7 +85,7 @@ class MonthlyReturnReportingWindowControllerSpec extends SpecBase with BeforeAnd
           Future.successful(ResolvedReportingWindow(testInstant, testWindowStart, testWindowEnd, isOpen = false))
         )
 
-        val result = controller.status(testZReference)(authorizedRequest("GET", path))
+        val result = controller.status(testZReference)(authorizedRequest(GET, path))
 
         status(result) mustBe OK
         contentAsJson(result) mustBe Json.toJson(
@@ -103,13 +103,13 @@ class MonthlyReturnReportingWindowControllerSpec extends SpecBase with BeforeAnd
           Future.successful(ResolvedReportingWindow(testInstant, testWindowStart, testWindowEnd, isOpen = true))
         )
 
-        val result = controller.status(testZReference.toLowerCase)(authorizedRequest("GET", path))
+        val result = controller.status(testZReference.toLowerCase)(authorizedRequest(GET, path))
 
         status(result) mustBe OK
       }
 
       "must reject an invalid Z-reference" in {
-        val result = controller.status("invalid")(authorizedRequest("GET", path))
+        val result = controller.status("invalid")(authorizedRequest(GET, path))
 
         status(result) mustBe BAD_REQUEST
       }

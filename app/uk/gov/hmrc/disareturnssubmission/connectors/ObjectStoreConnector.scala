@@ -56,7 +56,7 @@ class ObjectStoreConnector @Inject() (
       Future.failed(new NoSuchFileException(file.toString))
     else
 
-      retryFor[String]("put object-store file")(retryCondition) {
+      retryFor[String]("[ObjectStoreConnector][putFile] put object-store file")(retryCondition) {
         client
           .putObject(
             path = Path.Directory("").file(objectName),
@@ -71,7 +71,7 @@ class ObjectStoreConnector @Inject() (
       }
 
   def getFile(objectName: String)(implicit hc: HeaderCarrier): Future[Source[ByteString, NotUsed]] =
-    retryFor[Source[ByteString, NotUsed]]("get object-store file")(retryCondition) {
+    retryFor[Source[ByteString, NotUsed]]("[ObjectStoreConnector][getFile] get object-store file")(retryCondition) {
       client
         .getObject[Source[ByteString, NotUsed]](Path.Directory("").file(objectName))
         .flatMap {

@@ -37,6 +37,9 @@ import java.time.*
 import scala.concurrent.*
 
 class MonthlyReturnSubmissionWorkItemJobSpec extends SpecBase with LogCapturing {
+  private val workerId             = 1
+  private val completionLogMessage = "completed work item"
+
   "MonthlyReturnSubmissionWorkItemJob" - {
     "must complete successfully processed work items as Succeeded" in new TestSetup {
       val completed = Promise[Boolean]()
@@ -45,13 +48,13 @@ class MonthlyReturnSubmissionWorkItemJobSpec extends SpecBase with LogCapturing 
       withCaptureOfLoggingFrom(Logger(job.getClass)) { events =>
         val result = job.process(workItem)
         verify(repository, mockitoTimeout(1000)).complete(workItem.id, ProcessingStatus.Succeeded)
-        events.exists(_.getMessage.contains("completed work item")) mustBe false
+        events.exists(_.getMessage.contains(completionLogMessage)) mustBe false
         completed.success(true)
 
         await(result) mustBe true
         events.map(event => event.getLevel -> event.getMessage) mustBe List(
-          INFO -> s"[MonthlyReturnSubmissionWorkItemJob][processWorkItem] Worker 1 processing $context",
-          INFO -> s"[MonthlyReturnSubmissionWorkItemJob][processWorkItem] Worker 1 completed $context"
+          INFO -> s"[MonthlyReturnSubmissionWorkItemJob][processWorkItem] Worker $workerId processing $context",
+          INFO -> s"[MonthlyReturnSubmissionWorkItemJob][processWorkItem] Worker $workerId completed $context"
         )
       }
       verify(repository, never()).markAs(any(), any(), any())
@@ -64,9 +67,9 @@ class MonthlyReturnSubmissionWorkItemJobSpec extends SpecBase with LogCapturing 
         withCaptureOfLoggingFrom(Logger(job.getClass)) { events =>
           await(job.process(workItem)) mustBe true
           val error = events.find(_.getLevel == ERROR).value
-          error.getMessage must include(s"Worker 1 processing or completion failed for $context")
+          error.getMessage must include(s"Worker $workerId processing or completion failed for $context")
           error.getMessage must include("marking as [Failed] for delayed retry")
-          events.exists(_.getMessage.contains("completed work item")) mustBe false
+          events.exists(_.getMessage.contains(completionLogMessage)) mustBe false
         }
         verify(repository).markAs(eqTo(workItem.id), eqTo(ProcessingStatus.Failed), any[Option[Instant]])
         verify(repository, never()).complete(any(), any())
@@ -74,19 +77,19 @@ class MonthlyReturnSubmissionWorkItemJobSpec extends SpecBase with LogCapturing 
     }
 
     "must mark Failed when processing throws before returning a Future" in new TestSetup {
-      when(processing.process(any())).thenThrow(new IllegalStateException("conversion failed"))
+      when(processing.process(any())).thenThrow(conversionFailure)
 
       await(job.process(workItem)) mustBe true
       verify(repository).markAs(eqTo(workItem.id), eqTo(ProcessingStatus.Failed), any[Option[Instant]])
     }
 
     "must retry completion failures without requiring another successful transfer" in new TestSetup {
-      when(repository.complete(any(), any())).thenReturn(Future.failed(new RuntimeException("mongo unavailable")))
+      when(repository.complete(any(), any())).thenReturn(Future.failed(updateFailure))
 
       withCaptureOfLoggingFrom(Logger(job.getClass)) { events =>
         await(job.process(workItem)) mustBe true
         events.find(_.getLevel == ERROR).value.getMessage must include(s"processing or completion failed for $context")
-        events.exists(_.getMessage.contains("completed work item")) mustBe false
+        events.exists(_.getMessage.contains(completionLogMessage)) mustBe false
       }
       verify(repository).markAs(eqTo(workItem.id), eqTo(ProcessingStatus.Failed), any[Option[Instant]])
     }
@@ -97,41 +100,44 @@ class MonthlyReturnSubmissionWorkItemJobSpec extends SpecBase with LogCapturing 
       withCaptureOfLoggingFrom(Logger(job.getClass)) { events =>
         await(job.process(workItem)) mustBe true
         events.find(_.getLevel == WARN).value.getMessage must include(
-          s"Worker 1 could not mark $context as [Succeeded]"
+          s"Worker $workerId could not mark $context as [Succeeded]"
         )
-        events.exists(_.getMessage.contains("completed work item")) mustBe false
+        events.exists(_.getMessage.contains(completionLogMessage)) mustBe false
       }
       verify(repository, never()).markAs(any(), any(), any())
     }
 
     "must warn when the Failed update returns false" in new TestSetup {
-      when(processing.process(any())).thenReturn(Future.failed(new IllegalStateException("conversion failed")))
+      when(processing.process(any())).thenReturn(Future.failed(conversionFailure))
       when(repository.markAs(any(), any(), any())).thenReturn(Future.successful(false))
 
       withCaptureOfLoggingFrom(Logger(job.getClass)) { events =>
         await(job.process(workItem)) mustBe true
-        events.find(_.getLevel == WARN).value.getMessage must include(s"Worker 1 could not mark $context as [Failed]")
-        events.exists(_.getMessage.contains("completed work item")) mustBe false
+        events.find(_.getLevel == WARN).value.getMessage must include(
+          s"Worker $workerId could not mark $context as [Failed]"
+        )
+        events.exists(_.getMessage.contains(completionLogMessage)) mustBe false
       }
     }
 
     "must retain work-item context and propagate a failed Failed update" in new TestSetup {
-      val failure = new RuntimeException("mongo unavailable")
-      when(processing.process(any())).thenReturn(Future.failed(new IllegalStateException("conversion failed")))
-      when(repository.markAs(any(), any(), any())).thenReturn(Future.failed(failure))
+      when(processing.process(any())).thenReturn(Future.failed(conversionFailure))
+      when(repository.markAs(any(), any(), any())).thenReturn(Future.failed(updateFailure))
 
       withCaptureOfLoggingFrom(Logger(job.getClass)) { events =>
-        await(job.process(workItem).failed) mustBe failure
+        await(job.process(workItem).failed) mustBe updateFailure
         events.filter(_.getLevel == ERROR).map(_.getMessage).last must include(
-          s"Worker 1 could not mark $context as [Failed]"
+          s"Worker $workerId could not mark $context as [Failed]"
         )
-        events.exists(_.getMessage.contains("completed work item")) mustBe false
+        events.exists(_.getMessage.contains(completionLogMessage)) mustBe false
       }
     }
   }
 
   private trait TestSetup {
-    val workItem   = WorkItem(
+    val conversionFailure = new IllegalStateException("conversion failed")
+    val updateFailure     = new RuntimeException("mongo unavailable")
+    val workItem          = WorkItem(
       id = new ObjectId(),
       receivedAt = testCreatedOn,
       updatedAt = testCreatedOn,
@@ -140,10 +146,10 @@ class MonthlyReturnSubmissionWorkItemJobSpec extends SpecBase with LogCapturing 
       failureCount = 0,
       item = MonthlyReturnSubmissionWorkItem(testZReference, testTaxYear, testMonth, testUploadReference)
     )
-    val context    =
+    val context           =
       s"work item [${workItem.id}] for zReference [$testZReference], taxYear [$testTaxYear], month [$testMonth], submission [$testUploadReference]"
-    val repository = mock[MonthlyReturnSubmissionWorkItemRepository]
-    val processing = mock[MonthlyReturnSubmissionProcessingService]
+    val repository        = mock[MonthlyReturnSubmissionWorkItemRepository]
+    val processing        = mock[MonthlyReturnSubmissionProcessingService]
     when(processing.process(any())).thenReturn(Future.unit)
     when(repository.complete(any(), any())).thenReturn(Future.successful(true))
     when(repository.markAs(any(), any(), any())).thenReturn(Future.successful(true))
@@ -162,6 +168,7 @@ class MonthlyReturnSubmissionWorkItemJobSpec extends SpecBase with LogCapturing 
         repository,
         processing
       ) {
-    def process(workItem: WorkItem[MonthlyReturnSubmissionWorkItem]): Future[Boolean] = processWorkItem(1, workItem)
+    def process(workItem: WorkItem[MonthlyReturnSubmissionWorkItem]): Future[Boolean] =
+      processWorkItem(workerId, workItem)
   }
 }

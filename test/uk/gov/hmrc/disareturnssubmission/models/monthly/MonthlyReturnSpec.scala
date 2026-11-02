@@ -20,6 +20,8 @@ import base.SpecBase
 import play.api.libs.json.*
 
 class MonthlyReturnSpec extends SpecBase {
+  private val storedReference  = "stored-reference"
+  private val missingReference = "missing-reference"
 
   private val emptyMonthlyReturn = MonthlyReturn(
     zReference = testZReference,
@@ -97,7 +99,8 @@ class MonthlyReturnSpec extends SpecBase {
   "hasStoredSubmission" - {
 
     "must report whether the reference belongs to a STORED submission" in {
-      val monthlyReturn = emptyMonthlyReturn.copy(
+      val submittedReference = "nps-submitted-reference"
+      val monthlyReturn      = emptyMonthlyReturn.copy(
         submissions = List(
           MonthlyReturnSubmission(
             reference = testUploadReference,
@@ -105,13 +108,13 @@ class MonthlyReturnSpec extends SpecBase {
             createdOn = testCreatedOn
           ),
           MonthlyReturnSubmission(
-            reference = "stored-reference",
+            reference = storedReference,
             status = MonthlyReturnSubmissionStatus.Stored,
             createdOn = testCreatedOn,
             submissionDetails = Some(fileUploadDetails)
           ),
           MonthlyReturnSubmission(
-            reference = "nps-submitted-reference",
+            reference = submittedReference,
             status = MonthlyReturnSubmissionStatus.NpsSubmitted,
             createdOn = testCreatedOn,
             submissionDetails = Some(fileUploadDetails)
@@ -120,20 +123,21 @@ class MonthlyReturnSpec extends SpecBase {
       )
 
       monthlyReturn.hasStoredSubmission(testUploadReference) mustBe false
-      monthlyReturn.hasStoredSubmission("stored-reference") mustBe true
-      monthlyReturn.hasStoredSubmission("nps-submitted-reference") mustBe false
-      monthlyReturn.hasStoredSubmission("missing-reference") mustBe false
+      monthlyReturn.hasStoredSubmission(storedReference) mustBe true
+      monthlyReturn.hasStoredSubmission(submittedReference) mustBe false
+      monthlyReturn.hasStoredSubmission(missingReference) mustBe false
     }
   }
 
   "hasNpsSubmittedSubmission" - {
 
     "must match only the requested NPS_SUBMITTED submission" in {
-      val monthlyReturn = emptyMonthlyReturn.copy(submissions =
+      val createdReference = "created-reference"
+      val monthlyReturn    = emptyMonthlyReturn.copy(submissions =
         List(
-          MonthlyReturnSubmission("created-reference", MonthlyReturnSubmissionStatus.Created, testCreatedOn),
+          MonthlyReturnSubmission(createdReference, MonthlyReturnSubmissionStatus.Created, testCreatedOn),
           MonthlyReturnSubmission(
-            "stored-reference",
+            storedReference,
             MonthlyReturnSubmissionStatus.Stored,
             testCreatedOn,
             Some(fileUploadDetails)
@@ -148,9 +152,9 @@ class MonthlyReturnSpec extends SpecBase {
       )
 
       monthlyReturn.hasNpsSubmittedSubmission(testUploadReference) mustBe true
-      monthlyReturn.hasNpsSubmittedSubmission("created-reference") mustBe false
-      monthlyReturn.hasNpsSubmittedSubmission("stored-reference") mustBe false
-      monthlyReturn.hasNpsSubmittedSubmission("missing-reference") mustBe false
+      monthlyReturn.hasNpsSubmittedSubmission(createdReference) mustBe false
+      monthlyReturn.hasNpsSubmittedSubmission(storedReference) mustBe false
+      monthlyReturn.hasNpsSubmittedSubmission(missingReference) mustBe false
     }
   }
 

@@ -43,6 +43,7 @@ class MonthlyReturnSubmissionWorkItemRepositorySpec
   override protected val repository: MonthlyReturnSubmissionWorkItemRepository =
     new MonthlyReturnSubmissionWorkItemRepository(clock, config, mongoComponent)
   private val item                                                             = MonthlyReturnSubmissionWorkItem(testZReference, testTaxYear, testMonth, testUploadReference)
+  private val firstPullTime                                                    = testCreatedOn.plusSeconds(1)
 
   override protected def beforeEach(): Unit = {
     super.beforeEach()
@@ -68,14 +69,14 @@ class MonthlyReturnSubmissionWorkItemRepositorySpec
 
     "must atomically claim each item only once" in {
       await(repository.enqueue(item))
-      instant.set(testCreatedOn.plusSeconds(1))
+      instant.set(firstPullTime)
 
       await(Future.sequence(Seq.fill(5)(pull()))).flatten.size mustBe 1
     }
 
     "must not pull a failed item again before failedRetryAfter" in {
       await(repository.enqueue(item))
-      instant.set(testCreatedOn.plusSeconds(1))
+      instant.set(firstPullTime)
       val workItem = await(pull()).value
       await(repository.markAs(workItem.id, ProcessingStatus.Failed)) mustBe true
       await(pull()) mustBe None
@@ -88,7 +89,7 @@ class MonthlyReturnSubmissionWorkItemRepositorySpec
 
     "must recover stuck in-progress items after inProgressRetryAfter" in {
       await(repository.enqueue(item))
-      instant.set(testCreatedOn.plusSeconds(1))
+      instant.set(firstPullTime)
       val workItem = await(pull()).value
       await(pull()) mustBe None
 
@@ -98,7 +99,7 @@ class MonthlyReturnSubmissionWorkItemRepositorySpec
 
     "must retain succeeded items without pulling them again or re-enqueueing them" in {
       await(repository.enqueue(item))
-      instant.set(testCreatedOn.plusSeconds(1))
+      instant.set(firstPullTime)
       val workItem = await(pull()).value
       await(repository.complete(workItem.id, ProcessingStatus.Succeeded)) mustBe true
       await(repository.enqueue(item))

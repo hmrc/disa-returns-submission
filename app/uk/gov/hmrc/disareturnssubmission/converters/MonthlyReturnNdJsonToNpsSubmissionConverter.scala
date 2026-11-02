@@ -22,7 +22,6 @@ import play.api.libs.json.*
 import play.api.libs.json.jackson.PlayJsonMapperModule
 import uk.gov.hmrc.disareturnssubmission.models.monthly.MonthlyReturnNpsSubmission
 
-import java.io.BufferedReader
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.*
 import javax.inject.*
@@ -35,24 +34,35 @@ class MonthlyReturnNdJsonToNpsSubmissionConverter @Inject() () {
     .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
     .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
 
-  def convert(input: Path, output: Path): Unit =
-    Using.Manager { use =>
-      val reader = use(Files.newBufferedReader(input, UTF_8))
-      val writer = use(mapper.getFactory.createGenerator(output.toFile, JsonEncoding.UTF8))
-      writeSubmissionsAsJsonArray(reader, writer)
-    }.get
-
-  private def writeSubmissionsAsJsonArray(reader: BufferedReader, writer: JsonGenerator): Unit = {
-    writer.writeStartArray()
-    Iterator.continually(reader.readLine()).takeWhile(_ != null).zipWithIndex.foreach { (line, index) =>
-      if (line.trim.nonEmpty) {
-        val lineNumber = index + 1
-        val json       = parseSubmissionJson(line, lineNumber)
-        val submission = validateSubmission(json, lineNumber)
-        writer.writeRawValue(Json.stringify(Json.toJson(submission)))
+  def convert(input: Path, maxRecordsPerSubmission: Int, createOutput: () => Path): Seq[(Path, Int)] = {
+    require(maxRecordsPerSubmission > 0, "maxRecordsPerSubmission must be greater than zero")
+    Using.resource(Files.newBufferedReader(input, UTF_8)) { reader =>
+      val lines      = Iterator.continually(reader.readLine()).takeWhile(_ != null).zipWithIndex.filter(_._1.trim.nonEmpty)
+      val batches    = Vector.newBuilder[(Path, Int)]
+      var firstBatch = true
+      while (firstBatch || lines.hasNext) {
+        firstBatch = false
+        val output = createOutput()
+        val count  = Using.resource(mapper.getFactory.createGenerator(output.toFile, JsonEncoding.UTF8)) { writer =>
+          writeSubmissionsAsJsonArray(lines.take(maxRecordsPerSubmission), writer)
+        }
+        batches += output -> count
       }
+      batches.result()
+    }
+  }
+
+  private def writeSubmissionsAsJsonArray(lines: Iterator[(String, Int)], writer: JsonGenerator): Int = {
+    writer.writeStartArray()
+    val count = lines.foldLeft(0) { case (count, (line, index)) =>
+      val lineNumber = index + 1
+      val json       = parseSubmissionJson(line, lineNumber)
+      val submission = validateSubmission(json, lineNumber)
+      writer.writeRawValue(Json.stringify(Json.toJson(submission)))
+      count + 1
     }
     writer.writeEndArray()
+    count
   }
 
   private def parseSubmissionJson(line: String, lineNumber: Int): JsValue =
