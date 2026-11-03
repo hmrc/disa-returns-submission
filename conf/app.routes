@@ -7,6 +7,9 @@ GET    /reporting-window/status/:zReference                                uk.go
 POST   /monthly/:zReference/:taxYear/:month                                uk.gov.hmrc.disareturnssubmission.controllers.MonthlyReturnController.create(zReference: String, taxYear: String, month: Int)
 GET    /monthly/:zReference/:taxYear/:month                                uk.gov.hmrc.disareturnssubmission.controllers.MonthlyReturnController.get(zReference: String, taxYear: String, month: Int)
 
+# monthly returns reporting status
+GET    /monthly/:zReference/reporting-status                               uk.gov.hmrc.disareturnssubmission.controllers.MonthlyReturnReportingStatusController.status(zReference: String)
+
 # monthly returns declarations
 POST   /monthly/:zReference/:taxYear/:month/declarations                   uk.gov.hmrc.disareturnssubmission.controllers.MonthlyReturnController.declare(zReference: String, taxYear: String, month: Int)
 

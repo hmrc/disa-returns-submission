@@ -92,6 +92,9 @@ trait BaseIntegrationSpec
       "microservice.services.internal-auth.protocol"                 -> "http",
       "microservice.services.internal-auth.host"                     -> "localhost",
       "microservice.services.internal-auth.port"                     -> wireMockPort,
+      "microservice.services.etmp.protocol"                          -> "http",
+      "microservice.services.etmp.host"                              -> "localhost",
+      "microservice.services.etmp.port"                              -> wireMockPort,
       "http-verbs.retries.intervals"                                 -> Seq("1ms", "1ms", "1ms")
     )
 

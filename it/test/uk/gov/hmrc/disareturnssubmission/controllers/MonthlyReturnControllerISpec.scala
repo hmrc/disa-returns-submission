@@ -69,6 +69,10 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
       val result = postJson(currentMonthPath, nilReturnFalseRequest)
 
       result.status shouldBe UNPROCESSABLE_ENTITY
+      result.json   shouldBe Json.obj(
+        "code"    -> "DECLARATION_PERIOD_CLOSED",
+        "message" -> "It is not possible to create a monthly return outside its declaration period"
+      )
     }
 
     "return 401 Unauthorized when no internal auth token is provided" in {
@@ -260,10 +264,11 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
 
       val result = putString(submissionPath, ndjsonContent, NDJSON_MIME_TYPE)
 
-      result.status shouldBe CONFLICT
+      result.status                   shouldBe CONFLICT
+      (result.json \ "code").toOption shouldBe None
     }
 
-    "return 409 Conflict for an unknown submission after declaration" in {
+    "return 409 Conflict with the already declared code when a new submission arrives after declaration" in {
       postJson(monthlyPath, nilReturnFalseRequest).status     shouldBe CREATED
       postJson(declarationPath, nilReturnFalseRequest).status shouldBe OK
       stubObjectStorePut()
@@ -271,6 +276,10 @@ class MonthlyReturnControllerISpec extends BaseIntegrationSpec with ObjectStoreW
       val result = putString(submissionPath, ndjsonContent, NDJSON_MIME_TYPE)
 
       result.status shouldBe CONFLICT
+      result.json   shouldBe Json.obj(
+        "code"    -> "MONTHLY_RETURN_ALREADY_DECLARED",
+        "message" -> "This monthly return was already declared"
+      )
     }
 
     "return 503 ServiceUnavailable when the object-store upload fails" in {

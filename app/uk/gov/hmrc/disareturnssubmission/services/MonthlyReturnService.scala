@@ -28,7 +28,6 @@ import uk.gov.hmrc.disareturnssubmission.services.CreateMonthlyReturnResult.*
 import uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator
 
 import java.nio.file.Path
-import java.time.*
 import java.util.UUID
 import javax.inject.*
 import scala.concurrent.*
@@ -272,7 +271,10 @@ class MonthlyReturnService @Inject() (
           logger.warn(
             s"[MonthlyReturnService][storeSubmission] Monthly return cannot accept submission [$submissionId] for zReference [$zReference], taxYear [$taxYear], month [$month]"
           )
-          Future.successful(SubmitReturnResult.SubmissionConflict)
+          Future.successful(
+            if (monthlyReturn.hasDeclaration) SubmitReturnResult.MonthlyReturnAlreadyDeclared
+            else SubmitReturnResult.SubmissionConflict
+          )
 
         case Some(monthlyReturn) =>
           submissionStoreAction.store(bodyPath, monthlyReturn, submissionId).flatMap {
@@ -290,8 +292,13 @@ class MonthlyReturnService @Inject() (
                 case Some(latest)
                     if latest.hasStoredSubmission(submissionId) || latest.hasNpsSubmittedSubmission(submissionId) =>
                   enqueueSubmissionForNpsTransfer(latest, submissionId).map(_ => SubmitReturnResult.SubmissionConflict)
-                case _ => Future.successful(SubmitReturnResult.SubmissionConflict)
+                case Some(latest) if latest.hasDeclaration =>
+                  Future.successful(SubmitReturnResult.MonthlyReturnAlreadyDeclared)
+                case _                                     => Future.successful(SubmitReturnResult.SubmissionConflict)
               }
+
+            case SubmitReturnResult.MonthlyReturnAlreadyDeclared =>
+              Future.successful(SubmitReturnResult.MonthlyReturnAlreadyDeclared)
 
             case SubmitReturnResult.NoBody =>
               logger.warn(
@@ -377,23 +384,10 @@ class MonthlyReturnService @Inject() (
 
   private def isWithinDeclarationPeriod(zReference: String, taxYear: String, month: Int): Future[Boolean] =
     reportingWindowService.resolve(zReference).map { reportingWindow =>
-      val today               = LocalDate.ofInstant(reportingWindow.instant, ZoneOffset.UTC)
-      val previousMonthPeriod = YearMonth.from(today).minusMonths(1)
+      val currentReportingPeriod = MonthlyReturnReportingPeriod.previousMonthOf(reportingWindow.instant)
 
-      val isPreviousMonth   = previousMonthPeriod.getMonthValue == month
-      val isPreviousTaxYear = taxYearFor(previousMonthPeriod) == taxYear
-
-      reportingWindow.isOpen && isPreviousMonth && isPreviousTaxYear
+      reportingWindow.isOpen && currentReportingPeriod == MonthlyReturnReportingPeriod(taxYear, month)
     }
-
-  private def taxYearFor(period: YearMonth): String = {
-    val startYear = if (period.getMonthValue >= 4) {
-      period.getYear
-    } else {
-      period.getYear - 1
-    }
-    f"$startYear%04d-${(startYear + 1) % 100}%02d"
-  }
 }
 
 sealed trait CreateMonthlyReturnResult
@@ -428,5 +422,6 @@ object SubmitReturnResult {
   case object UpdateSuccessful extends SubmitReturnResult
   case object MonthlyReturnNotFound extends SubmitReturnResult
   case object SubmissionConflict extends SubmitReturnResult
+  case object MonthlyReturnAlreadyDeclared extends SubmitReturnResult
   case object NoBody extends SubmitReturnResult
 }

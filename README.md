@@ -85,6 +85,30 @@ GET /disa-returns-submission/reporting-window/status/:zReference
 It requires the `READ` permission, returns `200 OK` with a `reportingWindowOpen` boolean for a valid Z-reference, and
 returns `400 Bad Request` for an invalid Z-reference. With the test-only router it observes the aggregate override.
 
+The monthly return reporting status route combines the reporting window, ETMP obligation and declaration checks for the
+current reporting period:
+
+```text
+GET /disa-returns-submission/monthly/:zReference/reporting-status
+```
+
+It requires the `READ` permission, returns `200 OK` for a valid Z-reference, `400 Bad Request` for an invalid
+Z-reference, and `500 Internal Server Error` if any check fails. With the test-only router it observes the
+override.
+
+```json
+{
+  "reportingWindowOpen": true,
+  "reportingWindowStart": "2026-06-06T00:00:00Z",
+  "reportingWindowEnd": "2026-06-19T23:59:59Z",
+  "resolvedAt": "2026-06-17T00:00:00Z",
+  "taxYear": "2026-27",
+  "month": 5,
+  "obligationClosed": false,
+  "monthlyReturnDeclared": false
+}
+```
+
 ### Aggregate overrides
 
 Use `PUT /disa-returns-submission/test-only/overrides` to apply the same full replacement to every supplied Z-reference:
