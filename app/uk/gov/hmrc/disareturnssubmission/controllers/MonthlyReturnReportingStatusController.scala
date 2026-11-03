@@ -21,6 +21,7 @@ import play.api.libs.json.Json
 import play.api.mvc.*
 import uk.gov.hmrc.disareturnssubmission.services.MonthlyReturnReportingStatusService
 import uk.gov.hmrc.disareturnssubmission.validators.ZReferenceValidator
+import uk.gov.hmrc.http.UpstreamErrorResponse
 import uk.gov.hmrc.internalauth.client.*
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
@@ -50,12 +51,19 @@ class MonthlyReturnReportingStatusController @Inject() (
               )
               Ok(Json.toJson(reportingStatus))
             }
-            .recover { case NonFatal(exception) =>
-              logger.error(
-                s"[MonthlyReturnReportingStatusController][status] Failed to get monthly return reporting status for Z-reference [$normalizedZReference]",
-                exception
-              )
-              InternalServerError
+            .recover {
+              case exception: UpstreamErrorResponse =>
+                logger.error(
+                  s"[MonthlyReturnReportingStatusController][status] ETMP returned ${exception.statusCode} for Z-reference [$normalizedZReference]",
+                  exception
+                )
+                InternalServerError
+              case NonFatal(exception)              =>
+                logger.error(
+                  s"[MonthlyReturnReportingStatusController][status] Failed to get monthly return reporting status for Z-reference [$normalizedZReference]",
+                  exception
+                )
+                InternalServerError
             }
         case None                       => Future.successful(BadRequest(Json.obj("error" -> "Invalid zReference")))
       }
