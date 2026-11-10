@@ -1,0 +1,103 @@
+/*
+ * Copyright 2026 HM Revenue & Customs
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package uk.gov.hmrc.disareturnssubmission.services
+
+import play.api.Logging
+import play.api.libs.json.{JsObject, Json}
+import uk.gov.hmrc.disareturnssubmission.config.AppConfig
+import uk.gov.hmrc.disareturnssubmission.models.monthly.MonthlyReturn
+import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.play.audit.AuditExtensions
+import uk.gov.hmrc.play.audit.http.connector.AuditResult.{Disabled, Failure, Success}
+import uk.gov.hmrc.play.audit.http.connector.{AuditConnector, AuditResult}
+import uk.gov.hmrc.play.audit.model.ExtendedDataEvent
+
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+import javax.inject.{Inject, Singleton}
+import scala.concurrent.{ExecutionContext, Future}
+
+@Singleton
+class AuditService @Inject() (
+  connector: AuditConnector,
+  appConfig: AppConfig
+)(implicit ec: ExecutionContext)
+    extends Logging {
+
+  def auditNpsDeclarationSubmitted(
+    monthlyReturn: MonthlyReturn,
+    failureReason: Option[String]
+  )(implicit hc: HeaderCarrier): Future[Unit] = {
+    val statusDetail = failureReason.fold(Json.obj(EventData.submissionStatus -> SubmissionStatus.Success)) { reason =>
+      Json.obj(
+        EventData.submissionStatus -> SubmissionStatus.Failure,
+        EventData.failureReason    -> reason
+      )
+    }
+
+    val detail =
+      Json.obj(
+        EventData.internalReturnId -> monthlyReturn.submissionId.toString,
+        EventData.period           -> reportingPeriod(monthlyReturn.taxYear, monthlyReturn.month)
+      ) ++ statusDetail
+
+    sendEvent(AuditTypes.NpsDeclarationSubmitted, detail)
+  }
+
+  private def sendEvent(auditType: String, detail: JsObject)(implicit hc: HeaderCarrier): Future[Unit] = {
+    val event = ExtendedDataEvent(
+      auditSource = appConfig.appName,
+      auditType = auditType,
+      tags = AuditExtensions.auditHeaderCarrier(hc).toAuditTags(),
+      detail = detail
+    )
+
+    connector
+      .sendExtendedEvent(event)
+      .map(logResponse(_, auditType))
+  }
+
+  private def reportingPeriod(taxYear: String, month: Int): String = {
+    val startYear = taxYear.take(4).toInt
+    val year      = if (month >= 4) startYear else startYear + 1
+    YearMonth.of(year, month).format(DateTimeFormatter.ofPattern("MMMM uuuu", Locale.UK))
+  }
+
+  private def logResponse(result: AuditResult, auditType: String): Unit =
+    result match {
+      case Success         => logger.info(s"$auditType audit successful")
+      case Failure(err, _) => logger.warn(s"$auditType Audit Error, message: $err")
+      case Disabled        => logger.warn(s"$auditType failure - auditing disabled")
+    }
+}
+
+object AuditTypes {
+  val NpsDeclarationSubmitted = "NPSDeclarationSubmitted"
+}
+
+object SubmissionStatus {
+  val Success = "Success"
+  val Failure = "Failure"
+}
+
+object EventData {
+  val internalReturnId = "internalReturnId"
+  val period           = "period"
+  val submissionStatus = "submissionStatus"
+  val failureReason    = "failureReason"
+}
