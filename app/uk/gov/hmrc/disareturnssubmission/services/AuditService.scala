@@ -20,8 +20,6 @@ import play.api.Logging
 import play.api.libs.json.{JsObject, Json}
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.models.monthly.MonthlyReturn
-import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.play.audit.AuditExtensions
 import uk.gov.hmrc.play.audit.http.connector.AuditResult.{Disabled, Failure, Success}
 import uk.gov.hmrc.play.audit.http.connector.{AuditConnector, AuditResult}
 import uk.gov.hmrc.play.audit.model.ExtendedDataEvent
@@ -42,7 +40,7 @@ class AuditService @Inject() (
   def auditNpsDeclarationSubmitted(
     monthlyReturn: MonthlyReturn,
     failureReason: Option[String]
-  )(implicit hc: HeaderCarrier): Future[Unit] = {
+  ): Future[Unit] = {
     val statusDetail = failureReason.fold(Json.obj(EventData.submissionStatus -> SubmissionStatus.Success)) { reason =>
       Json.obj(
         EventData.submissionStatus -> SubmissionStatus.Failure,
@@ -59,11 +57,10 @@ class AuditService @Inject() (
     sendEvent(AuditTypes.NpsDeclarationSubmitted, detail)
   }
 
-  private def sendEvent(auditType: String, detail: JsObject)(implicit hc: HeaderCarrier): Future[Unit] = {
+  private def sendEvent(auditType: String, detail: JsObject): Future[Unit] = {
     val event = ExtendedDataEvent(
       auditSource = appConfig.appName,
       auditType = auditType,
-      tags = AuditExtensions.auditHeaderCarrier(hc).toAuditTags(),
       detail = detail
     )
 

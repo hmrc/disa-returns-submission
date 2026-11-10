@@ -143,14 +143,14 @@ class MonthlyReturnDeclarationProcessingServiceSpec extends SpecBase with LogCap
     "must audit a success when NPS accepts the declaration" in new TestSetup {
       await(service.process(item)) mustBe Declared
 
-      verify(audit).auditNpsDeclarationSubmitted(eqTo(declaredReturn), eqTo(None))(any())
+      verify(audit).auditNpsDeclarationSubmitted(eqTo(declaredReturn), eqTo(None))
     }
 
     "must audit a success even when npsDeclaredOn then fails to save" in new TestSetup {
       when(repository.markNpsDeclared(any(), any(), anyInt())).thenReturn(Future.failed(updateFailure))
 
       await(service.process(item).failed) mustBe updateFailure
-      verify(audit).auditNpsDeclarationSubmitted(eqTo(declaredReturn), eqTo(None))(any())
+      verify(audit).auditNpsDeclarationSubmitted(eqTo(declaredReturn), eqTo(None))
     }
 
     "must audit a failure with the upstream message when NPS rejects the declaration" in new TestSetup {
@@ -161,7 +161,7 @@ class MonthlyReturnDeclarationProcessingServiceSpec extends SpecBase with LogCap
       verify(audit).auditNpsDeclarationSubmitted(
         eqTo(declaredReturn),
         eqTo(Some("NPS declaration returned status [500]"))
-      )(any())
+      )
     }
 
     "must audit a failure with the exception type when the NPS request fails without a response" in new TestSetup {
@@ -172,11 +172,11 @@ class MonthlyReturnDeclarationProcessingServiceSpec extends SpecBase with LogCap
       verify(audit).auditNpsDeclarationSubmitted(
         eqTo(declaredReturn),
         eqTo(Some("NPS declaration request failed [RuntimeException]"))
-      )(any())
+      )
     }
 
     "must still declare and warn when the audit fails" in new TestSetup {
-      when(audit.auditNpsDeclarationSubmitted(any(), any())(any()))
+      when(audit.auditNpsDeclarationSubmitted(any(), any()))
         .thenReturn(Future.failed(new RuntimeException("audit unavailable")))
 
       withCaptureOfLoggingFrom(Logger(service.getClass)) { events =>
@@ -215,7 +215,7 @@ class MonthlyReturnDeclarationProcessingServiceSpec extends SpecBase with LogCap
     when(repository.get(any(), any(), anyInt())).thenReturn(Future.successful(Some(declaredReturn)))
     when(repository.markNpsDeclared(any(), any(), anyInt())).thenReturn(Future.successful(true))
     when(nps.sendDeclaration(any())).thenReturn(Future.unit)
-    when(audit.auditNpsDeclarationSubmitted(any(), any())(any())).thenReturn(Future.unit)
+    when(audit.auditNpsDeclarationSubmitted(any(), any())).thenReturn(Future.unit)
     val service    = new MonthlyReturnDeclarationProcessingService(repository, nps, audit)
   }
 }

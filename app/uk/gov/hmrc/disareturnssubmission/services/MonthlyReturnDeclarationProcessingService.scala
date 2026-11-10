@@ -21,7 +21,7 @@ import uk.gov.hmrc.disareturnssubmission.connectors.NpsConnector
 import uk.gov.hmrc.disareturnssubmission.models.monthly.*
 import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository
 import uk.gov.hmrc.disareturnssubmission.services.MonthlyReturnDeclarationProcessingResult.*
-import uk.gov.hmrc.http.{HeaderCarrier, UpstreamErrorResponse}
+import uk.gov.hmrc.http.UpstreamErrorResponse
 
 import javax.inject.*
 import scala.concurrent.*
@@ -34,9 +34,6 @@ class MonthlyReturnDeclarationProcessingService @Inject() (
   auditService: AuditService
 )(implicit ec: ExecutionContext)
     extends Logging {
-
-  // Work items are processed by a scheduled job, so there is no incoming request to build this from.
-  private implicit val hc: HeaderCarrier = HeaderCarrier()
 
   def process(item: MonthlyReturnDeclarationWorkItem): Future[MonthlyReturnDeclarationProcessingResult] =
     repository.get(item.zReference, item.taxYear, item.month).flatMap {

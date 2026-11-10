@@ -24,7 +24,6 @@ import play.api.libs.json.{JsObject, Json}
 import play.api.test.Helpers.*
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.services.{AuditService, AuditTypes, EventData, SubmissionStatus}
-import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.play.audit.http.connector.AuditConnector
 import uk.gov.hmrc.play.audit.http.connector.AuditResult.{Disabled, Failure, Success}
 import uk.gov.hmrc.play.audit.model.ExtendedDataEvent
@@ -32,8 +31,6 @@ import uk.gov.hmrc.play.audit.model.ExtendedDataEvent
 import scala.concurrent.Future
 
 class AuditServiceSpec extends SpecBase {
-
-  private implicit val hc: HeaderCarrier = HeaderCarrier()
 
   "AuditService.auditNpsDeclarationSubmitted" - {
 
