@@ -17,8 +17,9 @@
 package uk.gov.hmrc.disareturnssubmission.services
 
 import play.api.Logging
-import play.api.libs.json.{JsObject, Json}
+import play.api.libs.json.{Json, OWrites}
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
+import uk.gov.hmrc.disareturnssubmission.models.audit.NpsDeclarationSubmittedDetailEvent
 import uk.gov.hmrc.disareturnssubmission.models.monthly.MonthlyReturn
 import uk.gov.hmrc.play.audit.http.connector.AuditResult.{Disabled, Failure, Success}
 import uk.gov.hmrc.play.audit.http.connector.{AuditConnector, AuditResult}
@@ -40,28 +41,22 @@ class AuditService @Inject() (
   def auditNpsDeclarationSubmitted(
     monthlyReturn: MonthlyReturn,
     failureReason: Option[String]
-  ): Future[Unit] = {
-    val statusDetail = failureReason.fold(Json.obj(EventData.submissionStatus -> SubmissionStatus.Success)) { reason =>
-      Json.obj(
-        EventData.submissionStatus -> SubmissionStatus.Failure,
-        EventData.failureReason    -> reason
+  ): Future[Unit] =
+    sendEvent(
+      npsDeclarationSubmitted,
+      NpsDeclarationSubmittedDetailEvent(
+        internalReturnId = monthlyReturn.submissionId.toString,
+        period = reportingPeriod(monthlyReturn.taxYear, monthlyReturn.month),
+        submissionStatus = failureReason.fold(successStatus)(_ => failureStatus),
+        failureReason = failureReason
       )
-    }
+    )
 
-    val detail =
-      Json.obj(
-        EventData.internalReturnId -> monthlyReturn.submissionId.toString,
-        EventData.period           -> reportingPeriod(monthlyReturn.taxYear, monthlyReturn.month)
-      ) ++ statusDetail
-
-    sendEvent(AuditTypes.NpsDeclarationSubmitted, detail)
-  }
-
-  private def sendEvent(auditType: String, detail: JsObject): Future[Unit] = {
+  private def sendEvent[A](auditType: String, detail: A)(implicit writes: OWrites[A]): Future[Unit] = {
     val event = ExtendedDataEvent(
       auditSource = appConfig.appName,
       auditType = auditType,
-      detail = detail
+      detail = Json.toJsObject(detail)
     )
 
     connector
@@ -83,18 +78,6 @@ class AuditService @Inject() (
     }
 }
 
-object AuditTypes {
-  val NpsDeclarationSubmitted = "NPSDeclarationSubmitted"
-}
-
-object SubmissionStatus {
-  val Success = "Success"
-  val Failure = "Failure"
-}
-
-object EventData {
-  val internalReturnId = "internalReturnId"
-  val period           = "period"
-  val submissionStatus = "submissionStatus"
-  val failureReason    = "failureReason"
-}
+private val npsDeclarationSubmitted = "NPSDeclarationSubmitted"
+private val successStatus           = "Success"
+private val failureStatus           = "Failure"

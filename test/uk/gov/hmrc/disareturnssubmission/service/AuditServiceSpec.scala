@@ -23,7 +23,7 @@ import org.mockito.Mockito.{verify, when}
 import play.api.libs.json.{JsObject, Json}
 import play.api.test.Helpers.*
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
-import uk.gov.hmrc.disareturnssubmission.services.{AuditService, AuditTypes, EventData, SubmissionStatus}
+import uk.gov.hmrc.disareturnssubmission.services.AuditService
 import uk.gov.hmrc.play.audit.http.connector.AuditConnector
 import uk.gov.hmrc.play.audit.http.connector.AuditResult.{Disabled, Failure, Success}
 import uk.gov.hmrc.play.audit.model.ExtendedDataEvent
@@ -40,11 +40,11 @@ class AuditServiceSpec extends SpecBase {
       val event = captureEvent()
 
       event.auditSource mustBe "disa-returns-submission"
-      event.auditType mustBe AuditTypes.NpsDeclarationSubmitted
+      event.auditType mustBe "NPSDeclarationSubmitted"
       event.detail mustBe Json.obj(
-        EventData.internalReturnId -> monthlyReturn.submissionId.toString,
-        EventData.period           -> "May 2026",
-        EventData.submissionStatus -> SubmissionStatus.Success
+        "internalReturnId" -> monthlyReturn.submissionId.toString,
+        "period"           -> "May 2026",
+        "submissionStatus" -> "Success"
       )
     }
 
@@ -52,10 +52,10 @@ class AuditServiceSpec extends SpecBase {
       await(service.auditNpsDeclarationSubmitted(monthlyReturn, Some("NPS declaration returned status [500]")))
 
       captureEvent().detail mustBe Json.obj(
-        EventData.internalReturnId -> monthlyReturn.submissionId.toString,
-        EventData.period           -> "May 2026",
-        EventData.submissionStatus -> SubmissionStatus.Failure,
-        EventData.failureReason    -> "NPS declaration returned status [500]"
+        "internalReturnId" -> monthlyReturn.submissionId.toString,
+        "period"           -> "May 2026",
+        "submissionStatus" -> "Failure",
+        "failureReason"    -> "NPS declaration returned status [500]"
       )
     }
 
@@ -68,7 +68,7 @@ class AuditServiceSpec extends SpecBase {
       s"must report tax year [$taxYear] month [$month] as period [$expected]" in new TestSetup {
         await(service.auditNpsDeclarationSubmitted(monthlyReturn.copy(taxYear = taxYear, month = month), None))
 
-        (captureEvent().detail.as[JsObject] \ EventData.period).as[String] mustBe expected
+        (captureEvent().detail.as[JsObject] \ "period").as[String] mustBe expected
       }
     }
 
