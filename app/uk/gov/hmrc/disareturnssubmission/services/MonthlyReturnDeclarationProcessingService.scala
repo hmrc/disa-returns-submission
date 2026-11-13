@@ -21,6 +21,7 @@ import uk.gov.hmrc.disareturnssubmission.connectors.NpsConnector
 import uk.gov.hmrc.disareturnssubmission.models.monthly.*
 import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository
 import uk.gov.hmrc.disareturnssubmission.services.MonthlyReturnDeclarationProcessingResult.*
+import uk.gov.hmrc.http.UpstreamErrorResponse
 
 import javax.inject.*
 import scala.concurrent.*
@@ -29,7 +30,8 @@ import scala.util.control.NonFatal
 @Singleton
 class MonthlyReturnDeclarationProcessingService @Inject() (
   repository: MonthlyReturnRepository,
-  npsConnector: NpsConnector
+  npsConnector: NpsConnector,
+  auditService: AuditService
 )(implicit ec: ExecutionContext)
     extends Logging {
 
@@ -44,32 +46,62 @@ class MonthlyReturnDeclarationProcessingService @Inject() (
         if (monthlyReturn.submissions.exists(_.status != MonthlyReturnSubmissionStatus.NpsSubmitted)) {
           Future.successful(PendingSubmissions)
         } else {
-          declareToNps(item)
+          declareToNps(item, monthlyReturn)
         }
       case _                                                            =>
         Future.failed(new IllegalStateException(s"Monthly return missing or not declared for ${loggingContext(item)}"))
     }
 
-  private def declareToNps(item: MonthlyReturnDeclarationWorkItem): Future[MonthlyReturnDeclarationProcessingResult] =
-    npsConnector.sendDeclaration(item.zReference).flatMap { _ =>
-      repository
-        .markNpsDeclared(item.zReference, item.taxYear, item.month)
-        .map { updated =>
-          if (!updated) {
-            throw new IllegalStateException(s"Could not mark monthly return NPS declared for ${loggingContext(item)}")
+  private def declareToNps(
+    item: MonthlyReturnDeclarationWorkItem,
+    monthlyReturn: MonthlyReturn
+  ): Future[MonthlyReturnDeclarationProcessingResult] =
+    npsConnector
+      .sendDeclaration(item.zReference)
+      .recoverWith { case NonFatal(exception) =>
+        auditNpsDeclaration(item, monthlyReturn, Some(npsFailureReason(exception)))
+        Future.failed(exception)
+      }
+      .flatMap { _ =>
+        auditNpsDeclaration(item, monthlyReturn, None)
+        repository
+          .markNpsDeclared(item.zReference, item.taxYear, item.month)
+          .map { updated =>
+            if (!updated) {
+              throw new IllegalStateException(s"Could not mark monthly return NPS declared for ${loggingContext(item)}")
+            }
+            logger.info(
+              s"[MonthlyReturnDeclarationProcessingService][declareToNps] Declared to NPS and recorded npsDeclaredOn for ${loggingContext(item)}"
+            )
+            Declared
           }
-          logger.info(
-            s"[MonthlyReturnDeclarationProcessingService][declareToNps] Declared to NPS and recorded npsDeclaredOn for ${loggingContext(item)}"
-          )
-          Declared
-        }
-        .recoverWith { case NonFatal(exception) =>
-          logger.warn(
-            s"[MonthlyReturnDeclarationProcessingService][declareToNps] NPS accepted declaration but could not record npsDeclaredOn for ${loggingContext(item)} - declaration may be retried",
-            exception
-          )
-          Future.failed(exception)
-        }
+          .recoverWith { case NonFatal(exception) =>
+            logger.warn(
+              s"[MonthlyReturnDeclarationProcessingService][declareToNps] NPS accepted declaration but could not record npsDeclaredOn for ${loggingContext(item)} - declaration may be retried",
+              exception
+            )
+            Future.failed(exception)
+          }
+      }
+
+  private def auditNpsDeclaration(
+    item: MonthlyReturnDeclarationWorkItem,
+    monthlyReturn: MonthlyReturn,
+    failureReason: Option[String]
+  ): Unit =
+    auditService
+      .auditNpsDeclarationSubmitted(monthlyReturn, failureReason)
+      .recover { case NonFatal(exception) =>
+        logger.warn(
+          s"[MonthlyReturnDeclarationProcessingService][auditNpsDeclaration] Failed to audit NPSDeclarationSubmitted for ${loggingContext(item)}",
+          exception
+        )
+      }
+
+  private def npsFailureReason(exception: Throwable): String =
+    exception match {
+      case upstream: UpstreamErrorResponse => upstream.message
+      case other                           => s"NPS declaration request failed [${other.getClass.getSimpleName}]"
     }
 
   private def loggingContext(item: MonthlyReturnDeclarationWorkItem): String =

@@ -18,7 +18,8 @@ package uk.gov.hmrc.disareturnssubmission.service
 
 import base.SpecBase
 import ch.qos.logback.classic.Level.WARN
-import org.mockito.ArgumentMatchers.*
+import org.mockito.ArgumentMatchers.{eq as eqTo, *}
+import org.scalatest.concurrent.Eventually.eventually
 import org.mockito.Mockito.{timeout as mockitoTimeout, *}
 import play.api.Logger
 import play.api.test.Helpers.*
@@ -138,12 +139,83 @@ class MonthlyReturnDeclarationProcessingServiceSpec extends SpecBase with LogCap
     }
   }
 
+  "MonthlyReturnDeclarationProcessingService NPSDeclarationSubmitted audit" - {
+    "must audit a success when NPS accepts the declaration" in new TestSetup {
+      await(service.process(item)) mustBe Declared
+
+      verify(audit).auditNpsDeclarationSubmitted(eqTo(declaredReturn), eqTo(None))
+    }
+
+    "must audit a success even when npsDeclaredOn then fails to save" in new TestSetup {
+      when(repository.markNpsDeclared(any(), any(), anyInt())).thenReturn(Future.failed(updateFailure))
+
+      await(service.process(item).failed) mustBe updateFailure
+      verify(audit).auditNpsDeclarationSubmitted(eqTo(declaredReturn), eqTo(None))
+    }
+
+    "must audit a failure with the upstream message when NPS rejects the declaration" in new TestSetup {
+      val failure = UpstreamErrorResponse("NPS declaration returned status [500]", INTERNAL_SERVER_ERROR)
+      when(nps.sendDeclaration(any())).thenReturn(Future.failed(failure))
+
+      await(service.process(item).failed) mustBe failure
+      verify(audit).auditNpsDeclarationSubmitted(
+        eqTo(declaredReturn),
+        eqTo(Some("NPS declaration returned status [500]"))
+      )
+    }
+
+    "must audit a failure with the exception type when the NPS request fails without a response" in new TestSetup {
+      val failure = new RuntimeException("connection refused")
+      when(nps.sendDeclaration(any())).thenReturn(Future.failed(failure))
+
+      await(service.process(item).failed) mustBe failure
+      verify(audit).auditNpsDeclarationSubmitted(
+        eqTo(declaredReturn),
+        eqTo(Some("NPS declaration request failed [RuntimeException]"))
+      )
+    }
+
+    "must still declare and warn when the audit fails" in new TestSetup {
+      when(audit.auditNpsDeclarationSubmitted(any(), any()))
+        .thenReturn(Future.failed(new RuntimeException("audit unavailable")))
+
+      withCaptureOfLoggingFrom(Logger(service.getClass)) { events =>
+        await(service.process(item)) mustBe Declared
+        verify(repository).markNpsDeclared(testZReference, testTaxYear, testMonth)
+        eventually {
+          events.exists(event =>
+            event.getLevel == WARN && event.getMessage.contains("Failed to audit NPSDeclarationSubmitted")
+          ) mustBe true
+        }
+      }
+    }
+
+    "must not audit when the declaration is skipped" in new TestSetup {
+      when(repository.get(any(), any(), anyInt()))
+        .thenReturn(Future.successful(Some(declaredReturn.copy(npsDeclaredOn = Some(testCreatedOn)))))
+
+      await(service.process(item)) mustBe Declared
+      verifyNoInteractions(audit)
+    }
+
+    "must not audit while submissions are still pending" in new TestSetup {
+      val pending = submitted.copy(reference = "pending-reference", status = MonthlyReturnSubmissionStatus.Stored)
+      when(repository.get(any(), any(), anyInt()))
+        .thenReturn(Future.successful(Some(declaredReturn.copy(submissions = List(submitted, pending)))))
+
+      await(service.process(item)) mustBe PendingSubmissions
+      verifyNoInteractions(audit)
+    }
+  }
+
   private trait TestSetup {
     val repository = mock[MonthlyReturnRepository]
     val nps        = mock[NpsConnector]
+    val audit      = mock[AuditService]
     when(repository.get(any(), any(), anyInt())).thenReturn(Future.successful(Some(declaredReturn)))
     when(repository.markNpsDeclared(any(), any(), anyInt())).thenReturn(Future.successful(true))
     when(nps.sendDeclaration(any())).thenReturn(Future.unit)
-    val service    = new MonthlyReturnDeclarationProcessingService(repository, nps)
+    when(audit.auditNpsDeclarationSubmitted(any(), any())).thenReturn(Future.unit)
+    val service    = new MonthlyReturnDeclarationProcessingService(repository, nps, audit)
   }
 }
