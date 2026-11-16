@@ -74,28 +74,6 @@ final case class MonthlyReturn(
       )
     }
 
-  def createPendingSubmissions(references: List[String], createdOn: Instant): MonthlyReturn = {
-    val existingReferences = submissions.map(_.reference).toSet
-    val pendingSubmissions = references.distinct
-      .filterNot(existingReferences)
-      .map(reference =>
-        MonthlyReturnSubmission(
-          reference = reference,
-          status = MonthlyReturnSubmissionStatus.Created,
-          createdOn = createdOn
-        )
-      )
-
-    if (nilReturn || pendingSubmissions.isEmpty) {
-      this
-    } else {
-      copy(
-        submissions = submissions ++ pendingSubmissions,
-        lastUpdated = createdOn
-      )
-    }
-  }
-
   def storeSubmission(
     reference: String,
     storedOn: Instant,
@@ -133,27 +111,6 @@ final case class MonthlyReturn(
     }
   }
 
-  def updateNilReturn(nilReturn: Boolean, updatedOn: Instant): MonthlyReturn =
-    if (nilReturn) {
-      val updatedReturn = copy(
-        nilReturn = true,
-        submissions = Nil,
-        lastUpdated = updatedOn
-      )
-
-      if (updatedReturn == this) {
-        this
-      } else {
-        updatedReturn
-      }
-    } else if (this.nilReturn) {
-      copy(
-        nilReturn = false,
-        lastUpdated = updatedOn
-      )
-    } else {
-      this
-    }
 }
 
 object MonthlyReturn {

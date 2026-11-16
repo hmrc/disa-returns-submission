@@ -29,7 +29,7 @@ import play.api.test.Helpers.*
 import uk.gov.hmrc.disareturnssubmission.models.monthly.*
 import uk.gov.hmrc.disareturnssubmission.services.CreateMonthlyReturnResult.*
 import uk.gov.hmrc.disareturnssubmission.services.*
-import uk.gov.hmrc.disareturnssubmission.utils.Constants.NDJSON_MIME_TYPE
+import base.TestConstants.NDJSON_MIME_TYPE
 import uk.gov.hmrc.play.bootstrap.tools.LogCapturing
 
 import scala.concurrent.Future

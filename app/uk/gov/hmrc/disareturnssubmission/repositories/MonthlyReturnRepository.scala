@@ -430,11 +430,3 @@ object StoreSubmissionRepositoryResult {
   case object SubmissionConflict extends StoreSubmissionRepositoryResult
   case object MonthlyReturnNotFound extends StoreSubmissionRepositoryResult
 }
-
-sealed trait UpdateNilReturnRepositoryResult
-
-object UpdateNilReturnRepositoryResult {
-  final case class NilReturnUpdated(monthlyReturn: MonthlyReturn) extends UpdateNilReturnRepositoryResult
-  case object MonthlyReturnAlreadyDeclared extends UpdateNilReturnRepositoryResult
-  case object MonthlyReturnNotFound extends UpdateNilReturnRepositoryResult
-}

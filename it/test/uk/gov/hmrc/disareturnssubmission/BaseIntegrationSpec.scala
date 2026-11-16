@@ -158,7 +158,6 @@ trait BaseIntegrationSpec
 
   def serviceUrl(path: String): String = s"http://localhost:$port$path"
 
-  protected val emptyJson: JsObject             = Json.obj()
   protected val nilReturnFalseRequest: JsObject = Json.obj(nilReturnFieldName -> false)
 
   def clearMongoCollections(): Unit = {

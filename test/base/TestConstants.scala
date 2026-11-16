@@ -20,7 +20,7 @@ import play.api.libs.Files as PlayFiles
 import play.api.libs.Files.SingletonTemporaryFileCreator
 import play.api.libs.json.*
 import uk.gov.hmrc.disareturnssubmission.models.monthly.*
-import uk.gov.hmrc.disareturnssubmission.utils.Constants.NDJSON_MIME_TYPE
+import base.TestConstants.NDJSON_MIME_TYPE
 import uk.gov.hmrc.objectstore.client.Md5Hash
 
 import java.nio.charset.StandardCharsets.UTF_8
@@ -65,7 +65,6 @@ trait TestConstants {
   protected val taxYearFieldName         = "taxYear"
   protected val monthFieldName           = "month"
   protected val nilReturnFieldName       = "nilReturn"
-  protected val fileUploadsFieldName     = "fileUploads"
   protected val createdOnFieldName       = "createdOn"
   protected val declaredOnFieldName      = "declaredOn"
   protected val lastUpdatedFieldName     = "lastUpdated"
@@ -109,4 +108,8 @@ trait TestConstants {
     numberOfEntries = testNumberOfEntries,
     objectStoreFileLocation = Some(testTempFile.toString)
   )
+}
+
+object TestConstants {
+  val NDJSON_MIME_TYPE = "application/x-ndjson"
 }

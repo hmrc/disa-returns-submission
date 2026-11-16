@@ -231,49 +231,19 @@ class MonthlyReturnSpec extends SpecBase {
     }
   }
 
-  "createPendingSubmissions" - {
-
-    "must add distinct CREATED submissions and update lastUpdated" in {
-      val secondReference = "second-reference"
-      val result          =
-        emptyMonthlyReturn.createPendingSubmissions(
-          List(testUploadReference, secondReference, testUploadReference),
-          testCreatedOn
-        )
-
-      result.submissions mustBe List(
-        MonthlyReturnSubmission(
-          reference = testUploadReference,
-          status = MonthlyReturnSubmissionStatus.Created,
-          createdOn = testCreatedOn
-        ),
-        MonthlyReturnSubmission(
-          reference = secondReference,
-          status = MonthlyReturnSubmissionStatus.Created,
-          createdOn = testCreatedOn
-        )
-      )
-      result.createdOn mustBe testExistingUpdatedOn
-      result.lastUpdated mustBe testCreatedOn
-    }
-
-    "must not replace an existing submission" in {
-      val existing = emptyMonthlyReturn.storeSubmission(testUploadReference, testCreatedOn, fileUploadDetails)
-
-      existing.createPendingSubmissions(List(testUploadReference), testUpscanCompletedOn) mustBe existing
-    }
-
-    "must not add pending submissions to a nil return" in {
-      val monthlyReturn = emptyMonthlyReturn.copy(nilReturn = true)
-
-      monthlyReturn.createPendingSubmissions(List(testUploadReference), testCreatedOn) mustBe monthlyReturn
-    }
-  }
-
   "storeSubmission" - {
 
     "must update a CREATED submission to STORED and preserve its createdOn" in {
-      val pending = emptyMonthlyReturn.createPendingSubmissions(List(testUploadReference), testCreatedOn)
+      val pending = emptyMonthlyReturn.copy(
+        submissions = List(
+          MonthlyReturnSubmission(
+            reference = testUploadReference,
+            status = MonthlyReturnSubmissionStatus.Created,
+            createdOn = testCreatedOn
+          )
+        ),
+        lastUpdated = testCreatedOn
+      )
 
       val result = pending.storeSubmission(testUploadReference, testUpscanCompletedOn, fileUploadDetails)
 
@@ -311,35 +281,6 @@ class MonthlyReturnSpec extends SpecBase {
       val declared = emptyMonthlyReturn.copy(declaredOn = Some(testCreatedOn))
 
       declared.storeSubmission(testUploadReference, testUpscanCompletedOn, fileUploadDetails) mustBe declared
-    }
-  }
-
-  "updateNilReturn" - {
-
-    "must set nilReturn to true and remove all file uploads" in {
-      val monthlyReturn = emptyMonthlyReturn.storeSubmission(testUploadReference, testCreatedOn, fileUploadDetails)
-
-      val result = monthlyReturn.updateNilReturn(nilReturn = true, updatedOn = testUpscanCompletedOn)
-
-      result.nilReturn mustBe true
-      result.submissions mustBe Nil
-      result.createdOn mustBe testExistingUpdatedOn
-      result.lastUpdated mustBe testUpscanCompletedOn
-    }
-
-    "must set nilReturn to false and leave file uploads empty" in {
-      val monthlyReturn = emptyMonthlyReturn.copy(nilReturn = true)
-
-      val result = monthlyReturn.updateNilReturn(nilReturn = false, updatedOn = testUpscanCompletedOn)
-
-      result.nilReturn mustBe false
-      result.submissions mustBe Nil
-      result.createdOn mustBe testExistingUpdatedOn
-      result.lastUpdated mustBe testUpscanCompletedOn
-    }
-
-    "must leave a non-nil return unchanged when setting nilReturn to false" in {
-      emptyMonthlyReturn.updateNilReturn(nilReturn = false, updatedOn = testUpscanCompletedOn) mustBe emptyMonthlyReturn
     }
   }
 }

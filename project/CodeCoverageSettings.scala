@@ -16,7 +16,6 @@ object CodeCoverageSettings {
     "uk.gov.hmrc.disareturnssubmission.Module",
     "uk.gov.hmrc.disareturnssubmission.AppInitialiser",
     "uk.gov.hmrc.disareturnssubmission.utils.UuidGenerator",
-    "uk.gov.hmrc.disareturnssubmission.models.checkMd5Base64",
     "uk.gov.hmrc.disareturnssubmission.models.UuidFormat",
     "uk.gov.hmrc.disareturnssubmission.models.monthly.CreateMonthlyReturnRequest",
     "uk.gov.hmrc.disareturnssubmission.models.monthly.CreateMonthlyReturnResponse",

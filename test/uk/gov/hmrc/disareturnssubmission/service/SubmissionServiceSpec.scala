@@ -19,14 +19,12 @@ package uk.gov.hmrc.disareturnssubmission.service
 import base.SpecBase
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
-import play.api.libs.Files.TemporaryFileCreator
 import uk.gov.hmrc.disareturnssubmission.connectors.ObjectStoreConnector
 import uk.gov.hmrc.disareturnssubmission.services.ObjectStoreService
 
 import scala.concurrent.Future
 
 class SubmissionServiceSpec extends SpecBase {
-  val mockTemporaryFileCreator: TemporaryFileCreator = mock[TemporaryFileCreator]
   val mockObjectStoreConnector: ObjectStoreConnector = mock[ObjectStoreConnector]
 
   val service = new ObjectStoreService(mockObjectStoreConnector)

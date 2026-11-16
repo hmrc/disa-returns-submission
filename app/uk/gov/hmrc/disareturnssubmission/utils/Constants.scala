@@ -17,7 +17,6 @@
 package uk.gov.hmrc.disareturnssubmission.utils
 
 object Constants {
-  val NDJSON_MIME_TYPE                                      = "application/x-ndjson"
   val MONTHLY_RETURN_SUBMISSION_WORK_ITEMS_COLLECTION_NAME  = "monthlyReturnSubmissionWorkItems"
   val MONTHLY_RETURN_DECLARATION_WORK_ITEMS_COLLECTION_NAME = "monthlyReturnDeclarationWorkItems"
 }
