@@ -29,7 +29,6 @@ import play.api.test.Helpers.await
 import uk.gov.hmrc.disareturnssubmission.BaseIntegrationSpec
 import uk.gov.hmrc.disareturnssubmission.models.monthly.*
 import uk.gov.hmrc.disareturnssubmission.repositories.*
-import base.TestConstants.NDJSON_MIME_TYPE
 import uk.gov.hmrc.disareturnssubmission.utils.ObjectStoreWireMockStubs
 import uk.gov.hmrc.mongo.workitem.*
 import uk.gov.hmrc.play.bootstrap.tools.LogCapturing
