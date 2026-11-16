@@ -73,44 +73,6 @@ final case class MonthlyReturn(
         lastUpdated = declaredOn
       )
     }
-
-  def storeSubmission(
-    reference: String,
-    storedOn: Instant,
-    submissionDetails: MonthlyReturnSubmissionDetails
-  ): MonthlyReturn = {
-    val matchingSubmission = submissions.find(_.reference == reference)
-
-    matchingSubmission match {
-      case Some(submission) if submission.status == MonthlyReturnSubmissionStatus.Created =>
-        copy(
-          submissions = submissions.map {
-            case existing if existing.reference == reference =>
-              existing.copy(
-                status = MonthlyReturnSubmissionStatus.Stored,
-                submissionDetails = Some(submissionDetails)
-              )
-            case existing                                    => existing
-          },
-          lastUpdated = storedOn
-        )
-
-      case None if !nilReturn && !hasDeclaration =>
-        copy(
-          submissions = submissions :+ MonthlyReturnSubmission(
-            reference = reference,
-            status = MonthlyReturnSubmissionStatus.Stored,
-            createdOn = storedOn,
-            submissionDetails = Some(submissionDetails)
-          ),
-          lastUpdated = storedOn
-        )
-
-      case _ =>
-        this
-    }
-  }
-
 }
 
 object MonthlyReturn {

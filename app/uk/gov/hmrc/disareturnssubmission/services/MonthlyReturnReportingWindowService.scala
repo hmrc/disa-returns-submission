@@ -29,9 +29,6 @@ class MonthlyReturnReportingWindowService @Inject() (appConfig: AppConfig, timeS
   ec: ExecutionContext
 ) {
 
-  def isOpen(zReference: String): Future[Boolean] =
-    resolve(zReference).map(_.isOpen)
-
   def resolve(zReference: String): Future[ResolvedReportingWindow] =
     timeSource.resolve(zReference).map { resolved =>
       val (windowStart, windowEnd) = defaultWindowBounds(resolved.instant)

@@ -81,6 +81,21 @@ class MonthlyReturnSpec extends SpecBase {
       jsonWithoutCreatedOn.as[MonthlyReturn] mustBe emptyMonthlyReturn
     }
 
+    "must default createdOn, nilReturn, submissions, declaredOn and npsDeclaredOn when they are missing from the JSON" in
+      Seq(MonthlyReturn.format, MonthlyReturn.mongoFormat).foreach { format =>
+        val minimalJson = Json.toJson(emptyMonthlyReturn)(format).as[JsObject] -
+          createdOnFieldName - nilReturnFieldName - "submissions" - declaredOnFieldName - npsDeclaredOnFieldName
+
+        minimalJson.as[MonthlyReturn](format) mustBe emptyMonthlyReturn
+      }
+
+    "must fail to read the JSON when zReference is missing" in
+      Seq(MonthlyReturn.format, MonthlyReturn.mongoFormat).foreach { format =>
+        val jsonWithoutZReference = Json.toJson(emptyMonthlyReturn)(format).as[JsObject] - zReferenceFieldName
+
+        jsonWithoutZReference.validate[MonthlyReturn](format).isError mustBe true
+      }
+
     "must default createdOn to lastUpdated when reading existing Mongo JSON" in {
       val jsonWithoutCreatedOn =
         Json.toJson(emptyMonthlyReturn)(MonthlyReturn.mongoFormat).as[JsObject] - createdOnFieldName
@@ -190,7 +205,6 @@ class MonthlyReturnSpec extends SpecBase {
       submitted.hasStoredSubmission(testUploadReference) mustBe false
       submitted.hasNpsSubmittedSubmission(testUploadReference) mustBe true
       submitted.hasCreatedSubmission(testUploadReference) mustBe false
-      submitted.storeSubmission(testUploadReference, testUpscanCompletedOn, fileUploadDetails) mustBe submitted
     }
 
     "must allow a missing submission before declaration" in {
@@ -212,12 +226,6 @@ class MonthlyReturnSpec extends SpecBase {
       monthlyReturn.hasCreatedSubmission(testUploadReference) mustBe true
     }
 
-    "must not allow a STORED submission" in {
-      val monthlyReturn = emptyMonthlyReturn.storeSubmission(testUploadReference, testCreatedOn, fileUploadDetails)
-
-      monthlyReturn.hasCreatedSubmission(testUploadReference) mustBe false
-    }
-
     "must not allow a missing submission after declaration" in {
       val monthlyReturn = emptyMonthlyReturn.copy(declaredOn = Some(testCreatedOn))
 
@@ -228,59 +236,6 @@ class MonthlyReturnSpec extends SpecBase {
       val monthlyReturn = emptyMonthlyReturn.copy(nilReturn = true)
 
       monthlyReturn.hasCreatedSubmission(testUploadReference) mustBe false
-    }
-  }
-
-  "storeSubmission" - {
-
-    "must update a CREATED submission to STORED and preserve its createdOn" in {
-      val pending = emptyMonthlyReturn.copy(
-        submissions = List(
-          MonthlyReturnSubmission(
-            reference = testUploadReference,
-            status = MonthlyReturnSubmissionStatus.Created,
-            createdOn = testCreatedOn
-          )
-        ),
-        lastUpdated = testCreatedOn
-      )
-
-      val result = pending.storeSubmission(testUploadReference, testUpscanCompletedOn, fileUploadDetails)
-
-      result.submissions mustBe List(
-        MonthlyReturnSubmission(
-          reference = testUploadReference,
-          status = MonthlyReturnSubmissionStatus.Stored,
-          createdOn = testCreatedOn,
-          submissionDetails = Some(fileUploadDetails)
-        )
-      )
-      result.lastUpdated mustBe testUpscanCompletedOn
-    }
-
-    "must create a missing submission with STORED status before declaration" in {
-      val result = emptyMonthlyReturn.storeSubmission(testUploadReference, testCreatedOn, fileUploadDetails)
-
-      result.submissions mustBe List(
-        MonthlyReturnSubmission(
-          reference = testUploadReference,
-          status = MonthlyReturnSubmissionStatus.Stored,
-          createdOn = testCreatedOn,
-          submissionDetails = Some(fileUploadDetails)
-        )
-      )
-    }
-
-    "must not update a submission that is already STORED" in {
-      val stored = emptyMonthlyReturn.storeSubmission(testUploadReference, testCreatedOn, fileUploadDetails)
-
-      stored.storeSubmission(testUploadReference, testUpscanCompletedOn, fileUploadDetails) mustBe stored
-    }
-
-    "must not create a missing submission after declaration" in {
-      val declared = emptyMonthlyReturn.copy(declaredOn = Some(testCreatedOn))
-
-      declared.storeSubmission(testUploadReference, testUpscanCompletedOn, fileUploadDetails) mustBe declared
     }
   }
 }

@@ -80,9 +80,6 @@ trait BaseIntegrationSpec
       "monthly-return-submission-work-item-job.enabled"              -> false,
       "monthly-return-declaration-work-item-job.enabled"             -> false,
       "mongodb.uri"                                                  -> "mongodb://localhost:27017/disa-returns-submission-it",
-      "microservice.services.disa-returns-submission.protocol"       -> "http",
-      "microservice.services.disa-returns-submission.host"           -> "localhost",
-      "microservice.services.disa-returns-submission.port"           -> wireMockPort,
       "microservice.services.object-store.protocol"                  -> "http",
       "microservice.services.object-store.host"                      -> "localhost",
       "microservice.services.object-store.port"                      -> wireMockPort,
@@ -107,7 +104,6 @@ trait BaseIntegrationSpec
   override protected def beforeEach(): Unit = {
     super.beforeEach()
     stubInternalAuth()
-    stubReturnsSubmissionCreateMonthlyReturn()
     clearMongoCollections()
   }
 
@@ -141,20 +137,6 @@ trait BaseIntegrationSpec
         .willReturn(aResponse().withStatus(UNAUTHORIZED))
     )
   }
-
-  protected def stubReturnsSubmissionCreateMonthlyReturn(
-    status: Int = CREATED,
-    submissionId: String = testSubmissionId.toString
-  ): Unit =
-    stubFor(
-      post(urlPathMatching("/disa-returns-submission/monthly/[^/]+/[^/]+/[^/]+"))
-        .willReturn(
-          aResponse()
-            .withStatus(status)
-            .withHeader(CONTENT_TYPE, JSON)
-            .withBody(Json.obj(submissionIdFieldName -> submissionId).toString())
-        )
-    )
 
   def serviceUrl(path: String): String = s"http://localhost:$port$path"
 
