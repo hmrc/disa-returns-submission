@@ -235,7 +235,7 @@ Settings are under `monthly-return-declaration-work-item-job` in `conf/applicati
 instances. Declarations still queue and submission transfers keep running. Keep `inProgressRetryAfter` longer than
 a full NPS attempt, including connector retries.
 
-Run the Bruno cases under `MonthlyReturn/NPSDeclarations`. The local stub uses `POST /nps/declaration/:zReference`
+Run the Bruno cases under `MonthlyReturn/NPSDeclarations`. The local stub uses `POST /disa/:zReference/obligations/monthly/declarations`
 and returns `500` for `Z1500`. For quicker runs, start the service with
 `-Dmonthly-return-declaration-work-item-job.pendingSubmissionsRetryAfter=2s`.
 Matching the real NPS API is a separate ticket.

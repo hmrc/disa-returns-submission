@@ -48,7 +48,9 @@ class NpsConnector @Inject() (
       retryCondition
     ) {
       httpClient
-        .post(url"${appConfig.npsMonthlyReturnSubmissionService}/nps/declaration/$zReference")(HeaderCarrier())
+        .post(url"${appConfig.npsMonthlyReturnSubmissionService}/disa/$zReference/obligations/monthly/declarations")(
+          HeaderCarrier()
+        )
         .setHeader(AUTHORIZATION -> s"Bearer ${appConfig.npsMonthlyReturnBearerToken}")
         .execute[HttpResponse]
         .flatMap { response =>
