@@ -49,7 +49,7 @@ class MonthlyReturnDeclarationWorkItemISpec extends BaseIntegrationSpec with Eve
 
   private val monthlyPath           = s"$testServicePath/monthly/$testZReference/$testTaxYear/$testMonth"
   private val declarationPath       = s"$monthlyPath/declarations"
-  private val npsPath               = s"/nps/declaration/$testZReference"
+  private val npsPath               = s"/disa/$testZReference/obligations/monthly/declarations"
   private val npsBearerToken        = "nps-stub-token"
   private val recoveredState        = "recovered"
   private val connectorAttemptCount = 4
