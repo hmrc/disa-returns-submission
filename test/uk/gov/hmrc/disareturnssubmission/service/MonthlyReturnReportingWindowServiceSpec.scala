@@ -40,47 +40,6 @@ class MonthlyReturnReportingWindowServiceSpec extends SpecBase {
     )
 
   "MonthlyReturnReportingWindowService" - {
-
-    "isOpen" - {
-
-      "must resolve time once and evaluate that exact instant" in {
-        val timeSource = mock[TimeSource]
-        when(timeSource.resolve(testZReference)).thenReturn(
-          Future.successful(ResolvedInstant(withinDeclarationPeriod, overridden = true))
-        )
-
-        await(new MonthlyReturnReportingWindowService(appConfig, timeSource).isOpen(testZReference)) mustBe true
-
-        verify(timeSource).resolve(testZReference)
-      }
-
-      "must return true when today's day of month is the declarationPeriodStart" in {
-        await(
-          buildService(Instant.parse(s"2026-04-0${appConfig.declarationPeriodStart}T00:00:00Z"))
-            .isOpen(testZReference)
-        ) mustBe true
-      }
-
-      "must return true when today's day of month is the declarationPeriodEnd" in {
-        await(
-          buildService(Instant.parse(s"2026-04-${appConfig.declarationPeriodEnd}T00:00:00Z"))
-            .isOpen(testZReference)
-        ) mustBe true
-      }
-
-      "must return true when today's day of month is between declarationPeriodStart and declarationPeriodEnd" in {
-        await(buildService(withinDeclarationPeriod).isOpen(testZReference)) mustBe true
-      }
-
-      "must return false when today's day of month is before declarationPeriodStart" in {
-        await(buildService(Instant.parse("2026-04-01T00:00:00Z")).isOpen(testZReference)) mustBe false
-      }
-
-      "must return false when today's day of month is after declarationPeriodEnd" in {
-        await(buildService(Instant.parse("2026-04-25T00:00:00Z")).isOpen(testZReference)) mustBe false
-      }
-    }
-
     "resolve must return the default window bounds for the instant's calendar month" in {
       val expectedStart =
         LocalDate.of(2026, 4, appConfig.declarationPeriodStart).atStartOfDay(ZoneOffset.UTC).toInstant
@@ -94,6 +53,20 @@ class MonthlyReturnReportingWindowServiceSpec extends SpecBase {
       result.windowEnd mustBe expectedEnd
       result.isOpen mustBe true
     }
+
+    "resolve must report the window as open on the declarationPeriodStart and declarationPeriodEnd days" in
+      Seq(appConfig.declarationPeriodStart, appConfig.declarationPeriodEnd).foreach { day =>
+        val instant = LocalDate.of(2026, 4, day).atStartOfDay(ZoneOffset.UTC).toInstant
+
+        await(buildService(instant).resolve(testZReference)).isOpen mustBe true
+      }
+
+    "resolve must report the window as closed before declarationPeriodStart and after declarationPeriodEnd" in
+      Seq(appConfig.declarationPeriodStart - 1, appConfig.declarationPeriodEnd + 1).foreach { day =>
+        val instant = LocalDate.of(2026, 4, day).atStartOfDay(ZoneOffset.UTC).toInstant
+
+        await(buildService(instant).resolve(testZReference)).isOpen mustBe false
+      }
 
     "resolve must cap a configured end day of 31 at the last day of shorter months" in {
       val config = mock[AppConfig]
@@ -135,7 +108,9 @@ class MonthlyReturnReportingWindowServiceSpec extends SpecBase {
         result.windowStart mustBe lastDate.atStartOfDay(ZoneOffset.UTC).toInstant
         result.windowEnd mustBe lastDate.atTime(endOfDay).atZone(ZoneOffset.UTC).toInstant
         result.isOpen mustBe true
-        await(buildService(Instant.parse(s"${previousDay}T12:00:00Z"), config).isOpen(testZReference)) mustBe false
+        await(
+          buildService(Instant.parse(s"${previousDay}T12:00:00Z"), config).resolve(testZReference)
+        ).isOpen mustBe false
       }
     }
   }

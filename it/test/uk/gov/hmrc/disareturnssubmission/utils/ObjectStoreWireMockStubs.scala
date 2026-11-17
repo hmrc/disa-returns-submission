@@ -20,11 +20,11 @@ import com.github.tomakehurst.wiremock.client.WireMock.*
 import play.api.http.HeaderNames.*
 import play.api.http.MimeTypes.JSON
 import play.api.http.Status.*
-import uk.gov.hmrc.disareturnssubmission.utils.Constants.NDJSON_MIME_TYPE
+import base.TestConstants
 
 import java.nio.charset.StandardCharsets.UTF_8
 
-trait ObjectStoreWireMockStubs {
+trait ObjectStoreWireMockStubs extends TestConstants {
 
   private val objectStorePath = "/object-store/object/disa-returns-submission/[^/]+"
 

@@ -408,14 +408,6 @@ object DeclareMonthlyReturnResult {
   case object PendingSubmissionsForNilReturn extends DeclareMonthlyReturnResult
 }
 
-sealed trait UpdateNilReturnResult
-
-object UpdateNilReturnResult {
-  final case class NilReturnUpdated(monthlyReturn: MonthlyReturn) extends UpdateNilReturnResult
-  case object MonthlyReturnAlreadyDeclared extends UpdateNilReturnResult
-  case object MonthlyReturnNotFound extends UpdateNilReturnResult
-}
-
 sealed trait SubmitReturnResult
 
 object SubmitReturnResult {

@@ -48,42 +48,6 @@ trait RequestUtils extends DefaultAwaitTimeout {
         .get()
     )
 
-  protected def delete(path: String): WSResponse =
-    await(
-      ws.url(serviceUrl(path))
-        .delete()
-    )
-
-  protected def deleteJson(path: String, body: JsValue): WSResponse =
-    await(
-      ws.url(serviceUrl(path))
-        .withBody(body)
-        .execute("DELETE")
-    )
-
-  protected def postJson(path: String, body: String, withContent: String): WSResponse =
-    postJsonWithAuthorization(path, body, withContent, validInternalAuthToken)
-
-  protected def postJsonWithAuthorization(
-    path: String,
-    body: String,
-    withContent: String,
-    authorization: String
-  ): WSResponse =
-    await(
-      ws.url(serviceUrl(path))
-        .withHttpHeaders("Content-Type" -> withContent)
-        .withHttpHeaders(AUTHORIZATION -> authorization)
-        .post(body)
-    )
-
-  protected def postJsonWithoutAuthorization(path: String, body: String, withContent: String): WSResponse =
-    await(
-      ws.url(serviceUrl(path))
-        .withHttpHeaders("Content-Type" -> withContent)
-        .post(body)
-    )
-
   protected def postJson(path: String, body: JsValue): WSResponse =
     postJsonWithAuthorization(path, body, validInternalAuthToken)
 
@@ -98,18 +62,6 @@ trait RequestUtils extends DefaultAwaitTimeout {
     await(
       ws.url(serviceUrl(path))
         .post(body)
-    )
-
-  protected def postJson(path: String): WSResponse =
-    await(
-      ws.url(serviceUrl(path))
-        .post("")
-    )
-
-  protected def putString(path: String, body: String = ""): WSResponse =
-    await(
-      ws.url(serviceUrl(path))
-        .put(body)
     )
 
   protected def putString(path: String, body: String, contentType: String): WSResponse =
@@ -141,12 +93,5 @@ trait RequestUtils extends DefaultAwaitTimeout {
     await(
       ws.url(serviceUrl(path))
         .put(body)
-    )
-
-  protected def postString(path: String, body: String, contentType: String): WSResponse =
-    await(
-      ws.url(serviceUrl(path))
-        .withHttpHeaders(CONTENT_TYPE -> contentType)
-        .post(body)
     )
 }

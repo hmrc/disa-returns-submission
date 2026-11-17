@@ -31,7 +31,6 @@ import play.api.Logger
 import play.api.http.MimeTypes.TEXT
 import play.api.http.Status.INTERNAL_SERVER_ERROR
 import play.api.test.Helpers.*
-import uk.gov.hmrc.disareturnssubmission.utils.Constants.NDJSON_MIME_TYPE
 import uk.gov.hmrc.http.*
 import uk.gov.hmrc.objectstore.client.http.Payload
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
