@@ -57,7 +57,7 @@ class MonthlyReturnSubmissionWorkItemISpec
 
   private val monthlyPath             = s"$testServicePath/monthly/$testZReference/$testTaxYear/$testMonth"
   private val submissionPath          = s"$monthlyPath/submissions/$testUploadReference"
-  private val npsPath                 = s"/nps/submit/$testZReference"
+  private val npsPath                 = s"/disa/$testZReference/obligations/monthly"
   private val objectStorePath         = s"/object-store/object/disa-returns-submission/$testUploadReference"
   private val connectorAttemptCount   = 4
   private val multiBatchRecordCount   = 3000
