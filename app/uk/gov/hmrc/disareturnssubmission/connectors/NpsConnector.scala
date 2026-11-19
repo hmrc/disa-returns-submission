@@ -67,7 +67,7 @@ class NpsConnector @Inject() (
   def sendSubmission(zReference: String, body: Source[ByteString, ?]): Future[Unit] =
     retryFor[Unit](s"[NpsConnector][sendSubmission] send NPS submission for zReference [$zReference]")(retryCondition) {
       httpClient
-        .post(url"${appConfig.npsMonthlyReturnSubmissionService}/nps/submit/$zReference")(HeaderCarrier())
+        .post(url"${appConfig.npsMonthlyReturnSubmissionService}/disa/$zReference/obligations/monthly")(HeaderCarrier())
         .setHeader(AUTHORIZATION -> s"Bearer ${appConfig.npsMonthlyReturnBearerToken}")
         .withBody(body)
         .execute[HttpResponse]

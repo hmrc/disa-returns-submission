@@ -217,7 +217,7 @@ five minutes and removes files unmodified for ten minutes, even if still in use.
 Object Store files remain NDJSON.
 
 NPS settings are under `microservice.services.nps-monthly-return-submission`, including the bearer token. Locally the
-endpoint is `http://localhost:1204/nps/submit/:zReference`. Deployment config must use `disa-returns-stubs.protected.mdtp`
+endpoint is `http://localhost:1204/disa/:zReference/obligations/monthly`. Deployment config must use `disa-returns-stubs.protected.mdtp`
 over HTTPS. Incoming credentials are not forwarded.
 
 A crash after NPS accepts batches but before Mongo records success also replays the whole submission.
