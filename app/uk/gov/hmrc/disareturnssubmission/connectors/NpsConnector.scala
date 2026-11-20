@@ -23,6 +23,7 @@ import org.apache.pekko.util.ByteString
 import play.api.http.HeaderNames.AUTHORIZATION
 import play.api.http.MimeTypes.JSON
 import play.api.http.Status.NO_CONTENT
+import play.api.libs.json.Json
 import play.api.libs.ws.*
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.http.HttpReads.Implicits.readRaw
@@ -43,7 +44,7 @@ class NpsConnector @Inject() (
   private implicit val jsonBodyWritable: BodyWritable[Source[ByteString, ?]] =
     BodyWritable(SourceBody(_), JSON)
 
-  def sendDeclaration(zReference: String): Future[Unit] =
+  def sendDeclaration(zReference: String, nilReturn: Boolean): Future[Unit] =
     retryFor[Unit](s"[NpsConnector][sendDeclaration] send NPS declaration for zReference [$zReference]")(
       retryCondition
     ) {
@@ -52,6 +53,7 @@ class NpsConnector @Inject() (
           HeaderCarrier()
         )
         .setHeader(AUTHORIZATION -> s"Bearer ${appConfig.npsMonthlyReturnBearerToken}")
+        .withBody(Json.obj("nilReturn" -> nilReturn))
         .execute[HttpResponse]
         .flatMap { response =>
           if (response.status == NO_CONTENT) {

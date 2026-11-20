@@ -57,7 +57,7 @@ class MonthlyReturnDeclarationProcessingService @Inject() (
     monthlyReturn: MonthlyReturn
   ): Future[MonthlyReturnDeclarationProcessingResult] =
     npsConnector
-      .sendDeclaration(item.zReference)
+      .sendDeclaration(item.zReference, monthlyReturn.nilReturn)
       .recoverWith { case NonFatal(exception) =>
         auditNpsDeclaration(item, monthlyReturn, Some(npsFailureReason(exception)))
         Future.failed(exception)

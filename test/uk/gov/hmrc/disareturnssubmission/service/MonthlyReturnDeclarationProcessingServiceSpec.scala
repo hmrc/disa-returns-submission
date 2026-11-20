@@ -50,7 +50,7 @@ class MonthlyReturnDeclarationProcessingServiceSpec extends SpecBase with LogCap
       withCaptureOfLoggingFrom(Logger(service.getClass)) { events =>
         val result = service.process(item)
         verify(repository, mockitoTimeout(1000)).markNpsDeclared(testZReference, testTaxYear, testMonth)
-        verify(nps).sendDeclaration(testZReference)
+        verify(nps).sendDeclaration(testZReference, nilReturn = false)
         result.isCompleted mustBe false
         events.exists(_.getMessage.contains(successMessage)) mustBe false
         marked.success(true)
@@ -66,7 +66,7 @@ class MonthlyReturnDeclarationProcessingServiceSpec extends SpecBase with LogCap
           .thenReturn(Future.successful(Some(declaredReturn.copy(nilReturn = nilReturn, submissions = Nil))))
 
         await(service.process(item)) mustBe Declared
-        verify(nps).sendDeclaration(testZReference)
+        verify(nps).sendDeclaration(testZReference, nilReturn = nilReturn)
         verify(repository).markNpsDeclared(testZReference, testTaxYear, testMonth)
       }
     }
@@ -112,7 +112,7 @@ class MonthlyReturnDeclarationProcessingServiceSpec extends SpecBase with LogCap
     Seq(BAD_REQUEST, TOO_MANY_REQUESTS, INTERNAL_SERVER_ERROR, SERVICE_UNAVAILABLE).foreach { status =>
       s"must not record a timestamp when NPS fails with [$status]" in new TestSetup {
         val failure = UpstreamErrorResponse("NPS declaration failed", status)
-        when(nps.sendDeclaration(any())).thenReturn(Future.failed(failure))
+        when(nps.sendDeclaration(any(), any())).thenReturn(Future.failed(failure))
 
         withCaptureOfLoggingFrom(Logger(service.getClass)) { events =>
           await(service.process(item).failed) mustBe failure
@@ -155,7 +155,7 @@ class MonthlyReturnDeclarationProcessingServiceSpec extends SpecBase with LogCap
 
     "must audit a failure with the upstream message when NPS rejects the declaration" in new TestSetup {
       val failure = UpstreamErrorResponse("NPS declaration returned status [500]", INTERNAL_SERVER_ERROR)
-      when(nps.sendDeclaration(any())).thenReturn(Future.failed(failure))
+      when(nps.sendDeclaration(any(), any())).thenReturn(Future.failed(failure))
 
       await(service.process(item).failed) mustBe failure
       verify(audit).auditNpsDeclarationSubmitted(
@@ -166,7 +166,7 @@ class MonthlyReturnDeclarationProcessingServiceSpec extends SpecBase with LogCap
 
     "must audit a failure with the exception type when the NPS request fails without a response" in new TestSetup {
       val failure = new RuntimeException("connection refused")
-      when(nps.sendDeclaration(any())).thenReturn(Future.failed(failure))
+      when(nps.sendDeclaration(any(), any())).thenReturn(Future.failed(failure))
 
       await(service.process(item).failed) mustBe failure
       verify(audit).auditNpsDeclarationSubmitted(
@@ -214,7 +214,7 @@ class MonthlyReturnDeclarationProcessingServiceSpec extends SpecBase with LogCap
     val audit      = mock[AuditService]
     when(repository.get(any(), any(), anyInt())).thenReturn(Future.successful(Some(declaredReturn)))
     when(repository.markNpsDeclared(any(), any(), anyInt())).thenReturn(Future.successful(true))
-    when(nps.sendDeclaration(any())).thenReturn(Future.unit)
+    when(nps.sendDeclaration(any(), any())).thenReturn(Future.unit)
     when(audit.auditNpsDeclarationSubmitted(any(), any())).thenReturn(Future.unit)
     val service    = new MonthlyReturnDeclarationProcessingService(repository, nps, audit)
   }
