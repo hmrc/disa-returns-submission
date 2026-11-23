@@ -135,21 +135,21 @@ class MonthlyReturnSubmissionWorkItemJobSpec extends SpecBase with LogCapturing 
   }
 
   private trait TestSetup {
-    val conversionFailure = new IllegalStateException("conversion failed")
-    val updateFailure     = new RuntimeException("mongo unavailable")
-    val workItem          = WorkItem(
+    val conversionFailure                                     = new IllegalStateException("conversion failed")
+    val updateFailure                                         = new RuntimeException("mongo unavailable")
+    val workItem                                              = WorkItem(
       id = new ObjectId(),
       receivedAt = testCreatedOn,
       updatedAt = testCreatedOn,
       availableAt = testCreatedOn,
       status = ProcessingStatus.InProgress,
       failureCount = 0,
-      item = MonthlyReturnSubmissionWorkItem(testZReference, testTaxYear, testMonth, testUploadReference)
+      item = MonthlyReturnSubmissionWorkItem(testZReference, testTaxYear, testMonth, false, testUploadReference)
     )
-    val context           =
+    val context                                               =
       s"work item [${workItem.id}] for zReference [$testZReference], taxYear [$testTaxYear], month [$testMonth], submission [$testUploadReference]"
-    val repository        = mock[MonthlyReturnSubmissionWorkItemRepository]
-    val processing        = mock[MonthlyReturnSubmissionProcessingService]
+    val repository: MonthlyReturnSubmissionWorkItemRepository = mock[MonthlyReturnSubmissionWorkItemRepository]
+    val processing: MonthlyReturnSubmissionProcessingService  = mock[MonthlyReturnSubmissionProcessingService]
     when(processing.process(any())).thenReturn(Future.unit)
     when(repository.complete(any(), any())).thenReturn(Future.successful(true))
     when(repository.markAs(any(), any(), any())).thenReturn(Future.successful(true))

@@ -43,9 +43,9 @@ import scala.concurrent.*
 import scala.jdk.CollectionConverters.*
 
 class MonthlyReturnSubmissionProcessingServiceSpec extends SpecBase with LogCapturing {
-  private val item                     = MonthlyReturnSubmissionWorkItem(testZReference, testTaxYear, testMonth, testUploadReference)
+  private val item                     = MonthlyReturnSubmissionWorkItem(testZReference, testTaxYear, testMonth, false, testUploadReference)
   private val context                  =
-    s"zReference [$testZReference], taxYear [$testTaxYear], month [$testMonth], submission [$testUploadReference]"
+    s"zReference [$testZReference], taxYear [$testTaxYear], month [$testMonth], nilReturn [false], submission [$testUploadReference]"
   private val submissionSuccessMessage = "Submitted to NPS and marked"
   private val updateFailureMessage     = s"All NPS batches accepted but could not mark [NPS_SUBMITTED] for $context"
   private val singleRecordBatchLimit   = 1
@@ -64,12 +64,12 @@ class MonthlyReturnSubmissionProcessingServiceSpec extends SpecBase with LogCapt
   "MonthlyReturnSubmissionProcessingService" - {
     "must download, convert and stream JSON after deleting the source, then clean up the output" in new TestSetup {
       val payload = Promise[ByteString]()
-      when(nps.sendSubmission(any(), any())).thenAnswer { (invocation: InvocationOnMock) =>
+      when(nps.sendSubmission(any(), any(), any())).thenAnswer { (invocation: InvocationOnMock) =>
         val createdPaths = paths.asScala.toList
         Files.exists(createdPaths.find(_.getFileName.toString.contains("ndjson")).value) mustBe false
         Files.exists(createdPaths.find(_.getFileName.toString.contains(jsonBatchFileMarker)).value) mustBe true
         invocation
-          .getArgument[Source[ByteString, ?]](1)
+          .getArgument[Source[ByteString, ?]](2)
           .runWith(Sink.fold(ByteString.empty)(_ ++ _))
           .map { bytes => payload.success(bytes); () }
       }
@@ -105,10 +105,10 @@ class MonthlyReturnSubmissionProcessingServiceSpec extends SpecBase with LogCapt
       val payloads   = Seq.fill(batchCount)(Promise[ByteString]())
       val accepted   = Seq.fill(batchCount)(Promise[Unit]())
       val calls      = new AtomicInteger()
-      when(nps.sendSubmission(any(), any())).thenAnswer { (invocation: InvocationOnMock) =>
+      when(nps.sendSubmission(any(), any(), any())).thenAnswer { (invocation: InvocationOnMock) =>
         val index = calls.getAndIncrement()
         invocation
-          .getArgument[Source[ByteString, ?]](1)
+          .getArgument[Source[ByteString, ?]](2)
           .runWith(Sink.fold(ByteString.empty)(_ ++ _))
           .flatMap { bytes => payloads(index).success(bytes); accepted(index).future }
       }
@@ -118,7 +118,7 @@ class MonthlyReturnSubmissionProcessingServiceSpec extends SpecBase with LogCapt
       val batches = paths.asScala.filter(_.getFileName.toString.contains(jsonBatchFileMarker)).toList
       batches.size mustBe batchCount
       batches.foreach(path => Files.exists(path) mustBe true)
-      verify(nps, times(1)).sendSubmission(any(), any())
+      verify(nps, times(1)).sendSubmission(any(), any(), any())
       verify(repository, never()).markSubmissionNpsSubmitted(any(), any(), any(), any())
       result.isCompleted mustBe false
 
@@ -142,9 +142,9 @@ class MonthlyReturnSubmissionProcessingServiceSpec extends SpecBase with LogCapt
         .thenReturn(Future.successful(Source.single(ByteString(ndjsonContent + thirdRecord))))
       val payloads    = new ConcurrentLinkedQueue[ByteString]()
       val failure     = new IllegalStateException("second batch failed")
-      when(nps.sendSubmission(any(), any())).thenAnswer { (invocation: InvocationOnMock) =>
+      when(nps.sendSubmission(any(), any(), any())).thenAnswer { (invocation: InvocationOnMock) =>
         invocation
-          .getArgument[Source[ByteString, ?]](1)
+          .getArgument[Source[ByteString, ?]](2)
           .runWith(Sink.fold(ByteString.empty)(_ ++ _))
           .flatMap { bytes =>
             payloads.add(bytes)
@@ -153,7 +153,7 @@ class MonthlyReturnSubmissionProcessingServiceSpec extends SpecBase with LogCapt
       }
 
       await(service.process(item).failed) mustBe failure
-      verify(nps, times(2)).sendSubmission(any(), any())
+      verify(nps, times(2)).sendSubmission(any(), any(), any())
       verify(repository, never()).markSubmissionNpsSubmitted(any(), any(), any(), any())
       paths.size() mustBe 4
       assertCleaned()
@@ -265,7 +265,7 @@ class MonthlyReturnSubmissionProcessingServiceSpec extends SpecBase with LogCapt
 
     "must clean up without marking submitted when NPS fails" in new TestSetup {
       val failureMessage = "NPS unavailable"
-      when(nps.sendSubmission(any(), any())).thenReturn(Future.failed(new RuntimeException(failureMessage)))
+      when(nps.sendSubmission(any(), any(), any())).thenReturn(Future.failed(new RuntimeException(failureMessage)))
 
       withCaptureOfLoggingFrom(Logger(service.getClass)) { events =>
         await(service.process(item).failed).getMessage mustBe failureMessage
@@ -348,7 +348,7 @@ class MonthlyReturnSubmissionProcessingServiceSpec extends SpecBase with LogCapt
     when(repository.get(any(), any(), any())).thenReturn(Future.successful(Some(stored)))
     when(repository.markSubmissionNpsSubmitted(any(), any(), any(), any())).thenReturn(Future.successful(true))
     when(objectStore.getFile(any())(any())).thenReturn(Future.successful(Source.single(ByteString(ndjsonContent))))
-    when(nps.sendSubmission(any(), any())).thenReturn(Future.unit)
+    when(nps.sendSubmission(any(), any(), any())).thenReturn(Future.unit)
     when(config.monthlyReturnMaxRecordsPerSubmission).thenReturn(3000)
 
     lazy val service = new MonthlyReturnSubmissionProcessingService(

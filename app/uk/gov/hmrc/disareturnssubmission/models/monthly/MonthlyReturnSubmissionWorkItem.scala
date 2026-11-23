@@ -18,7 +18,13 @@ package uk.gov.hmrc.disareturnssubmission.models.monthly
 
 import play.api.libs.json.*
 
-final case class MonthlyReturnSubmissionWorkItem(zReference: String, taxYear: String, month: Int, reference: String)
+final case class MonthlyReturnSubmissionWorkItem(
+  zReference: String,
+  taxYear: String,
+  month: Int,
+  nilReturn: Boolean = false,
+  reference: String
+)
 
 object MonthlyReturnSubmissionWorkItem {
   implicit val format: OFormat[MonthlyReturnSubmissionWorkItem] = Json.format[MonthlyReturnSubmissionWorkItem]

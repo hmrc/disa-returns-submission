@@ -115,7 +115,7 @@ class MonthlyReturnSubmissionProcessingService @Inject() (
                logger.debug(
                  s"[MonthlyReturnSubmissionProcessingService][sendSubmissionToNpsAndMarkSubmitted] Sending batch [${index + 1}/${batches.size}] with [$count] records to NPS for ${context(item)}"
                )
-               npsConnector.sendSubmission(item.zReference, FileIO.fromPath(output)).flatMap { _ =>
+               npsConnector.sendSubmission(item.zReference, item.nilReturn, FileIO.fromPath(output)).flatMap { _ =>
                  logger.debug(
                    s"[MonthlyReturnSubmissionProcessingService][sendSubmissionToNpsAndMarkSubmitted] NPS accepted batch [${index + 1}/${batches.size}] for ${context(item)}"
                  )
@@ -156,5 +156,5 @@ class MonthlyReturnSubmissionProcessingService @Inject() (
     } yield ()
 
   private def context(item: MonthlyReturnSubmissionWorkItem): String =
-    s"zReference [${item.zReference}], taxYear [${item.taxYear}], month [${item.month}], submission [${item.reference}]"
+    s"zReference [${item.zReference}], taxYear [${item.taxYear}], month [${item.month}], nilReturn [${item.nilReturn}], submission [${item.reference}]"
 }

@@ -34,7 +34,7 @@ class MonthlyReturnSubmissionWorkItemRepositorySpec
   override protected def databaseName: String                                  = "disa-returns-submission-work-item-repository-test"
   override protected def checkTtlIndex: Boolean                                = false
   private val instant                                                          = new AtomicReference(testCreatedOn)
-  private val clock                                                            = new Clock {
+  private val clock: Clock                                                     = new Clock {
     override def getZone: ZoneId               = ZoneOffset.UTC
     override def withZone(zone: ZoneId): Clock = this
     override def instant(): Instant            = MonthlyReturnSubmissionWorkItemRepositorySpec.this.instant.get()
@@ -42,7 +42,7 @@ class MonthlyReturnSubmissionWorkItemRepositorySpec
   private val config                                                           = inject[AppConfig]
   override protected val repository: MonthlyReturnSubmissionWorkItemRepository =
     new MonthlyReturnSubmissionWorkItemRepository(clock, config, mongoComponent)
-  private val item                                                             = MonthlyReturnSubmissionWorkItem(testZReference, testTaxYear, testMonth, testUploadReference)
+  private val item                                                             = MonthlyReturnSubmissionWorkItem(testZReference, testTaxYear, testMonth, false, testUploadReference)
   private val firstPullTime                                                    = testCreatedOn.plusSeconds(1)
 
   override protected def beforeEach(): Unit = {

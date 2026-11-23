@@ -347,6 +347,7 @@ class MonthlyReturnService @Inject() (
             monthlyReturn.zReference,
             monthlyReturn.taxYear,
             monthlyReturn.month,
+            monthlyReturn.nilReturn,
             reference
           )
         )

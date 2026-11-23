@@ -506,7 +506,7 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
         ) mustBe SubmitReturnResult.UpdateSuccessful
 
         verify(mockWorkItemRepository).enqueue(
-          MonthlyReturnSubmissionWorkItem(zReference, taxYear, month, testUploadReference)
+          MonthlyReturnSubmissionWorkItem(zReference, taxYear, month, false, testUploadReference)
         )
       }
 
@@ -555,7 +555,7 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
 
         verifyNoInteractions(mockSubStoreAction)
         verify(mockWorkItemRepository).enqueue(
-          MonthlyReturnSubmissionWorkItem(zReference, taxYear, month, testUploadReference)
+          MonthlyReturnSubmissionWorkItem(zReference, taxYear, month, false, testUploadReference)
         )
       }
 
@@ -683,7 +683,7 @@ class MonthlyReturnServiceSpec extends SpecBase with LogCapturing {
         await(service.storeSubmission(zReference, taxYear, month, testUploadReference, testTempFile)) mustBe
           SubmitReturnResult.SubmissionConflict
         verify(mockWorkItemRepository).enqueue(
-          MonthlyReturnSubmissionWorkItem(zReference, taxYear, month, testUploadReference)
+          MonthlyReturnSubmissionWorkItem(zReference, taxYear, month, false, testUploadReference)
         )
       }
 
