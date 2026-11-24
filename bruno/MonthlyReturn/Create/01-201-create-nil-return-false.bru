@@ -46,7 +46,7 @@ script:pre-request {
     }
   }
 
-  const cleanupUrl = `${bru.getEnvVar("baseUrl")}${bru.getEnvVar("servicePath")}/test-only/monthly-returns`;
+  const cleanupUrl = `${bru.getEnvVar("baseUrl")}${bru.getEnvVar("servicePath")}/test-only/monthly-returns/cleanup`;
   const cleanupResponse = await bru.sendRequest({
     method: "POST",
     url: cleanupUrl,

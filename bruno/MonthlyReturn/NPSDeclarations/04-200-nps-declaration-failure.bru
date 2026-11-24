@@ -19,7 +19,7 @@ script:pre-request {
   const url = `${root}/monthly/Z1500/${bru.getEnvVar("taxYear")}/${bru.getEnvVar("month")}`;
   const headers = { Authorization: bru.getEnvVar("internalAuthToken"), "Content-Type": "application/json" };
   const cleanup = await bru.sendRequest({
-    method: "POST", url: `${root}/test-only/monthly-returns`, headers, data: { zReferences: ["Z1500"] }
+    method: "POST", url: `${root}/test-only/monthly-returns/cleanup`, headers, data: { zReferences: ["Z1500"] }
   });
   if (cleanup.status !== 204) {
     throw new Error(`Failure fixture cleanup failed: ${cleanup.status}`);

@@ -52,4 +52,13 @@ class MonthlyReturnSubmissionWorkItemRepository @Inject() (
 
   def enqueue(item: MonthlyReturnSubmissionWorkItem): Future[Unit] =
     pushNew(item).map(_ => ()).recover { case DuplicateKey(_) => () }
+
+  def deleteAll(): Future[Long] =
+    collection.deleteMany(Filters.empty()).toFuture().map(_.getDeletedCount)
+
+  def deleteByZReferences(zReferences: Seq[String]): Future[Long] =
+    collection
+      .deleteMany(Filters.in("item.zReference", zReferences: _*))
+      .toFuture()
+      .map(_.getDeletedCount)
 }

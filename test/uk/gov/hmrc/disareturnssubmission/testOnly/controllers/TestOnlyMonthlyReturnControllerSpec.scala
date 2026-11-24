@@ -17,95 +17,40 @@
 package uk.gov.hmrc.disareturnssubmission.testOnly.controllers
 
 import base.SpecBase
-import org.mockito.Mockito.{reset, verify, verifyNoInteractions, when}
+import org.mockito.Mockito.{verifyNoInteractions, when}
 import play.api.libs.json.Json
 import play.api.test.FakeRequest
 import play.api.test.Helpers.*
-import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository
+import uk.gov.hmrc.disareturnssubmission.repositories.*
 import uk.gov.hmrc.disareturnssubmission.validators.StrictZReferenceValidator
 
 import scala.concurrent.Future
 
 class TestOnlyMonthlyReturnControllerSpec extends SpecBase {
 
-  private val mockMonthlyReturnRepository = mock[MonthlyReturnRepository]
-  private val controller                  = new TestOnlyMonthlyReturnController(
-    stubControllerComponents(),
-    mockMonthlyReturnRepository,
-    new StrictZReferenceValidator
-  )
-
   "TestOnlyMonthlyReturnController" - {
 
-    "must delete monthly returns for normalized Z-references" in {
-      reset(mockMonthlyReturnRepository)
-      val otherZReference = "Z5678"
-      when(mockMonthlyReturnRepository.deleteByZReferences(Seq(testZReference, otherZReference)))
-        .thenReturn(Future.successful(2L))
-
-      val result = controller.delete()(
-        FakeRequest("POST", "/test-only/monthly-returns")
-          .withHeaders("Content-Type" -> "application/json")
-          .withBody(
-            Json.obj(
-              "zReferences" -> Seq(testZReference.toLowerCase, otherZReference)
-            )
-          )
+    "must leave returns alone when work-item cleanup fails" in {
+      val returns      = mock[MonthlyReturnRepository]
+      val declarations = mock[MonthlyReturnDeclarationWorkItemRepository]
+      val submissions  = mock[MonthlyReturnSubmissionWorkItemRepository]
+      val controller   = new TestOnlyMonthlyReturnController(
+        stubControllerComponents(),
+        returns,
+        declarations,
+        submissions,
+        new StrictZReferenceValidator
       )
 
-      status(result) mustBe NO_CONTENT
-      verify(mockMonthlyReturnRepository).deleteByZReferences(Seq(testZReference, otherZReference))
-    }
+      val zReferences = Seq(testZReference)
+      when(declarations.deleteByZReferences(zReferences)).thenReturn(Future.successful(1L))
+      when(submissions.deleteByZReferences(zReferences)).thenReturn(Future.failed(new RuntimeException("boom")))
 
-    "must reject a request containing an invalid Z-reference" in {
-      reset(mockMonthlyReturnRepository)
-      val result = controller.delete()(
-        FakeRequest("POST", "/test-only/monthly-returns")
-          .withHeaders("Content-Type" -> "application/json")
-          .withBody(
-            Json.obj(
-              "zReferences" -> Seq(testZReference, "invalid")
-            )
-          )
+      val result = controller.cleanup()(
+        FakeRequest(POST, "/test-only/monthly-returns/cleanup").withBody(Json.obj("zReferences" -> zReferences))
       )
-
-      status(result) mustBe BAD_REQUEST
-      verifyNoInteractions(mockMonthlyReturnRepository)
-    }
-
-    "must reject an empty sequence of Z-references" in {
-      reset(mockMonthlyReturnRepository)
-      val result = controller.delete()(
-        FakeRequest("POST", "/test-only/monthly-returns")
-          .withHeaders("Content-Type" -> "application/json")
-          .withBody(
-            Json.obj(
-              "zReferences" -> Seq.empty[String]
-            )
-          )
-      )
-
-      status(result) mustBe BAD_REQUEST
-      verifyNoInteractions(mockMonthlyReturnRepository)
-    }
-
-    "must return ServiceUnavailable when scoped deletion fails" in {
-      reset(mockMonthlyReturnRepository)
-      when(mockMonthlyReturnRepository.deleteByZReferences(Seq(testZReference)))
-        .thenReturn(Future.failed(new RuntimeException("boom")))
-
-      val result = controller.delete()(
-        FakeRequest("POST", "/test-only/monthly-returns")
-          .withHeaders("Content-Type" -> "application/json")
-          .withBody(
-            Json.obj(
-              "zReferences" -> Seq(testZReference)
-            )
-          )
-      )
-
       status(result) mustBe SERVICE_UNAVAILABLE
+      verifyNoInteractions(returns)
     }
-
   }
 }

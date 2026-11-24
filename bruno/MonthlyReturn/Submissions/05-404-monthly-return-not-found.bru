@@ -28,7 +28,7 @@ script:pre-request {
   bru.setVar("missingZReference", missingZReference);
   bru.setVar("putSubmissionId", `missing-${Date.now()}`);
 
-  const cleanupUrl = `${bru.getEnvVar("baseUrl")}${bru.getEnvVar("servicePath")}/test-only/monthly-returns`;
+  const cleanupUrl = `${bru.getEnvVar("baseUrl")}${bru.getEnvVar("servicePath")}/test-only/monthly-returns/cleanup`;
   const cleanupResponse = await bru.sendRequest({
     method: "POST",
     url: cleanupUrl,
