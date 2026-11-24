@@ -70,7 +70,13 @@ class NpsConnector @Inject() (
     retryFor[Unit](s"[NpsConnector][sendSubmission] send NPS submission for zReference [$zReference]")(retryCondition) {
       httpClient
         .post(url"${appConfig.npsMonthlyReturnSubmissionService}/disa/$zReference/obligations/monthly")(HeaderCarrier())
-        .setHeader(AUTHORIZATION -> s"Bearer ${appConfig.npsMonthlyReturnBearerToken}")
+        .setHeader(AUTHORIZATION -> s"Bearer ${appConfig.npsMonthlyReturnBearerToken}",
+          "correlationId"          -> ???,
+          "gov-uk-originator-id"   -> ???,
+          "gov-uk-organisation-id" -> ???,
+          "gov-uk-user-id"         -> ???,
+          "gov-uk-user-name"       -> ???,
+          "gov-uk-job-role"        -> ???)
         .withBody(body)
         .execute[HttpResponse]
         .flatMap { response =>

@@ -30,18 +30,22 @@ enum MonthlyReturnNpsClosureReason {
 }
 
 final case class MonthlyReturnNpsSubmissionCommon(
-  accountNumber: String,
-  nino: String,
-  firstName: String,
-  middleName: Option[String],
-  lastName: String,
+  accountIdentifier: String,
+  closureDate: String,
   dateOfBirth: LocalDate,
-  amountTransferredIn: BigDecimal,
-  amountTransferredOut: BigDecimal,
-  dateOfLastSubscription: LocalDate,
-  totalCurrentYearSubscriptionsToDate: BigDecimal,
-  marketValueOfAccount: BigDecimal,
-  isaType: MonthlyReturnNpsIsaType
+  firstForename: String,
+  firstSubscription: LocalDate,
+  isaType: MonthlyReturnNpsIsaType,
+  lastSubscription: LocalDate,
+  lisaBonusClaim: BigDecimal,
+  lisaClosureReason: MonthlyReturnNpsClosureReason,
+  lisaQualifyingAddition: BigDecimal,
+  nationalInsuranceNumberAndSuffix: String,
+  secondForename: String,
+  surname: String,
+  totalSubscriptions: BigDecimal,
+  totalTransferredIn: BigDecimal,
+  totalTransferredOut: BigDecimal
 )
 
 sealed trait MonthlyReturnNpsSubmission {
