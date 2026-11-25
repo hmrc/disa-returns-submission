@@ -28,23 +28,27 @@ import scala.jdk.CollectionConverters.*
 class MonthlyReturnNpsSubmissionSpec extends AnyFreeSpec with Matchers {
   private val unknownEnumValue                             = "UNKNOWN"
   private val common                                       = MonthlyReturnNpsSubmissionCommon(
-    accountNumber = "ACC123",
-    nino = "AB123456C",
-    firstName = "Ada",
-    middleName = None,
-    lastName = "Lovelace",
-    dateOfBirth = LocalDate.parse("1980-01-02"),
-    amountTransferredIn = BigDecimal(10),
-    amountTransferredOut = BigDecimal(0),
-    dateOfLastSubscription = LocalDate.parse("2026-05-01"),
-    totalCurrentYearSubscriptionsToDate = BigDecimal(20),
-    marketValueOfAccount = BigDecimal(100),
-    isaType = MonthlyReturnNpsIsaType.CASH
+    accountIdentifier = "ACC123",
+    closureDate = Some(LocalDate.parse("2025-12-15")),
+    dateOfBirth = LocalDate.parse("2000-01-01"),
+    firstForename = "Jean-Pierre",
+    firstSubscription = Some(LocalDate.parse("2025-10-10")),
+    isaType = MonthlyReturnNpsIsaType.CASH,
+    lastSubscription = LocalDate.parse("1980-01-02"),
+    lisaBonusClaim = Some(BigDecimal(250)),
+    lisaClosureReason = Some(MonthlyReturnNpsClosureReason.TRANSFERRED_IN_FULL),
+    lisaQualifyingAddition = Some(1000),
+    nationalInsuranceNumberAndSuffix = "AA000001",
+    secondForename = None,
+    surname = "Smith",
+    totalSubscriptions = BigDecimal(1000),
+    totalTransferredIn = BigDecimal(1000),
+    totalTransferredOut = BigDecimal(0)
   )
   private val firstSubscriptionDate                        = LocalDate.parse("2026-04-07")
   private val closureDate                                  = LocalDate.parse("2026-05-02")
   private val lifetimeClosure                              = MonthlyReturnNpsLifetimeClosure(
-    common.copy(accountNumber = "ACC012", isaType = MonthlyReturnNpsIsaType.LIFETIME),
+    common.copy(accountIdentifier = "ACC012", isaType = MonthlyReturnNpsIsaType.LIFETIME),
     firstSubscriptionDate,
     BigDecimal(3),
     BigDecimal(-4),
@@ -55,8 +59,8 @@ class MonthlyReturnNpsSubmissionSpec extends AnyFreeSpec with Matchers {
     MonthlyReturnNpsStandardSubscription(common, flexibleIsa = true),
     MonthlyReturnNpsStandardClosure(
       common.copy(
-        accountNumber = "ACC456",
-        middleName = Some("Byron"),
+        accountIdentifier = "ACC456",
+        secondForename = Some("Byron"),
         isaType = MonthlyReturnNpsIsaType.STOCKS_AND_SHARES
       ),
       flexibleIsa = false,
@@ -64,7 +68,7 @@ class MonthlyReturnNpsSubmissionSpec extends AnyFreeSpec with Matchers {
       MonthlyReturnNpsClosureReason.CLOSED
     ),
     MonthlyReturnNpsLifetimeSubscription(
-      common.copy(accountNumber = "ACC789", isaType = MonthlyReturnNpsIsaType.LIFETIME),
+      common.copy(accountIdentifier = "ACC789", isaType = MonthlyReturnNpsIsaType.LIFETIME),
       firstSubscriptionDate,
       BigDecimal(-3),
       BigDecimal(4)

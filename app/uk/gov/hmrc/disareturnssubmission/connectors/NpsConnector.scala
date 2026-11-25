@@ -68,15 +68,19 @@ class NpsConnector @Inject() (
 
   def sendSubmission(zReference: String, body: Source[ByteString, ?]): Future[Unit] =
     retryFor[Unit](s"[NpsConnector][sendSubmission] send NPS submission for zReference [$zReference]")(retryCondition) {
+      val hc = HeaderCarrier()
       httpClient
-        .post(url"${appConfig.npsMonthlyReturnSubmissionService}/disa/$zReference/obligations/monthly")(HeaderCarrier())
-        .setHeader(AUTHORIZATION -> s"Bearer ${appConfig.npsMonthlyReturnBearerToken}",
-          "correlationId"          -> ???,
-          "gov-uk-originator-id"   -> ???,
-          "gov-uk-organisation-id" -> ???,
-          "gov-uk-user-id"         -> ???,
-          "gov-uk-user-name"       -> ???,
-          "gov-uk-job-role"        -> ???)
+        .post(url"${appConfig.npsMonthlyReturnSubmissionService}/disa/$zReference/obligations/monthly")(hc)
+        .setHeader(
+          AUTHORIZATION                           -> s"Bearer ${appConfig.npsMonthlyReturnBearerToken}",
+          "correlationId"                         -> hc.requestId.toString, // required
+          "gov-uk-originator-id"                  -> appConfig.appName, // required
+//          "gov-uk-organisation-id" -> ???,
+//          "gov-uk-user-id"         -> ???,
+//          "gov-uk-user-name"       -> ???,
+//          "gov-uk-job-role"        -> ???,
+          "managingFinancialInstitutionReference" -> zReference
+        ) // required
         .withBody(body)
         .execute[HttpResponse]
         .flatMap { response =>
