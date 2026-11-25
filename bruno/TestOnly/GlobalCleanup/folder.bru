@@ -1,0 +1,10 @@
+meta {
+  name: GlobalCleanup
+  seq: 3
+}
+
+script:pre-request {
+  if (bru.getEnvVar("allowGlobalCleanup") !== "true") {
+    bru.runner.skipRequest();
+  }
+}

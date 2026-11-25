@@ -2,4 +2,7 @@ GET        /overrides/:zReference                        uk.gov.hmrc.disareturns
 PUT        /overrides                                    uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyOverridesController.put()
 POST       /overrides/delete                             uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyOverridesController.delete()
 
-POST       /monthly-returns                              uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyMonthlyReturnController.delete()
+DELETE     /monthly-returns/cleanup                      uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyMonthlyReturnController.cleanupAll()
+POST       /monthly-returns/cleanup                      uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyMonthlyReturnController.cleanup()
+DELETE     /monthly-returns/work-items/                  uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyMonthlyReturnController.cleanupAllWorkItems()
+POST       /monthly-returns/work-items/cleanup           uk.gov.hmrc.disareturnssubmission.testOnly.controllers.TestOnlyMonthlyReturnController.cleanupWorkItems()

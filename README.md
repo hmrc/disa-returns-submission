@@ -55,7 +55,10 @@ The following test-only routes are available only with that router:
 - `GET /disa-returns-submission/test-only/overrides/:zReference`
 - `PUT /disa-returns-submission/test-only/overrides`
 - `POST /disa-returns-submission/test-only/overrides/delete`
-- `POST /disa-returns-submission/test-only/monthly-returns`
+- `POST /disa-returns-submission/test-only/monthly-returns/cleanup`
+- `POST /disa-returns-submission/test-only/monthly-returns/work-items/cleanup`
+- `DELETE /disa-returns-submission/test-only/monthly-returns/cleanup`
+- `DELETE /disa-returns-submission/test-only/monthly-returns/work-items/`
 
 Production monthly-return and reporting-window routes require an internal-auth token. Local Bruno requests use:
 
@@ -195,8 +198,8 @@ Conversion reads one record at a time using Play's JSON defaults and sends only 
 validated before any batch is sent; an invalid later record prevents all requests. Only after every batch receives
 NPS `204` is `NPS_SUBMITTED` set and the work item completed; completed submissions are skipped.
 
-`monthly-return.max-records-per-submission = 3000` in `conf/application.conf` and `app-config-base` controls the
-positive maximum record count per request. Batches preserve record order and never split a record. For example,
+`monthly-return.max-records-per-submission` in `conf/application.conf` controls the maximum record count per request
+and defaults to `3000` locally. Batches preserve record order and never split a record. For example,
 3,001 records produce batches of 3,000 and 1. This is not a byte cap: larger fields or schema changes increase payload size.
 
 Job settings are under `monthly-return-submission-work-item-job` in `conf/application.conf`. Enqueue attempts are
@@ -217,28 +220,25 @@ five minutes and removes files unmodified for ten minutes, even if still in use.
 Object Store files remain NDJSON.
 
 NPS settings are under `microservice.services.nps-monthly-return-submission`, including the bearer token. Locally the
-endpoint is `http://localhost:1204/disa/:zReference/obligations/monthly`. Deployment config must use `disa-returns-stubs.protected.mdtp`
-over HTTPS. Incoming credentials are not forwarded.
+endpoint is `http://localhost:1204/disa/:zReference/obligations/monthly`. Incoming credentials are not forwarded.
 
 A crash after NPS accepts batches but before Mongo records success also replays the whole submission.
 
 ### NPS declarations
 
 Declaring a return queues a work item in `monthlyReturnDeclarationWorkItems`. It waits for all submissions to reach
-`NPS_SUBMITTED`, checking again after five minutes if any are still pending. Empty and nil returns don't need to wait.
+`NPS_SUBMITTED`. Empty and nil returns don't need to wait.
 
 On success, the job sets `npsDeclaredOn` and completes the item. Failures retry after `failedRetryAfter`.
 Returns already declared to NPS are skipped, though a crash before saving the timestamp can cause a repeat declaration.
 
 Settings are under `monthly-return-declaration-work-item-job` in `conf/application.conf`.
-`pendingSubmissionsRetryAfter` controls the five-minute wait. To pause the job, set `enabled=false` and restart all
-instances. Declarations still queue and submission transfers keep running. Keep `inProgressRetryAfter` longer than
-a full NPS attempt, including connector retries.
+`pendingSubmissionsRetryAfter` defaults to two seconds locally.
+To pause the job, set `enabled=false` and restart all instances. Declarations still queue and submission transfers keep
+running. Keep `inProgressRetryAfter` longer than a full NPS attempt, including connector retries.
 
 Run the Bruno cases under `MonthlyReturn/NPSDeclarations`. The local stub uses `POST /disa/:zReference/obligations/monthly/declarations`
-and returns `500` for `Z1500`. For quicker runs, start the service with
-`-Dmonthly-return-declaration-work-item-job.pendingSubmissionsRetryAfter=2s`.
-Matching the real NPS API is a separate ticket.
+and returns `500` for `Z1500`. Matching the real NPS API is a separate ticket.
 
 #### Checking locally
 
@@ -253,24 +253,31 @@ Start Object Store, internal-auth and `disa-returns-stubs`, then run submission 
 - With the job disabled, upload a submission and check it stays `STORED` with a `todo` item. Re-enable and restart to
   process the backlog.
 
-Use new submission references for each run. The monthly-return cleanup route does not remove work items; clear old
-test items from the local database separately.
+Use new submission IDs for each run or clear old returns and work items with scoped cleanup before reusing test references.
 
 For example, set the clock to `2026-06-17` to create and declare May 2026 monthly returns inside the configured declaration period, or `2026-06-20` to test declaration attempts outside the configured declaration period.
 
-Use `POST` to clear monthly returns for specific Z-references from the submission service local database:
+#### Monthly-return cleanup
+
+Use `POST` to clear monthly returns and work items for specific Z-references from submission:
 
 ```bash
 curl -X POST \
   -H 'Content-Type: application/json' \
   -d '{"zReferences":["Z1234","Z5678"]}' \
-  http://localhost:12103/disa-returns-submission/test-only/monthly-returns
+  http://localhost:12103/disa-returns-submission/test-only/monthly-returns/cleanup
 ```
 
-`zReferences` must be a non-empty JSON array. References are trimmed, uppercased, and de-duplicated; any invalid
-reference returns `400` without deleting records. The route deletes only returns belonging to the supplied references,
-returns `204` on success and `503` on repository failure, and must not run concurrently with return creation for those
-references.
+Both scoped `POST`s take a non-empty `zReferences` array and match across all periods. References are trimmed, uppercased
+and deduplicated using the configured Z-reference validation. Missing, empty or invalid lists return `400` before
+anything is deleted. Cleanup returns `204` even if nothing matches, or `503` if a deletion fails.
+
+Work-item cleanup covers `monthlyReturnDeclarationWorkItems` and `monthlyReturnSubmissionWorkItems` (NPS transfer),
+including items whose return is already missing. Combined cleanup clears the queues before the returns. It does not affect
+backend data, overrides or Object Store files. Wait for active work to finish before cleaning up: deleting a queue entry
+cannot stop a worker that's already processing it.
+
+Use the work-item routes to reset both queues without deleting returns.
 
 You can then query the app to ensure it is working with the following command:
 
@@ -307,7 +314,14 @@ Otherwise the routes will not be available.
 | `GET /disa-returns-submission/test-only/overrides/:zReference` | `bruno/TestOnly/Overrides` | Return the configured aggregate fields. |
 | `PUT /disa-returns-submission/test-only/overrides` | `bruno/TestOnly/Overrides` | Bulk replace aggregates and return `204`. |
 | `POST /disa-returns-submission/test-only/overrides/delete` | `bruno/TestOnly/Overrides` | Bulk delete aggregates and return `204`. |
-| `POST /disa-returns-submission/test-only/monthly-returns` | `bruno/TestOnly/MonthlyReturns`, performance tests | Delete monthly returns only for supplied normalized, de-duplicated references and return `204`; reject missing, empty, or invalid input with `400`. |
+| `POST /disa-returns-submission/test-only/monthly-returns/cleanup` | Both Bruno packs, frontend UI tests, both performance suites | Delete returns and both queues' items for supplied Z-references. |
+| `POST /disa-returns-submission/test-only/monthly-returns/work-items/cleanup` | `bruno/TestOnly/MonthlyReturns` | Delete both queues' items for supplied Z-references without deleting returns. |
+| `DELETE /disa-returns-submission/test-only/monthly-returns/cleanup` | `bruno/TestOnly/GlobalCleanup` | Delete all returns and both queues' items. |
+| `DELETE /disa-returns-submission/test-only/monthly-returns/work-items/` | `bruno/TestOnly/GlobalCleanup` | Delete both queues' items without deleting returns. |
+
+Bruno fixture setup uses scoped cleanup. The `TestOnly/GlobalCleanup` requests are skipped unless
+`allowGlobalCleanup=true`. To run them, use
+`bru run TestOnly/GlobalCleanup --env Local --env-var allowGlobalCleanup=true`.
 
 The `ReportingWindow/01-200-status-open-by-override` Bruno journey creates one aggregate, verifies the production status
 route, and deletes the aggregate. The test-only override folder covers GET, bulk replacement, omitted-field clearing,

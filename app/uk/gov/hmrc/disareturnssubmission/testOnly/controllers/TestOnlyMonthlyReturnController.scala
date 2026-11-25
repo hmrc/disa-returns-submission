@@ -19,7 +19,7 @@ package uk.gov.hmrc.disareturnssubmission.testOnly.controllers
 import play.api.Logging
 import play.api.libs.json.JsValue
 import play.api.mvc.*
-import uk.gov.hmrc.disareturnssubmission.repositories.MonthlyReturnRepository
+import uk.gov.hmrc.disareturnssubmission.repositories.*
 import uk.gov.hmrc.disareturnssubmission.validators.ZReferenceValidator
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
@@ -31,40 +31,74 @@ import scala.util.control.NonFatal
 class TestOnlyMonthlyReturnController @Inject() (
   cc: ControllerComponents,
   monthlyReturnRepository: MonthlyReturnRepository,
+  declarationWorkItems: MonthlyReturnDeclarationWorkItemRepository,
+  submissionWorkItems: MonthlyReturnSubmissionWorkItemRepository,
   zReferenceValidator: ZReferenceValidator
 )(implicit ec: ExecutionContext)
     extends BackendController(cc)
     with Logging {
 
-  def delete(): Action[JsValue] = Action.async(parse.json) { request =>
-    (request.body \ "zReferences").validate[Seq[String]].asOpt match {
-      case Some(zReferences) if zReferences.nonEmpty =>
-        val normalized = zReferences.map(zReferenceValidator.normalize)
-
-        if (normalized.exists(_.isEmpty)) {
-          Future.successful(BadRequest)
-        } else {
-          val normalizedZReferences = normalized.flatten.distinct
-
-          monthlyReturnRepository
-            .deleteByZReferences(normalizedZReferences)
-            .map { deletedCount =>
-              logger.info(
-                s"[TestOnlyMonthlyReturnController][delete] Deleted [$deletedCount] monthly returns for [${normalizedZReferences.size}] Z-references"
-              )
-              NoContent
-            }
-            .recover { case NonFatal(exception) =>
-              logger.error(
-                s"[TestOnlyMonthlyReturnController][delete] Failed to delete monthly returns for [${normalizedZReferences.size}] Z-references",
-                exception
-              )
-              ServiceUnavailable
-            }
-        }
-
-      case _ => Future.successful(BadRequest)
+  def cleanupAll(): Action[AnyContent] = Action.async {
+    cleanupResult("monthly returns and work items") {
+      for {
+        workItems <- deleteAllWorkItems()
+        returns   <- monthlyReturnRepository.deleteAll()
+      } yield workItems + returns
     }
   }
 
+  def cleanup(): Action[JsValue] = withZReferences { zReferences =>
+    cleanupResult(s"monthly returns and work items for [${zReferences.size}] Z-references") {
+      for {
+        workItems <- deleteWorkItems(zReferences)
+        returns   <- monthlyReturnRepository.deleteByZReferences(zReferences)
+      } yield workItems + returns
+    }
+  }
+
+  def cleanupAllWorkItems(): Action[AnyContent] = Action.async {
+    cleanupResult("monthly return work items")(deleteAllWorkItems())
+  }
+
+  def cleanupWorkItems(): Action[JsValue] = withZReferences { zReferences =>
+    cleanupResult(s"monthly return work items for [${zReferences.size}] Z-references")(deleteWorkItems(zReferences))
+  }
+
+  private def deleteAllWorkItems(): Future[Long] =
+    for {
+      declarations <- declarationWorkItems.deleteAll()
+      submissions  <- submissionWorkItems.deleteAll()
+    } yield declarations + submissions
+
+  private def deleteWorkItems(zReferences: Seq[String]): Future[Long] =
+    for {
+      declarations <- declarationWorkItems.deleteByZReferences(zReferences)
+      submissions  <- submissionWorkItems.deleteByZReferences(zReferences)
+    } yield declarations + submissions
+
+  private def withZReferences(cleanup: Seq[String] => Future[Result]): Action[JsValue] = Action.async(parse.json) {
+    request =>
+      val normalized = (request.body \ "zReferences")
+        .validate[Seq[String]]
+        .asOpt
+        .getOrElse(Seq.empty)
+        .map(zReferenceValidator.normalize)
+
+      if (normalized.nonEmpty && normalized.forall(_.isDefined)) {
+        cleanup(normalized.flatten.distinct)
+      } else {
+        Future.successful(BadRequest)
+      }
+  }
+
+  private def cleanupResult(description: String)(deletions: Future[Long]): Future[Result] =
+    deletions
+      .map { deletedCount =>
+        logger.info(s"[TestOnlyMonthlyReturnController] Deleted [$deletedCount] records: $description")
+        NoContent
+      }
+      .recover { case NonFatal(exception) =>
+        logger.error(s"[TestOnlyMonthlyReturnController] Failed to delete $description", exception)
+        ServiceUnavailable
+      }
 }

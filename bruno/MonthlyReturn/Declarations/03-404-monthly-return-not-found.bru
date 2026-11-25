@@ -36,7 +36,7 @@ script:pre-request {
     throw new Error(`Expected clock setup to respond with 204, got ${clockResponse.status}`);
   }
 
-  const cleanupUrl = `${bru.getEnvVar("baseUrl")}${bru.getEnvVar("servicePath")}/test-only/monthly-returns`;
+  const cleanupUrl = `${bru.getEnvVar("baseUrl")}${bru.getEnvVar("servicePath")}/test-only/monthly-returns/cleanup`;
   const cleanupResponse = await bru.sendRequest({
     method: "POST",
     url: cleanupUrl,

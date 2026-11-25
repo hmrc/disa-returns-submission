@@ -80,6 +80,10 @@ trait BaseIntegrationSpec
       "monthly-return-submission-work-item-job.enabled"              -> false,
       "monthly-return-declaration-work-item-job.enabled"             -> false,
       "mongodb.uri"                                                  -> "mongodb://localhost:27017/disa-returns-submission-it",
+      "mongodb.monthlyReturnTimeToLiveInDays"                        -> math.max(
+        20L,
+        Duration.between(integrationTestNow, Instant.now()).toDays + 20L
+      ),
       "microservice.services.object-store.protocol"                  -> "http",
       "microservice.services.object-store.host"                      -> "localhost",
       "microservice.services.object-store.port"                      -> wireMockPort,

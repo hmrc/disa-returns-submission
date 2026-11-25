@@ -79,7 +79,7 @@ class AppConfigSpec extends SpecBase {
       val config          = inject[AppConfig]
       val overriddenDelay = "30 seconds"
       config.monthlyReturnDeclarationEnqueueAttempts mustBe 3
-      config.monthlyReturnDeclarationJobPendingSubmissionsRetryAfter mustBe Duration.ofMinutes(5)
+      config.monthlyReturnDeclarationJobPendingSubmissionsRetryAfter mustBe Duration.ofSeconds(2)
       config.monthlyReturnDeclarationJobFailedRetryAfter mustBe Duration.ofMinutes(10)
       config.monthlyReturnDeclarationJobInProgressRetryAfter mustBe Duration.ofMinutes(15)
       config.monthlyReturnDeclarationJobPollInterval mustBe 10.seconds

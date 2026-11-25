@@ -78,6 +78,9 @@ class MonthlyReturnRepository @Inject() (
       .toFuture()
       .map(_.getDeletedCount)
 
+  def deleteAll(): Future[Long] =
+    collection.deleteMany(Filters.empty()).toFuture().map(_.getDeletedCount)
+
   def create(
     zReference: String,
     taxYear: String,
