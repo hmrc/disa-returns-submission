@@ -79,8 +79,8 @@ trait TestConstants {
   val testNumberOfEntries = 2L
 
   protected val ndjsonContent: String =
-    """{"accountNumber":"ACC123","nino":"AB123456C","firstName":"Ada","lastName":"Lovelace","dateOfBirth":"1980-01-02","amountTransferredIn":10,"amountTransferredOut":0,"dateOfLastSubscription":"2026-05-01","totalCurrentYearSubscriptionsToDate":20,"marketValueOfAccount":100,"isaType":"CASH","flexibleIsa":true}
-      |{"accountNumber":"ACC789","nino":"AB123456C","firstName":"Ada","lastName":"Lovelace","dateOfBirth":"1980-01-02","amountTransferredIn":10,"amountTransferredOut":0,"dateOfLastSubscription":"2026-05-01","totalCurrentYearSubscriptionsToDate":20,"marketValueOfAccount":100,"isaType":"LIFETIME","dateOfFirstSubscription":"2026-04-07","lisaQualifyingAddition":-3,"lisaBonusClaim":4}
+    """{"accountIdentifier":"ACC123","nationalInsuranceNumberAndSuffix":"AB123456C","firstForename":"Ada","surname":"Lovelace","dateOfBirth":"1980-01-02","totalTransferredIn":10,"totalTransferredOut":0,"lastSubscription":"2026-05-01","totalSubscriptions":20,"isaType":"CASH","flexibleIsa":true}
+      |{"accountIdentifier":"ACC789","nationalInsuranceNumberAndSuffix":"AB123456C","firstForename":"Ada","surname":"Lovelace","dateOfBirth":"1980-01-02","totalTransferredIn":10,"totalTransferredOut":0,"lastSubscription":"2026-05-01","totalSubscriptions":20,"isaType":"LIFETIME","firstSubscription":"2026-04-07","lisaQualifyingAddition":-3,"lisaBonusClaim":4}
       |""".stripMargin
 
   protected val npsSubmissionJson: JsArray = JsArray(ndjsonContent.linesIterator.map(Json.parse).toSeq)

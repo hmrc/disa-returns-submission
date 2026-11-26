@@ -28,43 +28,47 @@ import scala.jdk.CollectionConverters.*
 class MonthlyReturnNpsSubmissionSpec extends AnyFreeSpec with Matchers {
   private val unknownEnumValue                             = "UNKNOWN"
   private val common                                       = MonthlyReturnNpsSubmissionCommon(
-    accountNumber = "ACC123",
-    nino = "AB123456C",
-    firstName = "Ada",
-    middleName = None,
-    lastName = "Lovelace",
-    dateOfBirth = LocalDate.parse("1980-01-02"),
-    amountTransferredIn = BigDecimal(10),
-    amountTransferredOut = BigDecimal(0),
-    dateOfLastSubscription = LocalDate.parse("2026-05-01"),
-    totalCurrentYearSubscriptionsToDate = BigDecimal(20),
-    marketValueOfAccount = BigDecimal(100),
-    isaType = MonthlyReturnNpsIsaType.CASH
+    accountIdentifier = "ACC123",
+    closureDate = Some(LocalDate.parse("2025-12-15")),
+    dateOfBirth = LocalDate.parse("2000-01-01"),
+    firstForename = "Jean-Pierre",
+    firstSubscription = Some(LocalDate.parse("2025-10-10")),
+    isaType = MonthlyReturnNpsIsaType.CASH,
+    lastSubscription = LocalDate.parse("1980-01-02"),
+    lisaBonusClaim = Some(BigDecimal(250)),
+    lisaClosureReason = Some(LisaClosureReason.TRANSFERRED_IN_FULL),
+    lisaQualifyingAddition = Some(1000),
+    nationalInsuranceNumberAndSuffix = "AA000001",
+    secondForename = None,
+    surname = "Smith",
+    totalSubscriptions = BigDecimal(1000),
+    totalTransferredIn = BigDecimal(1000),
+    totalTransferredOut = BigDecimal(0)
   )
   private val firstSubscriptionDate                        = LocalDate.parse("2026-04-07")
   private val closureDate                                  = LocalDate.parse("2026-05-02")
   private val lifetimeClosure                              = MonthlyReturnNpsLifetimeClosure(
-    common.copy(accountNumber = "ACC012", isaType = MonthlyReturnNpsIsaType.LIFETIME),
+    common.copy(accountIdentifier = "ACC012", isaType = MonthlyReturnNpsIsaType.LIFETIME),
     firstSubscriptionDate,
     BigDecimal(3),
     BigDecimal(-4),
     closureDate,
-    MonthlyReturnNpsClosureReason.TRANSFERRED_IN_FULL
+    LisaClosureReason.TRANSFERRED_IN_FULL
   )
   private val submissions: Seq[MonthlyReturnNpsSubmission] = Seq(
     MonthlyReturnNpsStandardSubscription(common, flexibleIsa = true),
     MonthlyReturnNpsStandardClosure(
       common.copy(
-        accountNumber = "ACC456",
-        middleName = Some("Byron"),
+        accountIdentifier = "ACC456",
+        secondForename = Some("Byron"),
         isaType = MonthlyReturnNpsIsaType.STOCKS_AND_SHARES
       ),
       flexibleIsa = false,
       closureDate,
-      MonthlyReturnNpsClosureReason.CLOSED
+      LisaClosureReason.CLOSED
     ),
     MonthlyReturnNpsLifetimeSubscription(
-      common.copy(accountNumber = "ACC789", isaType = MonthlyReturnNpsIsaType.LIFETIME),
+      common.copy(accountIdentifier = "ACC789", isaType = MonthlyReturnNpsIsaType.LIFETIME),
       firstSubscriptionDate,
       BigDecimal(-3),
       BigDecimal(4)
@@ -98,11 +102,11 @@ class MonthlyReturnNpsSubmissionSpec extends AnyFreeSpec with Matchers {
         }
       }
 
-    MonthlyReturnNpsClosureReason.values.foreach { reason =>
+    LisaClosureReason.values.foreach { reason =>
       s"must support the lifetime closure reason $reason" in {
-        val record = backendRecords.last + ("reasonForClosure" -> JsString(reason.toString))
+        val record = backendRecords.last + ("lisaClosureReason" -> JsString(reason.toString))
         record.as[MonthlyReturnNpsSubmission] mustBe
-          lifetimeClosure.copy(reasonForClosure = reason)
+          lifetimeClosure.copy(lisaClosureReason = reason)
       }
     }
 
@@ -112,13 +116,13 @@ class MonthlyReturnNpsSubmissionSpec extends AnyFreeSpec with Matchers {
       }
     }
 
-    Seq("dateOfFirstSubscription", "lisaQualifyingAddition", "lisaBonusClaim").foreach { field =>
+    Seq("firstSubscription", "lisaQualifyingAddition", "lisaBonusClaim").foreach { field =>
       s"must reject a lifetime subscription missing $field" in {
         (backendRecords(2) - field).validate[MonthlyReturnNpsSubmission].isError mustBe true
       }
     }
 
-    Seq("closureDate", "reasonForClosure").foreach { field =>
+    Seq("closureDate", "lisaClosureReason").foreach { field =>
       s"must reject an incomplete closure missing $field" in {
         (backendRecords(1) - field).validate[MonthlyReturnNpsSubmission].isError mustBe true
         (backendRecords.last - field).validate[MonthlyReturnNpsSubmission].isError mustBe true
@@ -126,12 +130,12 @@ class MonthlyReturnNpsSubmissionSpec extends AnyFreeSpec with Matchers {
     }
 
     Seq(
-      "isaType"             -> JsString(unknownEnumValue),
-      "isaType"             -> JsNumber(1),
-      "middleName"          -> JsNumber(1),
-      "dateOfBirth"         -> JsString("1980-02-31"),
-      "amountTransferredIn" -> JsString("10.00"),
-      "flexibleIsa"         -> JsString("true")
+      "isaType"            -> JsString(unknownEnumValue),
+      "isaType"            -> JsNumber(1),
+      "secondForename"     -> JsNumber(1),
+      "dateOfBirth"        -> JsString("1980-02-31"),
+      "totalTransferredIn" -> JsString("10.00"),
+      "flexibleIsa"        -> JsString("true")
     ).foreach { (field, value) =>
       s"must reject an invalid $field value $value" in {
         (backendRecords.head + (field -> value)).validate[MonthlyReturnNpsSubmission].isError mustBe true
@@ -139,7 +143,7 @@ class MonthlyReturnNpsSubmissionSpec extends AnyFreeSpec with Matchers {
     }
 
     "must reject an unsupported closure reason" in {
-      (backendRecords.last + ("reasonForClosure" -> JsString(unknownEnumValue)))
+      (backendRecords.last + ("lisaClosureReason" -> JsString(unknownEnumValue)))
         .validate[MonthlyReturnNpsSubmission]
         .isError mustBe true
     }

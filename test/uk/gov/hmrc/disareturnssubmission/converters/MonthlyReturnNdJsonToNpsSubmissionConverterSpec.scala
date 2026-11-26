@@ -25,11 +25,13 @@ import play.api.libs.json.*
 import java.math.BigDecimal as JavaBigDecimal
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.*
+import java.time.*
 import scala.collection.mutable.ArrayBuffer
 import scala.util.Using
 
 class MonthlyReturnNdJsonToNpsSubmissionConverterSpec extends AnyFreeSpec with Matchers {
-  private val converter            = new MonthlyReturnNdJsonToNpsSubmissionConverter()
+  private val fixedClock           = Clock.fixed(Instant.parse("2024-07-12T16:36:21.445Z"), ZoneOffset.UTC)
+  private val converter            = new MonthlyReturnNdJsonToNpsSubmissionConverter(fixedClock)
   private val backendContent       = Files.readString(fixture("backend"), UTF_8)
   private val records              = backendContent.linesIterator.toVector
   private val expected             = Json.parse(records.mkString("[", ",", "]"))
@@ -158,20 +160,20 @@ class MonthlyReturnNdJsonToNpsSubmissionConverterSpec extends AnyFreeSpec with M
     }
 
     "must reject duplicate fields rather than silently choosing a value" in {
-      val duplicate = records.head.replace("{", "{\"accountNumber\":\"duplicate\",")
+      val duplicate = records.head.replace("{", "{\"accountIdentifier\":\"duplicate\",")
 
       intercept[IllegalArgumentException](converted(duplicate))
     }
 
     "must retain the parser's numeric size limits" in {
       val oversized = "1" * (JsonConfig.settings.bigDecimalParseConfig.digitsLimit + 1)
-      val record    = records.head.replace("\"amountTransferredIn\":10", s"\"amountTransferredIn\":$oversized")
+      val record    = records.head.replace("\"totalTransferredIn\":10", s"\"totalTransferredIn\":$oversized")
 
       intercept[IllegalArgumentException](converted(record))
     }
 
     "must identify the failed line and fields without exposing record data" in {
-      val invalid = (standardRecord - "nino") + ("accountNumber" -> JsString(privateAccountNumber))
+      val invalid = (standardRecord - "nino") + ("accountIdentifier" -> JsString(privateAccountNumber))
       val failure = intercept[IllegalArgumentException](converted(s"\n${records.head}\n${Json.stringify(invalid)}"))
 
       failure.getMessage must include("line 3")

@@ -26,9 +26,11 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.*
 import javax.inject.*
 import scala.util.Using
+import java.time.{Clock, Instant}
+import java.time.temporal.ChronoUnit
 
 @Singleton
-class MonthlyReturnNdJsonToNpsSubmissionConverter @Inject() () {
+class MonthlyReturnNdJsonToNpsSubmissionConverter @Inject() (clock: Clock) {
   private val mapper = new ObjectMapper()
     .registerModule(new PlayJsonMapperModule(JsonConfig.settings))
     .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
@@ -53,7 +55,8 @@ class MonthlyReturnNdJsonToNpsSubmissionConverter @Inject() () {
   }
 
   private def writeSubmissionsAsJsonArray(lines: Iterator[(String, Int)], writer: JsonGenerator): Int = {
-    writer.writeStartArray()
+    writer.writeStartObject()
+    writer.writeArrayFieldStart("obligations")
     val count = lines.foldLeft(0) { case (count, (line, index)) =>
       val lineNumber = index + 1
       val json       = parseSubmissionJson(line, lineNumber)
@@ -62,6 +65,8 @@ class MonthlyReturnNdJsonToNpsSubmissionConverter @Inject() () {
       count + 1
     }
     writer.writeEndArray()
+    writer.writeStringField("timestamp", Instant.now(clock).truncatedTo(ChronoUnit.MILLIS).toString)
+    writer.writeEndObject()
     count
   }
 

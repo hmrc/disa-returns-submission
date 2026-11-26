@@ -37,12 +37,14 @@ import uk.gov.hmrc.disareturnssubmission.services.MonthlyReturnSubmissionProcess
 import uk.gov.hmrc.play.bootstrap.tools.LogCapturing
 
 import java.nio.file.*
+import java.time.*
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.*
 import scala.jdk.CollectionConverters.*
 
 class MonthlyReturnSubmissionProcessingServiceSpec extends SpecBase with LogCapturing {
+  private val fixedClock               = Clock.fixed(Instant.parse("2024-07-12T16:36:21.445Z"), ZoneOffset.UTC)
   private val item                     = MonthlyReturnSubmissionWorkItem(testZReference, testTaxYear, testMonth, testUploadReference)
   private val context                  =
     s"zReference [$testZReference], taxYear [$testTaxYear], month [$testMonth], submission [$testUploadReference]"
@@ -334,7 +336,7 @@ class MonthlyReturnSubmissionProcessingServiceSpec extends SpecBase with LogCapt
     val creator        = mock[TemporaryFileCreator]
     val config         = mock[AppConfig]
     val paths          = new ConcurrentLinkedQueue[Path]()
-    lazy val converter = new MonthlyReturnNdJsonToNpsSubmissionConverter()
+    lazy val converter = new MonthlyReturnNdJsonToNpsSubmissionConverter(fixedClock)
 
     def createFile(prefix: String): TemporaryFile = {
       val file = inject[TemporaryFileCreator].create(prefix)
