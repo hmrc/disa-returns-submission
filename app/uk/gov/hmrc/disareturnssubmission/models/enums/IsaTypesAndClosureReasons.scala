@@ -16,14 +16,22 @@
 
 package uk.gov.hmrc.disareturnssubmission.models.enums
 
+import play.api.libs.json.Format
+
 enum IsaType {
   case CASH, STOCKS_AND_SHARES, INNOVATIVE_FINANCE, LIFETIME
 }
+object IsaType:
+  given Format[IsaType] = EnumFormat(IsaType.values)
 
 enum IsaClosureReason {
   case CANCELLED, CLOSED, VOID
 }
+object IsaClosureReason:
+  given Format[IsaClosureReason] = EnumFormat(IsaClosureReason.values)
 
 enum LisaClosureReason {
   case CANCELLED, CLOSED, VOID, TRANSFERRED_IN_FULL, ALL_FUNDS_WITHDRAWN
 }
+object LisaClosureReason:
+  given Format[LisaClosureReason] = EnumFormat(LisaClosureReason.values)
