@@ -41,6 +41,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.*
 import scala.jdk.CollectionConverters.*
+import java.time.*
 
 class MonthlyReturnSubmissionProcessingServiceSpec extends SpecBase with LogCapturing {
   private val item                     = MonthlyReturnSubmissionWorkItem(testZReference, testTaxYear, testMonth, testUploadReference)
@@ -50,6 +51,7 @@ class MonthlyReturnSubmissionProcessingServiceSpec extends SpecBase with LogCapt
   private val updateFailureMessage     = s"All NPS batches accepted but could not mark [NPS_SUBMITTED] for $context"
   private val singleRecordBatchLimit   = 1
   private val jsonBatchFileMarker      = "-json"
+  private val fixedClock               = Clock.fixed(Instant.parse("2024-07-12T16:36:21.445Z"), ZoneOffset.UTC)
   private val stored                   = monthlyReturn.copy(submissions =
     List(
       MonthlyReturnSubmission(
@@ -334,7 +336,7 @@ class MonthlyReturnSubmissionProcessingServiceSpec extends SpecBase with LogCapt
     val creator        = mock[TemporaryFileCreator]
     val config         = mock[AppConfig]
     val paths          = new ConcurrentLinkedQueue[Path]()
-    lazy val converter = new MonthlyReturnNdJsonToNpsSubmissionConverter()
+    lazy val converter = new MonthlyReturnNdJsonToNpsSubmissionConverter(fixedClock)
 
     def createFile(prefix: String): TemporaryFile = {
       val file = inject[TemporaryFileCreator].create(prefix)

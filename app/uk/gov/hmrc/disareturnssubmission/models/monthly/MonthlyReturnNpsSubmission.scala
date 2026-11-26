@@ -43,4 +43,57 @@ case class MonthlyReturnNpsSubmission(
 
 object MonthlyReturnNpsSubmission {
   implicit val format: OFormat[MonthlyReturnNpsSubmission] = Json.format[MonthlyReturnNpsSubmission]
+
+  def fromNdJson(submission: MonthlyReturnNdJsonSubmission): MonthlyReturnNpsSubmission = {
+    val c = submission.common
+
+    val base = MonthlyReturnNpsSubmission(
+      accountIdentifier = c.accountNumber,
+      closureDate = None,
+      dateOfBirth = c.dateOfBirth,
+      firstForename = c.firstName,
+      firstSubscription = None,
+      flexibleIsa = None,
+      isaClosureReason = None,
+      isaType = c.isaType,
+      lastSubscription = c.dateOfLastSubscription,
+      lisaBonusClaim = None,
+      lisaClosureReason = None,
+      lisaQualifyingAddition = None,
+      nationalInsuranceNumberAndSuffix = c.nino,
+      secondForename = c.middleName,
+      surname = c.lastName,
+      totalSubscriptions = c.totalCurrentYearSubscriptionsToDate,
+      totalTransferredIn = c.amountTransferredIn,
+      totalTransferredOut = c.amountTransferredOut
+    )
+
+    submission match {
+      case s: MonthlyReturnNdJsonStandardSubscription =>
+        base.copy(flexibleIsa = Some(s.flexibleIsa))
+
+      case s: MonthlyReturnNdJsonStandardClosure =>
+        base.copy(
+          flexibleIsa = Some(s.flexibleIsa),
+          closureDate = Some(s.closureDate),
+          isaClosureReason = Some(s.reasonForClosure) // see note below
+        )
+
+      case s: MonthlyReturnNdJsonLifetimeSubscription =>
+        base.copy(
+          firstSubscription = Some(s.dateOfFirstSubscription),
+          lisaQualifyingAddition = Some(s.lisaQualifyingAddition),
+          lisaBonusClaim = Some(s.lisaBonusClaim)
+        )
+
+      case s: MonthlyReturnNdJsonLifetimeClosure =>
+        base.copy(
+          firstSubscription = Some(s.dateOfFirstSubscription),
+          lisaQualifyingAddition = Some(s.lisaQualifyingAddition),
+          lisaBonusClaim = Some(s.lisaBonusClaim),
+          closureDate = Some(s.closureDate),
+          lisaClosureReason = Some(s.reasonForClosure)
+        )
+    }
+  }
 }

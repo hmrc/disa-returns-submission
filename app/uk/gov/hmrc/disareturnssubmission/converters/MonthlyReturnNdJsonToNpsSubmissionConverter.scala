@@ -20,7 +20,10 @@ import com.fasterxml.jackson.core.*
 import com.fasterxml.jackson.databind.*
 import play.api.libs.json.*
 import play.api.libs.json.jackson.PlayJsonMapperModule
-import uk.gov.hmrc.disareturnssubmission.models.monthly.MonthlyReturnNdJsonSubmission
+import uk.gov.hmrc.disareturnssubmission.models.monthly.{MonthlyReturnNdJsonSubmission, MonthlyReturnNpsSubmission}
+
+import java.time.{Clock, Instant}
+import java.time.temporal.ChronoUnit
 
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.*
@@ -28,7 +31,7 @@ import javax.inject.*
 import scala.util.Using
 
 @Singleton
-class MonthlyReturnNdJsonToNpsSubmissionConverter @Inject() () {
+class MonthlyReturnNdJsonToNpsSubmissionConverter @Inject() (clock: Clock) {
   private val mapper = new ObjectMapper()
     .registerModule(new PlayJsonMapperModule(JsonConfig.settings))
     .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
@@ -53,15 +56,21 @@ class MonthlyReturnNdJsonToNpsSubmissionConverter @Inject() () {
   }
 
   private def writeSubmissionsAsJsonArray(lines: Iterator[(String, Int)], writer: JsonGenerator): Int = {
-    writer.writeStartArray()
+    writer.writeStartObject()
+    writer.writeArrayFieldStart("obligations")
     val count = lines.foldLeft(0) { case (count, (line, index)) =>
-      val lineNumber = index + 1
-      val json       = parseSubmissionJson(line, lineNumber)
-      val submission = validateSubmission(json, lineNumber)
+      val lineNumber                            = index + 1
+      val json                                  = parseSubmissionJson(line, lineNumber)
+      // This is the value we want to convert...
+      val ndJson: MonthlyReturnNdJsonSubmission = validateSubmission(json, lineNumber)
+      val submission                            = MonthlyReturnNpsSubmission.fromNdJson(ndJson)
+      // ...And this array (side effect!!!) needs to then write the convertED value
       writer.writeRawValue(Json.stringify(Json.toJson(submission)))
       count + 1
     }
     writer.writeEndArray()
+    writer.writeStringField("timestamp", Instant.now(clock).truncatedTo(ChronoUnit.MILLIS).toString)
+    writer.writeEndObject()
     count
   }
 

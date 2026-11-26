@@ -27,9 +27,11 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.*
 import scala.collection.mutable.ArrayBuffer
 import scala.util.Using
+import java.time.*
 
 class MonthlyReturnNdJsonToNpsSubmissionConverterSpec extends AnyFreeSpec with Matchers {
-  private val converter            = new MonthlyReturnNdJsonToNpsSubmissionConverter()
+  private val fixedClock           = Clock.fixed(Instant.parse("2024-07-12T16:36:21.445Z"), ZoneOffset.UTC)
+  private val converter            = new MonthlyReturnNdJsonToNpsSubmissionConverter(fixedClock)
   private val backendContent       = Files.readString(fixture("backend"), UTF_8)
   private val records              = backendContent.linesIterator.toVector
   private val expected             = Json.parse(records.mkString("[", ",", "]"))

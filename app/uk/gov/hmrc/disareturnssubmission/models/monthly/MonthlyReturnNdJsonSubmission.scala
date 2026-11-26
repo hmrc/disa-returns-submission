@@ -50,7 +50,7 @@ final case class MonthlyReturnNdJsonStandardClosure(
   common: MonthlyReturnNdJsonSubmissionCommon,
   flexibleIsa: Boolean,
   closureDate: LocalDate,
-  reasonForClosure: LisaClosureReason
+  reasonForClosure: IsaClosureReason
 ) extends MonthlyReturnNdJsonSubmission
 
 final case class MonthlyReturnNdJsonLifetimeSubscription(
@@ -100,7 +100,7 @@ object MonthlyReturnNdJsonSubmission {
     commonReads and
       (__ \ "flexibleIsa").read[Boolean] and
       (__ \ "closureDate").read[LocalDate] and
-      (__ \ "reasonForClosure").read[LisaClosureReason]
+      (__ \ "reasonForClosure").read[IsaClosureReason]
   )(MonthlyReturnNdJsonStandardClosure.apply)
 
   private val lifetimeSubscriptionReads: Reads[MonthlyReturnNdJsonLifetimeSubscription] = (

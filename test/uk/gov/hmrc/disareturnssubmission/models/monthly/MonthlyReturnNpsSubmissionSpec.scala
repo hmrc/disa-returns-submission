@@ -62,7 +62,7 @@ class MonthlyReturnNpsSubmissionSpec extends AnyFreeSpec with Matchers {
       ),
       flexibleIsa = false,
       closureDate,
-      LisaClosureReason.CLOSED
+      IsaClosureReason.CLOSED
     ),
     MonthlyReturnNdJsonLifetimeSubscription(
       common.copy(accountNumber = "ACC789", isaType = IsaType.LIFETIME),
