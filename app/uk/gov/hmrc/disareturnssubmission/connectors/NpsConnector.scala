@@ -73,14 +73,10 @@ class NpsConnector @Inject() (
         .post(url"${appConfig.npsMonthlyReturnSubmissionService}/disa/$zReference/obligations/monthly")(hc)
         .setHeader(
           AUTHORIZATION                           -> s"Bearer ${appConfig.npsMonthlyReturnBearerToken}",
-          "correlationId"                         -> hc.requestId.toString, // required
-          "gov-uk-originator-id"                  -> appConfig.appName, // required
-//          "gov-uk-organisation-id" -> ???,
-//          "gov-uk-user-id"         -> ???,
-//          "gov-uk-user-name"       -> ???,
-//          "gov-uk-job-role"        -> ???,
+          "correlationId"                         -> hc.requestId.toString,
+          "gov-uk-originator-id"                  -> appConfig.appName,
           "managingFinancialInstitutionReference" -> zReference
-        ) // required
+        )
         .withBody(body)
         .execute[HttpResponse]
         .flatMap { response =>
