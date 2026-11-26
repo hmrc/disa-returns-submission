@@ -18,18 +18,11 @@ package uk.gov.hmrc.disareturnssubmission.models.monthly
 
 import play.api.libs.functional.syntax.*
 import play.api.libs.json.*
+import uk.gov.hmrc.disareturnssubmission.models.enums.*
 
 import java.time.LocalDate
 
-enum MonthlyReturnNpsIsaType {
-  case CASH, STOCKS_AND_SHARES, INNOVATIVE_FINANCE, LIFETIME
-}
-
-enum MonthlyReturnNpsClosureReason {
-  case CANCELLED, CLOSED, VOID, TRANSFERRED_IN_FULL, ALL_FUNDS_WITHDRAWN
-}
-
-final case class MonthlyReturnNpsSubmissionCommon(
+final case class MonthlyReturnNdJsonSubmissionCommon(
   accountNumber: String,
   nino: String,
   firstName: String,
@@ -41,40 +34,42 @@ final case class MonthlyReturnNpsSubmissionCommon(
   dateOfLastSubscription: LocalDate,
   totalCurrentYearSubscriptionsToDate: BigDecimal,
   marketValueOfAccount: BigDecimal,
-  isaType: MonthlyReturnNpsIsaType
+  isaType: IsaType
 )
 
-sealed trait MonthlyReturnNpsSubmission {
-  def common: MonthlyReturnNpsSubmissionCommon
+sealed trait MonthlyReturnNdJsonSubmission {
+  def common: MonthlyReturnNdJsonSubmissionCommon
 }
 
-final case class MonthlyReturnNpsStandardSubscription(common: MonthlyReturnNpsSubmissionCommon, flexibleIsa: Boolean)
-    extends MonthlyReturnNpsSubmission
+final case class MonthlyReturnNdJsonStandardSubscription(
+  common: MonthlyReturnNdJsonSubmissionCommon,
+  flexibleIsa: Boolean
+) extends MonthlyReturnNdJsonSubmission
 
-final case class MonthlyReturnNpsStandardClosure(
-  common: MonthlyReturnNpsSubmissionCommon,
+final case class MonthlyReturnNdJsonStandardClosure(
+  common: MonthlyReturnNdJsonSubmissionCommon,
   flexibleIsa: Boolean,
   closureDate: LocalDate,
-  reasonForClosure: MonthlyReturnNpsClosureReason
-) extends MonthlyReturnNpsSubmission
+  reasonForClosure: LisaClosureReason
+) extends MonthlyReturnNdJsonSubmission
 
-final case class MonthlyReturnNpsLifetimeSubscription(
-  common: MonthlyReturnNpsSubmissionCommon,
+final case class MonthlyReturnNdJsonLifetimeSubscription(
+  common: MonthlyReturnNdJsonSubmissionCommon,
   dateOfFirstSubscription: LocalDate,
   lisaQualifyingAddition: BigDecimal,
   lisaBonusClaim: BigDecimal
-) extends MonthlyReturnNpsSubmission
+) extends MonthlyReturnNdJsonSubmission
 
-final case class MonthlyReturnNpsLifetimeClosure(
-  common: MonthlyReturnNpsSubmissionCommon,
+final case class MonthlyReturnNdJsonLifetimeClosure(
+  common: MonthlyReturnNdJsonSubmissionCommon,
   dateOfFirstSubscription: LocalDate,
   lisaQualifyingAddition: BigDecimal,
   lisaBonusClaim: BigDecimal,
   closureDate: LocalDate,
-  reasonForClosure: MonthlyReturnNpsClosureReason
-) extends MonthlyReturnNpsSubmission
+  reasonForClosure: LisaClosureReason
+) extends MonthlyReturnNdJsonSubmission
 
-object MonthlyReturnNpsSubmission {
+object MonthlyReturnNdJsonSubmission {
   private def enumFormat[A](values: Array[A]): Format[A] =
     Format(
       Reads.StringReads.flatMapResult { value =>
@@ -86,48 +81,48 @@ object MonthlyReturnNpsSubmission {
       Writes(value => JsString(value.toString))
     )
 
-  private implicit val isaTypeFormat: Format[MonthlyReturnNpsIsaType]             = enumFormat(MonthlyReturnNpsIsaType.values)
-  private implicit val closureReasonFormat: Format[MonthlyReturnNpsClosureReason] =
-    enumFormat(MonthlyReturnNpsClosureReason.values)
+  private implicit val isaTypeFormat: Format[IsaType]                             = enumFormat(IsaType.values)
+  private implicit val closureReasonFormat: Format[LisaClosureReason]             =
+    enumFormat(LisaClosureReason.values)
   private implicit val decimalReads: Reads[BigDecimal]                            = Reads {
     case JsNumber(value) => JsSuccess(value)
     case _               => JsError("Expected a JSON number")
   }
-  private val commonReads: Reads[MonthlyReturnNpsSubmissionCommon]                = Json.reads[MonthlyReturnNpsSubmissionCommon]
-  private implicit val commonWrites: OWrites[MonthlyReturnNpsSubmissionCommon]    =
-    Json.writes[MonthlyReturnNpsSubmissionCommon]
+  private val commonReads: Reads[MonthlyReturnNdJsonSubmissionCommon]             = Json.reads[MonthlyReturnNdJsonSubmissionCommon]
+  private implicit val commonWrites: OWrites[MonthlyReturnNdJsonSubmissionCommon] =
+    Json.writes[MonthlyReturnNdJsonSubmissionCommon]
 
-  private val standardSubscriptionReads: Reads[MonthlyReturnNpsStandardSubscription] = (
+  private val standardSubscriptionReads: Reads[MonthlyReturnNdJsonStandardSubscription] = (
     commonReads and (__ \ "flexibleIsa").read[Boolean]
-  )(MonthlyReturnNpsStandardSubscription.apply)
+  )(MonthlyReturnNdJsonStandardSubscription.apply)
 
-  private val standardClosureReads: Reads[MonthlyReturnNpsStandardClosure] = (
+  private val standardClosureReads: Reads[MonthlyReturnNdJsonStandardClosure] = (
     commonReads and
       (__ \ "flexibleIsa").read[Boolean] and
       (__ \ "closureDate").read[LocalDate] and
-      (__ \ "reasonForClosure").read[MonthlyReturnNpsClosureReason]
-  )(MonthlyReturnNpsStandardClosure.apply)
+      (__ \ "reasonForClosure").read[LisaClosureReason]
+  )(MonthlyReturnNdJsonStandardClosure.apply)
 
-  private val lifetimeSubscriptionReads: Reads[MonthlyReturnNpsLifetimeSubscription] = (
+  private val lifetimeSubscriptionReads: Reads[MonthlyReturnNdJsonLifetimeSubscription] = (
     commonReads and
       (__ \ "dateOfFirstSubscription").read[LocalDate] and
       (__ \ "lisaQualifyingAddition").read[BigDecimal] and
       (__ \ "lisaBonusClaim").read[BigDecimal]
-  )(MonthlyReturnNpsLifetimeSubscription.apply)
+  )(MonthlyReturnNdJsonLifetimeSubscription.apply)
 
-  private val lifetimeClosureReads: Reads[MonthlyReturnNpsLifetimeClosure] = (
+  private val lifetimeClosureReads: Reads[MonthlyReturnNdJsonLifetimeClosure] = (
     commonReads and
       (__ \ "dateOfFirstSubscription").read[LocalDate] and
       (__ \ "lisaQualifyingAddition").read[BigDecimal] and
       (__ \ "lisaBonusClaim").read[BigDecimal] and
       (__ \ "closureDate").read[LocalDate] and
-      (__ \ "reasonForClosure").read[MonthlyReturnNpsClosureReason]
-  )(MonthlyReturnNpsLifetimeClosure.apply)
+      (__ \ "reasonForClosure").read[LisaClosureReason]
+  )(MonthlyReturnNdJsonLifetimeClosure.apply)
 
-  implicit val reads: Reads[MonthlyReturnNpsSubmission] = Reads { json =>
-    (json \ "isaType").validate[MonthlyReturnNpsIsaType].flatMap { isaType =>
+  implicit val reads: Reads[MonthlyReturnNdJsonSubmission] = Reads { json =>
+    (json \ "isaType").validate[IsaType].flatMap { isaType =>
       val isClosure = (json \ "closureDate").toOption.nonEmpty || (json \ "reasonForClosure").toOption.nonEmpty
-      (isaType == MonthlyReturnNpsIsaType.LIFETIME, isClosure) match {
+      (isaType == IsaType.LIFETIME, isClosure) match {
         case (false, false) => standardSubscriptionReads.reads(json)
         case (false, true)  => standardClosureReads.reads(json)
         case (true, false)  => lifetimeSubscriptionReads.reads(json)
@@ -136,24 +131,24 @@ object MonthlyReturnNpsSubmission {
     }
   }
 
-  implicit val writes: Writes[MonthlyReturnNpsSubmission] = Writes { submission =>
+  implicit val writes: Writes[MonthlyReturnNdJsonSubmission] = Writes { submission =>
     val common   = Json.toJson(submission.common).as[JsObject]
     val specific = submission match {
-      case value: MonthlyReturnNpsStandardSubscription =>
+      case value: MonthlyReturnNdJsonStandardSubscription =>
         Json.obj("flexibleIsa" -> value.flexibleIsa)
-      case value: MonthlyReturnNpsStandardClosure      =>
+      case value: MonthlyReturnNdJsonStandardClosure      =>
         Json.obj(
           "flexibleIsa"      -> value.flexibleIsa,
           "closureDate"      -> value.closureDate,
           "reasonForClosure" -> value.reasonForClosure
         )
-      case value: MonthlyReturnNpsLifetimeSubscription =>
+      case value: MonthlyReturnNdJsonLifetimeSubscription =>
         Json.obj(
           "dateOfFirstSubscription" -> value.dateOfFirstSubscription,
           "lisaQualifyingAddition"  -> value.lisaQualifyingAddition,
           "lisaBonusClaim"          -> value.lisaBonusClaim
         )
-      case value: MonthlyReturnNpsLifetimeClosure      =>
+      case value: MonthlyReturnNdJsonLifetimeClosure      =>
         Json.obj(
           "dateOfFirstSubscription" -> value.dateOfFirstSubscription,
           "lisaQualifyingAddition"  -> value.lisaQualifyingAddition,

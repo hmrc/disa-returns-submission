@@ -20,7 +20,7 @@ import com.fasterxml.jackson.core.*
 import com.fasterxml.jackson.databind.*
 import play.api.libs.json.*
 import play.api.libs.json.jackson.PlayJsonMapperModule
-import uk.gov.hmrc.disareturnssubmission.models.monthly.MonthlyReturnNpsSubmission
+import uk.gov.hmrc.disareturnssubmission.models.monthly.MonthlyReturnNdJsonSubmission
 
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.*
@@ -72,8 +72,8 @@ class MonthlyReturnNdJsonToNpsSubmissionConverter @Inject() () {
         throw new IllegalArgumentException(s"Invalid submission JSON at line $lineNumber")
     }
 
-  private def validateSubmission(json: JsValue, lineNumber: Int): MonthlyReturnNpsSubmission =
-    json.validate[MonthlyReturnNpsSubmission] match {
+  private def validateSubmission(json: JsValue, lineNumber: Int): MonthlyReturnNdJsonSubmission =
+    json.validate[MonthlyReturnNdJsonSubmission] match {
       case JsSuccess(value, _) => value
       case JsError(errors)     =>
         throw new IllegalArgumentException(
