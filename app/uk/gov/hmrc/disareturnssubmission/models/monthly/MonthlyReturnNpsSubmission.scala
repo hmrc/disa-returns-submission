@@ -76,7 +76,7 @@ object MonthlyReturnNpsSubmission {
         base.copy(
           flexibleIsa = Some(s.flexibleIsa),
           closureDate = Some(s.closureDate),
-          isaClosureReason = Some(s.reasonForClosure) // see note below
+          isaClosureReason = Some(s.reasonForClosure)
         )
 
       case s: MonthlyReturnNdJsonLifetimeSubscription =>

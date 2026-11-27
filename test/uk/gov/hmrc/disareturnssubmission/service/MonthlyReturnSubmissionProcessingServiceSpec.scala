@@ -26,7 +26,7 @@ import org.mockito.Mockito.{timeout as mockitoTimeout, *}
 import org.mockito.invocation.InvocationOnMock
 import play.api.Logger
 import play.api.libs.Files.*
-import play.api.libs.json.Json
+import play.api.libs.json.{JsArray, Json}
 import play.api.test.Helpers.*
 import uk.gov.hmrc.disareturnssubmission.config.AppConfig
 import uk.gov.hmrc.disareturnssubmission.connectors.*
@@ -95,7 +95,7 @@ class MonthlyReturnSubmissionProcessingServiceSpec extends SpecBase with LogCapt
         messages.mkString must not include "ACC123"
       }
 
-      Json.parse(await(payload.future).utf8String) mustBe npsSubmissionJson
+      (Json.parse(await(payload.future).utf8String) \ "obligations").as[JsArray] mustBe npsSubmissionJson
       verify(objectStore).getFile(eqTo(item.reference))(any())
       verify(repository).markSubmissionNpsSubmitted(item.zReference, item.taxYear, item.month, item.reference)
       assertCleaned()
@@ -115,8 +115,13 @@ class MonthlyReturnSubmissionProcessingServiceSpec extends SpecBase with LogCapt
           .flatMap { bytes => payloads(index).success(bytes); accepted(index).future }
       }
 
-      val result  = service.process(item)
-      Json.parse(await(payloads.head.future).utf8String) mustBe Json.arr(npsSubmissionJson.value.head)
+      val result = service.process(item)
+      result.failed.foreach(e => payloads.foreach(_.tryFailure(e)))
+
+      // Batch 1 sent, not yet accepted
+      val firstPayload = Json.parse(await(payloads.head.future).utf8String)
+      (firstPayload \ "obligations").as[JsArray] mustBe Json.arr(npsSubmissionJson.value.head)
+
       val batches = paths.asScala.filter(_.getFileName.toString.contains(jsonBatchFileMarker)).toList
       batches.size mustBe batchCount
       batches.foreach(path => Files.exists(path) mustBe true)
@@ -124,13 +129,17 @@ class MonthlyReturnSubmissionProcessingServiceSpec extends SpecBase with LogCapt
       verify(repository, never()).markSubmissionNpsSubmitted(any(), any(), any(), any())
       result.isCompleted mustBe false
 
+      // Accept batch 1: batch 2 is sent, batch 1's file is deleted
       accepted.head.success(())
-      Json.parse(await(payloads(1).future).utf8String) mustBe Json.arr(npsSubmissionJson.value(1))
+      val secondPayload = Json.parse(await(payloads(1).future).utf8String)
+      (secondPayload \ "obligations").as[JsArray] mustBe Json.arr(npsSubmissionJson.value(1))
+
       Files.exists(batches.head) mustBe false
       Files.exists(batches(1)) mustBe true
       verify(repository, never()).markSubmissionNpsSubmitted(any(), any(), any(), any())
       result.isCompleted mustBe false
 
+      // Accept batch 2: everything completes
       accepted(1).success(())
       await(result) mustBe (())
       verify(repository).markSubmissionNpsSubmitted(item.zReference, item.taxYear, item.month, item.reference)
@@ -141,7 +150,7 @@ class MonthlyReturnSubmissionProcessingServiceSpec extends SpecBase with LogCapt
       when(config.monthlyReturnMaxRecordsPerSubmission).thenReturn(singleRecordBatchLimit)
       val thirdRecord = ndjsonContent.linesIterator.next()
       when(objectStore.getFile(any())(any()))
-        .thenReturn(Future.successful(Source.single(ByteString(ndjsonContent + thirdRecord))))
+        .thenReturn(Future.successful(Source.single(ByteString(ndjsonContent + "\n" + thirdRecord))))
       val payloads    = new ConcurrentLinkedQueue[ByteString]()
       val failure     = new IllegalStateException("second batch failed")
       when(nps.sendSubmission(any(), any())).thenAnswer { (invocation: InvocationOnMock) =>
@@ -161,9 +170,8 @@ class MonthlyReturnSubmissionProcessingServiceSpec extends SpecBase with LogCapt
       assertCleaned()
 
       await(service.process(item)) mustBe (())
-      payloads.asScala.toSeq.map(bytes => Json.parse(bytes.utf8String)) mustBe Seq(0, 1, 0, 1, 0).map(index =>
-        Json.arr(npsSubmissionJson.value(index))
-      )
+      payloads.asScala.toSeq.map(bytes => (Json.parse(bytes.utf8String) \ "obligations").as[JsArray]) mustBe
+        Seq(0, 1, 0, 1, 0).map(index => Json.arr(npsSubmissionJson.value(index)))
       verify(objectStore, times(2)).getFile(eqTo(item.reference))(any())
       verify(repository).markSubmissionNpsSubmitted(item.zReference, item.taxYear, item.month, item.reference)
       assertCleaned()
