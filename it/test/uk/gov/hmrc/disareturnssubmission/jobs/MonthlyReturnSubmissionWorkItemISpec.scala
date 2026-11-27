@@ -79,9 +79,13 @@ class MonthlyReturnSubmissionWorkItemISpec
       verify(
         1,
         postRequestedFor(urlEqualTo(npsPath))
-          .withHeader(CONTENT_TYPE, containing(JSON))
           .withHeader(AUTHORIZATION, equalTo(s"Bearer $npsBearerToken"))
-          .withRequestBody(equalToJson(npsSubmissionJson.toString))
+          .withHeader("gov-uk-originator-id", equalTo("disa-returns-submission"))
+          .withHeader("managingFinancialInstitutionReference", equalTo(testZReference))
+          .withRequestBody(
+            equalToJson(Json.obj("obligations" -> npsSubmissionJson).toString, false, true) // ignoreArrayOrder = false, ignoreExtraElements = true
+          )
+          .withRequestBody(matchingJsonPath("$.timestamp"))
       )
 
       putString(submissionPath, ndjsonContent, NDJSON_MIME_TYPE).status                           shouldBe CONFLICT
@@ -91,8 +95,15 @@ class MonthlyReturnSubmissionWorkItemISpec
 
     Seq("backend", "api").foreach { producer =>
       s"transfer all four $producer variants using the shared submission schema" in {
-        val input    = Files.readString(fixture(producer), UTF_8)
-        val expected = Files.readString(fixture("backend"), UTF_8).linesIterator.mkString("[", ",", "]")
+        val input = Files.readString(fixture(producer), UTF_8)
+        val expectedObligations = JsArray(
+          Files
+            .readString(fixture("backend"), UTF_8)
+            .linesIterator
+            .filter(_.trim.nonEmpty)
+            .map(line => Json.toJson(MonthlyReturnNpsSubmission.fromNdJson(Json.parse(line).as[MonthlyReturnNdJsonSubmission])))
+            .toSeq
+        )
         stubNps(NO_CONTENT)
         submit(input)
 
@@ -100,7 +111,12 @@ class MonthlyReturnSubmissionWorkItemISpec
           workItem.status  shouldBe ProcessingStatus.Succeeded
           submissionStatus shouldBe MonthlyReturnSubmissionStatus.NpsSubmitted
         }
-        verify(1, postRequestedFor(urlEqualTo(npsPath)).withRequestBody(equalToJson(expected)))
+        verify(
+          1,
+          postRequestedFor(urlEqualTo(npsPath))
+            .withRequestBody(equalToJson(Json.obj("obligations" -> expectedObligations).toString, false, true))
+            .withRequestBody(matchingJsonPath("$.timestamp"))
+        )
       }
     }
 
@@ -158,7 +174,8 @@ class MonthlyReturnSubmissionWorkItemISpec
       verify(
         2,
         postRequestedFor(urlEqualTo(npsPath))
-          .withRequestBody(equalToJson(npsSubmissionJson.toString))
+          .withRequestBody(equalToJson(Json.obj("obligations" -> npsSubmissionJson).toString, false, true))
+          .withRequestBody(matchingJsonPath("$.timestamp"))
       )
       verify(1, getRequestedFor(urlEqualTo(objectStorePath)))
     }
@@ -168,7 +185,7 @@ class MonthlyReturnSubmissionWorkItemISpec
       stubFor(
         post(urlEqualTo(npsPath))
           .atPriority(1)
-          .withRequestBody(matchingJsonPath("$[0].accountNumber", equalTo(secondBatchFirstAccount)))
+          .withRequestBody(matchingJsonPath("$.obligations[0].accountIdentifier", equalTo(secondBatchFirstAccount)))
           .inScenario("Later batch recovery")
           .whenScenarioStateIs(Scenario.STARTED)
           .willReturn(aResponse().withStatus(INTERNAL_SERVER_ERROR))
@@ -195,7 +212,9 @@ class MonthlyReturnSubmissionWorkItemISpec
         val failingBatch = stubFor(
           post(urlEqualTo(npsPath))
             .atPriority(1)
-            .withRequestBody(matchingJsonPath("$[0].accountNumber", equalTo(secondBatchFirstAccount)))
+            .withRequestBody(
+              matchingJsonPath("$.obligations[0].accountIdentifier", equalTo(secondBatchFirstAccount))
+            )
             .willReturn(aResponse().withStatus(status))
         )
         submit(generatedRecords(recordCount))
@@ -311,10 +330,13 @@ class MonthlyReturnSubmissionWorkItemISpec
       .mkString("", "\n", "\n")
   }
 
+  private def npsRequestBodies: Seq[JsValue] =
+    findAll(postRequestedFor(urlEqualTo(npsPath))).asScala.toSeq
+      .sortBy(_.getLoggedDate.getTime)
+      .map(request => Json.parse(request.getBodyAsString))
+
   private def npsBatches: Seq[Seq[String]] =
-    findAll(postRequestedFor(urlEqualTo(npsPath))).asScala.toSeq.sortBy(_.getLoggedDate.getTime).map { request =>
-      Json.parse(request.getBodyAsString).as[JsArray].value.map(record => (record \ "accountNumber").as[String]).toSeq
-    }
+    npsRequestBodies.map(body => (body \ "obligations").as[Seq[JsValue]].map(r => (r \ "accountIdentifier").as[String]))
 
   private def workItem: WorkItem[MonthlyReturnSubmissionWorkItem] =
     await(inject[MonthlyReturnSubmissionWorkItemRepository].collection.find().headOption()).get
