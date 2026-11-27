@@ -21,7 +21,9 @@ object CodeCoverageSettings {
     "uk.gov.hmrc.disareturnssubmission.models.monthly.CreateMonthlyReturnResponse",
     "uk.gov.hmrc.disareturnssubmission.models.monthly.MonthlyReturnSubmissionDetails",
     "uk.gov.hmrc.disareturnssubmission.models.monthly.MonthlyReturnSubmission",
+    "uk.gov.hmrc.disareturnssubmission.models.monthly.MonthlyReturnNpsSubmission",
     "uk.gov.hmrc.disareturnssubmission.models.audit.*",
+    "uk.gov.hmrc.disareturnssubmission.models.enums.*",
     "uk.gov.hmrc.disareturnssubmission.testOnly.*"
   )
 

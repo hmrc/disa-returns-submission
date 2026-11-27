@@ -83,7 +83,14 @@ trait TestConstants {
       |{"accountNumber":"ACC789","nino":"AB123456C","firstName":"Ada","lastName":"Lovelace","dateOfBirth":"1980-01-02","amountTransferredIn":10,"amountTransferredOut":0,"dateOfLastSubscription":"2026-05-01","totalCurrentYearSubscriptionsToDate":20,"marketValueOfAccount":100,"isaType":"LIFETIME","dateOfFirstSubscription":"2026-04-07","lisaQualifyingAddition":-3,"lisaBonusClaim":4}
       |""".stripMargin
 
-  protected val npsSubmissionJson: JsArray = JsArray(ndjsonContent.linesIterator.map(Json.parse).toSeq)
+  protected val npsSubmissionJson: JsArray =
+    JsArray(
+      ndjsonContent.linesIterator
+        .map(line =>
+          Json.toJson(MonthlyReturnNpsSubmission.fromNdJson(Json.parse(line).as[MonthlyReturnNdJsonSubmission]))
+        )
+        .toSeq
+    )
 
   protected val testTempFile: PlayFiles.TemporaryFile = {
     val file = SingletonTemporaryFileCreator.create("test", ".ndjson")
